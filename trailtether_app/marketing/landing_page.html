@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trailtether | Plan smarter. Hike safer.</title>
+  <meta name="description" content="Trailtether is a hiking safety and trail planning app with routes, GPX imports, weather, offline-aware maps, live tracking, teams, field intel, and SOS tools.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ember: #ff5a1f;
+      --ember-soft: #ffb15e;
+      --forest: #12372a;
+      --lichen: #b8d48b;
+      --ink: #101213;
+      --stone: #e9e3d6;
+      --mist: rgba(255, 255, 255, 0.78);
+      --line: rgba(255, 255, 255, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Outfit", "Segoe UI", sans-serif;
+      color: var(--stone);
+      background: #101213;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .hero {
+      min-height: 92vh;
+      display: grid;
+      align-items: end;
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, rgba(16, 18, 19, 0.90), rgba(18, 55, 42, 0.58) 52%, rgba(16, 18, 19, 0.18)),
+        linear-gradient(0deg, #101213 0%, rgba(16, 18, 19, 0.18) 42%),
+        url("../assets/icon/hero_mountains.jpg") center / cover;
+    }
+
+    .nav {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px clamp(20px, 5vw, 72px);
+      z-index: 2;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .brand img {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      box-shadow: 0 12px 34px rgba(255, 90, 31, 0.28);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 18px;
+      color: var(--mist);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .hero-inner {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 120px 0 78px;
+    }
+
+    .kicker {
+      width: fit-content;
+      color: var(--lichen);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      border: 1px solid rgba(184, 212, 139, 0.34);
+      padding: 9px 12px;
+      border-radius: 6px;
+      background: rgba(16, 18, 19, 0.36);
+    }
+
+    h1 {
+      margin: 22px 0 18px;
+      max-width: 760px;
+      font-size: clamp(58px, 10vw, 132px);
+      line-height: 0.86;
+      letter-spacing: 0;
+      color: #fff5e8;
+      text-shadow: 0 18px 56px rgba(0, 0, 0, 0.44);
+    }
+
+    .subhead {
+      max-width: 690px;
+      font-size: clamp(19px, 2.4vw, 30px);
+      line-height: 1.16;
+      color: rgba(255, 245, 232, 0.88);
+      margin: 0 0 28px;
+      font-weight: 600;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 30px 0 46px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 8px;
+      font-weight: 900;
+      border: 1px solid transparent;
+    }
+
+    .button.primary {
+      background: var(--ember);
+      color: #180904;
+      box-shadow: 0 18px 46px rgba(255, 90, 31, 0.34);
+    }
+
+    .button.secondary {
+      border-color: var(--line);
+      color: var(--stone);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .proof {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      max-width: 850px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(16, 18, 19, 0.42);
+      backdrop-filter: blur(10px);
+    }
+
+    .proof div {
+      padding: 18px 20px;
+      border-right: 1px solid var(--line);
+    }
+
+    .proof div:last-child {
+      border-right: 0;
+    }
+
+    .proof strong {
+      display: block;
+      color: #fff;
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .proof span {
+      display: block;
+      color: var(--mist);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    section {
+      padding: 76px clamp(20px, 5vw, 72px);
+    }
+
+    .section-inner {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+    }
+
+    .section-title {
+      max-width: 760px;
+      margin-bottom: 34px;
+    }
+
+    .eyebrow {
+      color: var(--ember-soft);
+      font-weight: 900;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(34px, 5vw, 64px);
+      line-height: 0.96;
+      color: #fff5e8;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .feature {
+      min-height: 230px;
+      padding: 24px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.045));
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .feature b {
+      display: block;
+      font-size: 22px;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    .feature p {
+      margin: 0;
+      color: rgba(233, 227, 214, 0.78);
+      line-height: 1.5;
+      font-weight: 600;
+    }
+
+    .band {
+      background:
+        linear-gradient(90deg, rgba(18, 55, 42, 0.95), rgba(16, 18, 19, 0.92)),
+        url("../assets/icon/app_icon.png") right 8% center / 320px no-repeat;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 46px;
+      align-items: center;
+    }
+
+    .quote {
+      font-size: clamp(27px, 4vw, 52px);
+      line-height: 1.03;
+      font-weight: 900;
+      color: #fff5e8;
+      margin: 0;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 12px;
+    }
+
+    .check {
+      padding: 15px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      font-weight: 800;
+      color: rgba(255, 245, 232, 0.88);
+    }
+
+    footer {
+      padding: 32px clamp(20px, 5vw, 72px);
+      color: rgba(233, 227, 214, 0.62);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-weight: 700;
+    }
+
+    @media (max-width: 820px) {
+      .nav-links {
+        display: none;
+      }
+
+      .hero {
+        min-height: 88vh;
+      }
+
+      .proof,
+      .feature-grid,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .proof div {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .proof div:last-child {
+        border-bottom: 0;
+      }
+
+      .band {
+        background: linear-gradient(90deg, rgba(18, 55, 42, 0.95), rgba(16, 18, 19, 0.92));
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="#">
+          <img src="../assets/icon/app_icon.png" alt="Trailtether icon">
+          <span>Trailtether</span>
+        </a>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#safety">Safety</a>
+          <a href="#download">Download</a>
+        </div>
+      </nav>
+
+      <div class="hero-inner">
+        <div class="kicker">Android and Windows hiking app</div>
+        <h1>Trailtether</h1>
+        <p class="subhead">Plan smarter. Hike safer. Keep your route, team, weather, field intel, and SOS tools in one trail-ready app.</p>
+        <div class="actions">
+          <a class="button primary" href="../build/app/outputs/flutter-apk/app-release.apk">Download Android APK</a>
+          <a class="button secondary" href="../build/windows/x64/runner/Release/trailtether_app.exe">Get Windows App</a>
+        </div>
+        <div class="proof">
+          <div><strong>211</strong><span>local routes</span></div>
+          <div><strong>GPX</strong><span>import and manage tracks</span></div>
+          <div><strong>2D/3D</strong><span>planning map views</span></div>
+          <div><strong>SOS</strong><span>field safety tools</span></div>
+        </div>
+      </div>
+    </header>
+
+    <section id="features">
+      <div class="section-inner">
+        <div class="section-title">
+          <div class="eyebrow">Built for prepared hikers</div>
+          <h2>Everything important before and during the hike.</h2>
+        </div>
+        <div class="feature-grid">
+          <article class="feature">
+            <b>Plan the route</b>
+            <p>Browse curated trails, compare distance and elevation, import GPX files, and prepare the details before you leave.</p>
+          </article>
+          <article class="feature">
+            <b>Navigate with context</b>
+            <p>Use GPS tracking, offline-aware map tools, 2D and 3D views, recorded hike history, and route-focused map layers.</p>
+          </article>
+          <article class="feature">
+            <b>Read the conditions</b>
+            <p>Check weather, caves, shelters, reviews, hazards, and community field intel before committing to the trail.</p>
+          </article>
+          <article class="feature">
+            <b>Move as a team</b>
+            <p>Create teams, invite members, plan group hikes, chat, and keep the crew aligned from planning to trailhead.</p>
+          </article>
+          <article class="feature">
+            <b>Record the effort</b>
+            <p>Track distance, elevation, speed, GPS health, and hike history so completed routes stay useful after the day ends.</p>
+          </article>
+          <article class="feature">
+            <b>Keep safety close</b>
+            <p>Use SOS, compass, flashlight, emergency-contact planning, and field reports when conditions change outside.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="safety" class="band">
+      <div class="section-inner split">
+        <p class="quote">The hiking app for people who check the route, the weather, the team, and the exit plan.</p>
+        <div class="checklist">
+          <div class="check">Route discovery and GPX imports</div>
+          <div class="check">Offline-aware maps and live tracking</div>
+          <div class="check">Teams, chat, plans, and invites</div>
+          <div class="check">Weather, caves, shelters, incidents, and SOS</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="download">
+      <div class="section-inner">
+        <div class="section-title">
+          <div class="eyebrow">Release builds ready</div>
+          <h2>Take Trailtether with you on Android, plan wider on Windows.</h2>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="../build/app/outputs/flutter-apk/app-release.apk">Download Android APK</a>
+          <a class="button secondary" href="../build/windows/x64/runner/Release/trailtether_app.exe">Get Windows App</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Trailtether. Plan smarter. Hike safer.
+  </footer>
+</body>
+</html>

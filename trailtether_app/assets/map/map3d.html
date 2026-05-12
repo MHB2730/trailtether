@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Trail Planner 3D</title>
+  <script src="./maplibre-gl.js"></script>
+  <link  href="./maplibre-gl.css" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+    html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#0d0d0d}
+    #map{width:100%;height:100%;touch-action:none}
+    #loading{
+      position:absolute;inset:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:#0d0d0d;color:#e8dfc8;font-family:sans-serif;font-size:14px;gap:12px;
+      z-index:999;pointer-events:none
+    }
+    #loading .spin{
+      width:36px;height:36px;
+      border:3px solid rgba(232,84,26,.25);border-top-color:#E8541A;
+      border-radius:50%;animation:sp .8s linear infinite
+    }
+    @keyframes sp{to{transform:rotate(360deg)}}
+    #loading small{font-size:11px;opacity:.45}
+    #err{
+      display:none;position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+      background:rgba(229,57,53,.9);color:#fff;padding:9px 16px;border-radius:8px;
+      font-family:sans-serif;font-size:12px;max-width:90%;text-align:center;
+      z-index:1000;pointer-events:none
+    }
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="spin"></div><span>Loading 3D terrain…</span><small id="st"></small></div>
+  <div id="err"></div>
+  <div id="map"></div>
+  <script>
+  // ── Bridge (Android = MapLibreChannel, Windows = chrome.webview) ──────────
+  function _send(msg) {
+    if (window.MapLibreChannel)                      window.MapLibreChannel.postMessage(msg);
+    else if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(msg);
+  }
+  function _status(t){ var e=document.getElementById('st'); if(e) e.textContent=t; }
+  function _err(msg){
+    var e=document.getElementById('err'); e.textContent=msg; e.style.display='block';
+    setTimeout(function(){ e.style.display='none'; }, 8000);
+    _send('mapError:' + msg);   // forward to Flutter so it can show error UI
+  }
+
+  // Forward uncaught JS errors to Flutter
+  window.onerror = function(msg, src, line, col, err) {
+    _send('mapError:JS ' + msg + ' (' + src + ':' + line + ')');
+  };
+
+  // ── Free tile sources — no API key required ──────────────────────────────
+  var ESRI_SAT  = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  var ESRI_TOPO = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
+  var AWS_DEM   = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+
+  // Inline MapLibre style
+  var STYLE = {
+    version: 8,
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+    sources: {
+      satellite: {
+        type: 'raster',
+        tiles: [ESRI_SAT],
+        tileSize: 256,
+        attribution: 'Esri, DigitalGlobe, GeoEye',
+        maxzoom: 19
+      },
+      topo: {
+        type: 'raster',
+        tiles: [ESRI_TOPO],
+        tileSize: 256,
+        attribution: 'Esri, OpenStreetMap',
+        maxzoom: 19
+      },
+      'terrain-dem': {
+        type: 'raster-dem',
+        encoding: 'terrarium',
+        tiles: [AWS_DEM],
+        tileSize: 256,
+        maxzoom: 15
+      },
+      trails: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      caves: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      incidents: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      recording: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      hazards:   { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      team:      { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }
+    },
+    layers: [
+      { id: 'satellite', type: 'raster', source: 'satellite', paint: { 'raster-opacity': 1 } },
+      { id: 'topo',      type: 'raster', source: 'topo',      paint: { 'raster-opacity': 0 } },
+      {
+        id: 'hazards-fill', type: 'fill', source: 'hazards',
+        paint: {
+          'fill-color': ['get', 'color'],
+          'fill-opacity': 0.35,
+          'fill-outline-color': ['get', 'color']
+        }
+      },
+      {
+        id: 'hazards-label', type: 'symbol', source: 'hazards',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-font': ['Open Sans Bold'],
+          'text-size': 12,
+          'symbol-placement': 'point'
+        },
+        paint: {
+          'text-color': '#fff',
+          'text-halo-color': '#000',
+          'text-halo-width': 1
+        }
+      },
+      {
+        id: 'recording-line', type: 'line', source: 'recording',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 15, 6],
+          'line-opacity': 0.9
+        }
+      }
+    ]
+  };
+
+  // ── Map init ──────────────────────────────────────────────────────────────
+  _status('Initialising map…');
+
+  var map = new maplibregl.Map({
+    container: 'map',
+    style:     STYLE,
+    center:    [0, 20],
+    zoom:       1.8,
+    minZoom:    1.5,
+    maxZoom:    18,
+    pitch:      45,
+    bearing:    0,
+    antialias:  true,
+    maxPitch:   80
+  });
+
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
+
+  // ── Centre-locked scroll-to-zoom ───────────────────────────────────────────
+  map.scrollZoom.disable();
+  map.getCanvas().addEventListener('wheel', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var delta = e.deltaY !== 0 ? e.deltaY : (e.detail || 0);
+    if (e.deltaMode === 1) delta *= 30;
+    if (e.deltaMode === 2) delta *= 300;
+    var step = delta > 0 ? -0.6 : 0.6;
+    var newZoom = Math.max(1.5, Math.min(18, map.getZoom() + step));
+    if (Math.abs(delta) < 60) {
+      map.easeTo({ zoom: newZoom, center: map.getCenter(), duration: 120,
+                   easing: function(t){ return t * (2 - t); } });
+    } else {
+      map.jumpTo({ zoom: newZoom, center: map.getCenter() });
+    }
+  }, { passive: false });
+
+  // ── On load ───────────────────────────────────────────────────────────────
+  var isMapReady = false;
+
+  function setupMapLayers() {
+    if (!map.isStyleLoaded()) return;
+
+    // Terrain
+    if (!map.getSource('terrain-dem')) {
+      map.addSource('terrain-dem', {
+        type: 'raster-dem', encoding: 'terrarium', tiles: [AWS_DEM], tileSize: 256, maxzoom: 15
+      });
+    }
+    map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
+
+    // Sources (if missing)
+    ['trails', 'caves', 'incidents', 'hazards', 'team'].forEach(id => {
+      if (!map.getSource(id)) {
+        map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      }
+    });
+
+    // Layers
+    if (!map.getLayer('trails-line')) {
+      map.addLayer({
+        id: 'trails-line', type: 'line', source: 'trails',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': ['match', ['get', 'difficulty'],
+            'Easy', '#4CAF50', 'Moderate', '#FFC107', 'Hard', '#E8541A', 'Extreme', '#E53935', '#E8DFC8'
+          ],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 11, 2.5, 14, 4],
+          'line-opacity': 0.85
+        }
+      });
+    }
+    if (!map.getLayer('trails-glow')) {
+      map.addLayer({
+        id: 'trails-glow', type: 'line', source: 'trails', filter: ['==', ['get', 'id'], '__none__'],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#fff', 'line-width': 10, 'line-opacity': 0.25, 'line-blur': 5 }
+      });
+    }
+    if (!map.getLayer('trails-selected')) {
+      map.addLayer({
+        id: 'trails-selected', type: 'line', source: 'trails', filter: ['==', ['get', 'id'], '__none__'],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#fff', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2.5, 12, 4, 14, 5.5] }
+      });
+    }
+
+    // Caves
+    var caveColor = ['case', ['boolean', ['get', 'isShelter'], false], '#00897B', '#795548'];
+    if (!map.getLayer('caves-halo')) {
+      map.addLayer({
+        id: 'caves-halo', type: 'circle', source: 'caves',
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 6, 12, 10, 15, 14], 'circle-color': caveColor, 'circle-opacity': 0.25, 'circle-blur': 0.8 }
+      });
+    }
+    if (!map.getLayer('caves-circle')) {
+      map.addLayer({
+        id: 'caves-circle', type: 'circle', source: 'caves',
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 3.5, 12, 6, 15, 9], 'circle-color': caveColor, 'circle-stroke-width': 1.8, 'circle-stroke-color': '#ffffff', 'circle-opacity': 0.95 }
+      });
+    }
+    if (!map.getLayer('caves-label')) {
+      map.addLayer({
+        id: 'caves-label', type: 'symbol', source: 'caves',
+        layout: { 'text-field': ['get', 'shortName'], 'text-font': ['Open Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 11, 9, 14, 11], 'text-anchor': 'top', 'text-offset': [0, 0.6], 'text-optional': true, 'text-max-width': 8, 'text-allow-overlap': false },
+        paint: { 'text-color': '#e8dfc8', 'text-halo-color': '#0d0d0d', 'text-halo-width': 1.5 }
+      });
+    }
+
+    // Incidents
+    var incidentColor = ['match', ['get', 'severity'], 'low', '#4CAF50', 'moderate', '#FFC107', 'high', '#E8541A', 'critical', '#E53935', '#E8DFC8'];
+    if (!map.getLayer('incidents-halo')) {
+      map.addLayer({
+        id: 'incidents-halo', type: 'circle', source: 'incidents',
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 8, 12, 12, 15, 16], 'circle-color': incidentColor, 'circle-opacity': 0.2, 'circle-blur': 0.9 }
+      });
+    }
+    if (!map.getLayer('incidents-circle')) {
+      map.addLayer({
+        id: 'incidents-circle', type: 'circle', source: 'incidents',
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 7, 15, 10], 'circle-color': incidentColor, 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff', 'circle-opacity': 0.92 }
+      });
+    }
+    if (!map.getLayer('incidents-label')) {
+      map.addLayer({
+        id: 'incidents-label', type: 'symbol', source: 'incidents',
+        layout: { 'text-field': ['get', 'typeEmoji'], 'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 14], 'text-allow-overlap': true, 'text-ignore-placement': true, 'text-anchor': 'center' },
+        paint: { 'text-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 11, 1] }
+      });
+    }
+    if (!map.getLayer('incidents-title')) {
+      map.addLayer({
+        id: 'incidents-title', type: 'symbol', source: 'incidents',
+        layout: {
+          'text-field': ['get', 'trailName'],
+          'text-font': ['Open Sans Bold'],
+          'text-size': 9,
+          'text-anchor': 'bottom',
+          'text-offset': [0, -1.2],
+          'text-transform': 'uppercase',
+          'text-optional': true
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#0d0d0d',
+          'text-halo-width': 1.5
+        }
+      });
+    }
+
+    // Team Members
+    if (!map.getLayer('team-circle')) {
+      map.addLayer({
+        id: 'team-circle', type: 'circle', source: 'team',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 7, 15, 10],
+          'circle-color': ['case', ['==', ['get', 'status'], 'help'], '#E53935', '#FB8C00'],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.95
+        }
+      });
+    }
+    if (!map.getLayer('team-label')) {
+      map.addLayer({
+        id: 'team-label', type: 'symbol', source: 'team',
+        layout: {
+          'text-field': ['get', 'displayName'],
+          'text-font': ['Open Sans Bold'],
+          'text-size': 11,
+          'text-anchor': 'top',
+          'text-offset': [0, 0.8]
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#0d0d0d',
+          'text-halo-width': 1.5
+        }
+      });
+    }
+
+    // Default Sky
+    map.setSky({
+      'sky-color': '#1a3a5c', 'sky-horizon-blend': 0.5, 'horizon-color': '#f0e6c8', 'horizon-fog-blend': 0.3, 'fog-color': '#0d0d0d', 'fog-ground-blend': 0.15,
+      'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 14, 0]
+    });
+
+    if (!isMapReady) {
+      isMapReady = true;
+      document.getElementById('loading').style.display = 'none';
+      _send('mapReady');
+    }
+  }
+
+  map.on('load', setupMapLayers);
+  map.on('styledata', setupMapLayers);
+
+  map.on('click', 'trails-line',     e => _send('onTrailTap:' + e.features[0].properties.id));
+  map.on('click', 'caves-circle',    e => { var p=e.features[0].properties; _send('onCaveTap:'+p.name+'|'+p.lat+'|'+p.lon+'|'+p.ele); e.originalEvent.stopPropagation(); });
+  map.on('click', 'incidents-circle',e => { _send('onIncidentTap:' + e.features[0].properties.id); e.originalEvent.stopPropagation(); });
+
+  ['trails-line', 'caves-circle', 'incidents-circle'].forEach(id => {
+    map.on('mouseenter', id, () => map.getCanvas().style.cursor='pointer');
+    map.on('mouseleave', id, () => map.getCanvas().style.cursor='');
+  });
+
+  // ── Public API ────────────────────────────────────────────────────────────
+
+  window.setTrails = function(geojsonStr) {
+    try {
+      var data = (typeof geojsonStr === 'string') ? JSON.parse(geojsonStr) : geojsonStr;
+      var src = map.getSource('trails');
+      if (src) src.setData(data);
+    } catch(e) { console.error('setTrails:', e); }
+  };
+
+  window.flyToFeature = function(id, lon, lat) {
+    var f = ['==', ['get', 'id'], id || '__none__'];
+    if (map.getLayer('trails-selected')) map.setFilter('trails-selected', f);
+    if (map.getLayer('trails-glow'))     map.setFilter('trails-glow',     f);
+    if (lon && lat) {
+      map.flyTo({ center: [lon, lat], zoom: 13, pitch: 65, duration: 1400, essential: true });
+    }
+  };
+
+  window.updateGpsPosition = function(lat, lon, bearing) {
+    if (!lat || !lon) return;
+    if (!window._gpsDot) {
+      var el = document.createElement('div');
+      el.className = 'gps-marker';
+      el.innerHTML = '<div class="pulse"></div><div class="dot"></div><div class="arrow"></div>';
+      // Inline styles for the marker elements
+      var css = `
+        .gps-marker { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+        .gps-marker .dot { width: 14px; height: 14px; background: #4fc3f7; border: 2px solid #fff; border-radius: 50%; z-index: 2; position: relative; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        .gps-marker .pulse { position: absolute; width: 30px; height: 30px; background: rgba(79,195,247,0.4); border-radius: 50%; animation: pulse 2s infinite ease-out; z-index: 1; }
+        .gps-marker .arrow { position: absolute; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 12px solid #4fc3f7; top: -10px; transition: transform 0.2s; display: none; filter: drop-shadow(0 0 2px #fff); }
+        @keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+      `;
+      var style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
+      
+      window._gpsDot = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
+      window._gpsArrow = el.querySelector('.arrow');
+    } else {
+      window._gpsDot.setLngLat([lon, lat]);
+    }
+    if (bearing !== undefined && bearing !== null) {
+      window._gpsArrow.style.display = 'block';
+      window._gpsArrow.style.transform = 'rotate(' + bearing + 'deg)';
+    } else {
+      window._gpsArrow.style.display = 'none';
+    }
+  };
+
+  window.setWeather = function(code, cloudCover) {
+    // WMO Weather Codes: 0-3 clear/cloud, 45-48 fog, 51-65 rain, 71-82 snow
+    var isFoggy = (code >= 45 && code <= 48);
+    var isRaining = (code >= 51 && code <= 65) || (code >= 80 && code <= 82);
+    var isSnowing = (code >= 71 && code <= 75);
+    
+    // Adjust Sky & Fog
+    var skyColor = '#1a3a5c';
+    var horizonColor = '#f0e6c8';
+    if (cloudCover > 50) { skyColor = '#4a5a6a'; horizonColor = '#7a8a9a'; }
+    if (isFoggy || isRaining) { skyColor = '#2c3e50'; horizonColor = '#34495e'; }
+
+    map.setSky({
+      'sky-color': skyColor, 'horizon-color': horizonColor,
+      'sky-horizon-blend': (isFoggy || isRaining) ? 0.8 : 0.5
+    });
+
+    if (isFoggy || isRaining || cloudCover > 80) {
+      map.setFog({
+        'range': isFoggy ? [0.1, 3] : [0.5, 10],
+        'color': isFoggy ? '#95a5a6' : '#2c3e50',
+        'horizon-blend': 0.5
+      });
+    } else {
+      map.setFog(null);
+    }
+    
+    // Note: Advanced particles (rain/snow) could be added via a custom layer or overlay
+    // For now, we simulate the "mood" with fog and sky.
+  };
+
+  window.setStyle = function(type) {
+    // type: 'satellite' or 'topo'
+    if (type === 'topo') {
+      map.setPaintProperty('topo', 'raster-opacity', 1);
+      map.setPaintProperty('satellite', 'raster-opacity', 0);
+    } else {
+      map.setPaintProperty('topo', 'raster-opacity', 0);
+      map.setPaintProperty('satellite', 'raster-opacity', 1);
+    }
+  };
+
+  window.setCaves = function(geojsonStr) {
+    try {
+      var data = (typeof geojsonStr === 'string') ? JSON.parse(geojsonStr) : geojsonStr;
+      var src = map.getSource('caves');
+      if (src) src.setData(data);
+    } catch(e) { console.error('setCaves:', e); }
+  };
+
+  window.setIncidents = function(geojsonStr) {
+    try {
+      var data = (typeof geojsonStr === 'string') ? JSON.parse(geojsonStr) : geojsonStr;
+      var src = map.getSource('incidents');
+      if (src) src.setData(data);
+    } catch(e) { console.error('setIncidents:', e); }
+  };
+
+  window.setRecording = function(geojsonStr) {
+    try {
+      var data = (typeof geojsonStr === 'string') ? JSON.parse(geojsonStr) : geojsonStr;
+      var src = map.getSource('recording');
+      if (src) src.setData(data);
+    } catch(e) { console.error('setRecording:', e); }
+  };
+
+  window.setHazards = function(geojsonStr) {
+    try {
+      var data = (typeof geojsonStr === 'string') ? JSON.parse(geojsonStr) : geojsonStr;
+      var src = map.getSource('hazards');
+      if (src) src.setData(data);
+    } catch(e) { console.error('setHazards:', e); }
+  };
+
+  window.setTeamLocations = function(geojsonStr) {
+    try {
+      var data = (typeof geojsonStr === 'string') ? JSON.parse(geojsonStr) : geojsonStr;
+      var src = map.getSource('team');
+      if (src) src.setData(data);
+    } catch(e) { console.error('setTeamLocations:', e); }
+  };
+
+  window.setViewState = function(lat, lon, zoom) {
+    if (!lat || !lon) return;
+    map.jumpTo({
+      center: [lon, lat],
+      zoom: zoom || map.getZoom()
+    });
+  };
+
+  window.setTerrainEnabled = function(on) {
+    map.setTerrain(on ? { source: 'terrain-dem', exaggeration: 1.5 } : null);
+    map.easeTo({ pitch: on ? 55 : 0, duration: 600 });
+  };
+  </script>
+</body>
+</html>

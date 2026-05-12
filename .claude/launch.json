@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Expo Dev Server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:\\Users\\bremn\\OneDrive\\Documents\\Trailtether", "run", "start"],
+      "port": 8081
+    },
+    {
+      "name": "Expo Web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:\\Users\\bremn\\OneDrive\\Documents\\Trailtether", "run", "web"],
+      "port": 8081
+    },
+    {
+      "name": "Supabase Local Stack",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:\\Users\\bremn\\OneDrive\\Documents\\Trailtether", "run", "supabase:start"],
+      "port": 54321
+    },
+    {
+      "name": "Supabase Studio",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:\\Users\\bremn\\OneDrive\\Documents\\Trailtether", "run", "supabase:start"],
+      "port": 54323
+    }
+  ]
+}

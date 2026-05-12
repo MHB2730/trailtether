@@ -1,0 +1,134 @@
+name: trailtether_app
+description: Trailtether - Trail Planner
+publish_to: 'none'
+version: 1.0.1+2
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Map
+  flutter_map: ^7.0.1
+  flutter_map_tile_caching: ^9.1.0
+  latlong2: ^0.9.0
+  collection: ^1.18.0
+
+  # Charts
+  fl_chart: ^0.69.0
+
+  # Supabase (replaces Firebase)
+  supabase_flutter: ^2.5.0
+
+  # GPS / Location
+  geolocator: ^13.0.1
+  permission_handler: ^11.3.0
+
+  # Sensors (compass + bubble level)
+  sensors_plus: ^6.1.0
+  flutter_compass: ^0.8.0
+
+  # Flashlight
+  torch_light: ^1.0.0
+
+  # File handling
+  file_picker: ^8.1.2
+  gpx: ^2.2.0
+  path_provider: ^2.1.4
+  share_plus: ^10.0.2
+  image_picker: ^1.1.2
+
+  # Device + state
+  device_info_plus: ^10.1.0
+  provider: ^6.1.2
+  http: ^1.2.1
+  connectivity_plus: ^6.0.3
+  google_fonts: ^6.2.1
+  shared_preferences: ^2.3.2
+  google_sign_in: ^6.2.1
+
+  # URL launch (phone/email links)
+  url_launcher: ^6.3.1
+
+  # 3D map (MapLibre GL via WebView)
+  webview_flutter: ^4.10.0
+
+  # QR code
+  qr_flutter: ^4.1.0
+
+  # Utilities
+  uuid: ^4.4.0
+  intl: ^0.19.0
+  webview_windows: ^0.4.0
+  tray_manager: ^0.2.1
+  window_manager: ^0.4.3
+
+  # Notifications
+  flutter_local_notifications: ^17.2.2
+  battery_plus: ^7.0.0
+  mobile_scanner: ^6.0.11
+  flutter_background_service: ^5.1.0
+  health: 12.2.0
+
+  # Self-hosted updates: read current build version + sideload-install new APKs.
+  package_info_plus: ^8.0.2
+  open_filex: ^4.5.0
+
+
+dependency_overrides:
+  app_links: 6.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1
+  msix: ^3.16.1
+
+# ── Native splash screen ─────────────────────────────────────────────────
+flutter_native_splash:
+  color:               "#0D0D0D"
+  image:               "assets/icon/hero_mountains.jpg"
+  android:             true
+  ios:                 false
+  web:                 false
+  android_12:
+    color:             "#0D0D0D"
+    image:             "assets/icon/hero_mountains.jpg"
+  android_gravity:     center
+  fullscreen:          true
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 256
+  image_path: "assets/icon/app_icon.png"
+  min_sdk_android: 26
+  adaptive_icon_background: "#0D0D0D"
+  adaptive_icon_foreground: "assets/icon/app_icon_fg.png"
+
+msix_config:
+  display_name: Trailtether
+  publisher_display_name: Hilltrek
+  publisher: CN=Hilltrek, O=Hilltrek, L=Cape Town, S=Western Cape, C=ZA
+  identity_name: com.trailtether.app
+  msix_version: 1.0.0.0
+  logo_path: assets/icon/app_icon.png
+  capabilities: internetClient, location
+  install_certificate: true
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/data/routes_cleaned.json
+    - assets/data/caves.gpx
+    - assets/map/map3d.html
+    - assets/map/maplibre-gl.js
+    - assets/map/maplibre-gl.css
+    - assets/icon/

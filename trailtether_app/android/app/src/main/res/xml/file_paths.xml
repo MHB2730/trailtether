@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Save this to: android/app/src/main/res/xml/file_paths.xml
+     (create the xml/ folder if it doesn't exist)
+     Required by FilePicker's FileProvider on Android 7+ -->
+<paths>
+    <external-path name="external_files" path="."/>
+    <cache-path name="cache_files" path="."/>
+</paths>

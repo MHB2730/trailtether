@@ -1,0 +1,36 @@
+buildscript {
+    ext.kotlin_version = '2.1.0'
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// Inject flutter.* values for older library plugins (e.g. geolocator_android 4.x)
+// that reference flutter.compileSdkVersion inside their android {} block.
+// Skip :app — it configures its own flutter extension via dev.flutter.flutter-gradle-plugin.
+subprojects {
+    if (project.name != "app") {
+        ext.flutter = [
+            compileSdkVersion: 35,
+            minSdkVersion    : 23,
+            targetSdkVersion : 35,
+            ndkVersion       : "27.0.12077973"
+        ]
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

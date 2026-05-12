@@ -1,0 +1,14 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Trailtether release-signing template.
+#
+# Copy this file to `android/key.properties` (NOT committed to git) and fill in
+# the values from the keystore you create with `keytool` (see RELEASE.md).
+#
+# `android/app/build.gradle` reads this file ONLY when it exists; debug builds
+# do not need it, and the build will fall back to debug signing automatically.
+# ──────────────────────────────────────────────────────────────────────────────
+
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=upload
+storeFile=../trailtether-upload.jks

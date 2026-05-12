@@ -1,0 +1,80 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+**/build/
+out/
+
+# Flutter / Dart
+.dart_tool/
+**/.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+*.iml
+
+# Android
+**/android/.gradle/
+**/android/local.properties
+**/android/app/release/
+**/android/app/debug/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# iOS
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Runner/GeneratedPluginRegistrant.*
+*.ipa
+
+# Windows / MSIX
+*.msix
+*.appx
+**/windows/flutter/ephemeral/
+
+# Logs
+*.log
+build_*.log
+
+# Env / secrets
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Agent / tooling scratch
+.claude/worktrees/
+.agents/
+.codebuddy/
+.commandcode/
+.continue/
+.crush/
+.factory/
+.goose/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.apk-inspect/
+scratch/
+video_out/
+backup/
