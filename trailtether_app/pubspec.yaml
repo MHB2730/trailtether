@@ -125,7 +125,13 @@ msix_config:
   msix_version: 1.0.0.0
   logo_path: assets/icon/app_icon.png
   capabilities: internetClient, location
-  install_certificate: true
+  # Stable signing cert. The .pfx is kept outside the repo (defaults to
+  # %USERPROFILE%\.trailtether-signing\trailtether.pfx); the password is
+  # passed by publish_windows.ps1 via --certificate-password so it never
+  # lands in this file or git history. install_certificate is false because
+  # we manage cert distribution explicitly (the .cer is published as a
+  # release asset and users install it once into Trusted Root CA).
+  install_certificate: false
   # Registers the trailtether:// URL scheme on install so the OAuth callback
   # (trailtether://login-callback?code=...) can reopen the app and complete
   # Google Sign-In via Supabase's PKCE flow.

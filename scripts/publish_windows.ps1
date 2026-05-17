@@ -77,15 +77,49 @@ try {
 
 # -- 2. MSIX packaging -----------------------------------------------------
 Write-Host "[2/4] Packaging MSIX..." -ForegroundColor Cyan
+
+# Resolve the signing cert. Defaults to ~/.trailtether-signing/trailtether.pfx;
+# override either by setting $env:MSIX_CERTIFICATE_PATH. The password is read
+# from $env:MSIX_CERTIFICATE_PASSWORD if set, otherwise prompted interactively
+# (never logged, never committed). Same cert must be used across releases or
+# Windows refuses to apply auto-updates -- the publisher identity has to match.
+$certPath = if ($env:MSIX_CERTIFICATE_PATH) {
+    $env:MSIX_CERTIFICATE_PATH
+} else {
+    Join-Path $env:USERPROFILE ".trailtether-signing\trailtether.pfx"
+}
+if (-not (Test-Path $certPath)) {
+    Write-Error "Signing cert not found at $certPath. Set MSIX_CERTIFICATE_PATH or regenerate via the stable-cert setup instructions."
+}
+
+$certPasswordPlain = if ($env:MSIX_CERTIFICATE_PASSWORD) {
+    $env:MSIX_CERTIFICATE_PASSWORD
+} else {
+    $secure = Read-Host -AsSecureString "Enter the .pfx password"
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    try {
+        [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    } finally {
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+}
+
 Push-Location $appDir
 try {
     # --version overrides pubspec's msix_config.msix_version so the AppxManifest
     # Identity Version matches the pubspec version (otherwise PackageInfo on
     # installed clients reads the stale 1.0.0.0 default and the updater never
     # detects a new release).
-    dart run msix:create --version $msixVersion
+    dart run msix:create `
+        --version $msixVersion `
+        --certificate-path $certPath `
+        --certificate-password $certPasswordPlain `
+        --install-certificate false
     if ($LASTEXITCODE -ne 0) { Write-Error "msix:create failed" }
 } finally {
+    # Best-effort wipe of the plaintext password from this process's memory.
+    $certPasswordPlain = $null
+    [System.GC]::Collect()
     Pop-Location
 }
 
@@ -106,20 +140,37 @@ $assetPath = Join-Path $msixDir $assetName
 if (Test-Path $assetPath) { Remove-Item -Force $assetPath }
 Copy-Item -Path $msixPath -Destination $assetPath
 
+# Publish the public .cer alongside the .msix so new users have a single
+# place to download both. The .cer is safe to share -- it's the public half
+# of the signing cert, used only to mark the publisher as trusted.
+$certPublicPath = [System.IO.Path]::ChangeExtension($certPath, ".cer")
+$certPublicAsset = $null
+if (Test-Path $certPublicPath) {
+    $certPublicAsset = Join-Path $msixDir "trailtether-publisher.cer"
+    if (Test-Path $certPublicAsset) { Remove-Item -Force $certPublicAsset }
+    Copy-Item -Path $certPublicPath -Destination $certPublicAsset
+} else {
+    Write-Host "  [WARN] Public .cer not found at $certPublicPath -- skipping cert asset upload" -ForegroundColor Yellow
+}
+
 # -- 3. Create GitHub release ----------------------------------------------
 Write-Host "[3/4] Creating GitHub release $tagName..." -ForegroundColor Cyan
+
+# Assemble the asset list (always includes the MSIX; includes the .cer if found).
+$assets = @($assetPath)
+if ($certPublicAsset) { $assets += $certPublicAsset }
 
 # Check whether the release already exists; if so, upload the asset to it
 # rather than failing. This makes the script idempotent for re-runs.
 $existing = & gh release view $tagName --json tagName 2>$null
 if ($LASTEXITCODE -eq 0 -and $existing) {
-    Write-Host "  Release $tagName already exists -- uploading asset with --clobber" -ForegroundColor Yellow
-    & gh release upload $tagName $assetPath --clobber
+    Write-Host "  Release $tagName already exists -- uploading assets with --clobber" -ForegroundColor Yellow
+    & gh release upload $tagName @assets --clobber
     if ($LASTEXITCODE -ne 0) { Write-Error "gh release upload failed" }
 } else {
     $ghArgs = @(
-        "release", "create", $tagName,
-        $assetPath,
+        "release", "create", $tagName
+    ) + $assets + @(
         "--title", "Trailtether v$versionName build $versionCode",
         "--notes", $ReleaseNotes
     )

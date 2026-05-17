@@ -51,6 +51,13 @@ build_*.log
 *.pem
 *.key
 secrets/
+# MSIX signing material — .pfx contains the private key, never commit.
+# The matching .cer is the public half and safe to share (uploaded as a
+# GitHub release asset by publish_windows.ps1), but kept untracked here
+# so the on-disk copy can't drift from what's been published.
+*.pfx
+*.cer
+.trailtether-signing/
 
 # IDE
 .idea/
