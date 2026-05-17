@@ -100,7 +100,7 @@ $uploadHeaders = @{
 }
 
 try {
-    Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $uploadHeaders -InFile $apkPath | Out-Null
+    Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $uploadHeaders -InFile $apkPath -UserAgent "trailtether-publisher/1.0" | Out-Null
     Write-Host "  [OK] Uploaded" -ForegroundColor Green
 } catch {
     Write-Error "Upload failed: $_"
@@ -135,7 +135,10 @@ $insertHeaders = @{
 }
 
 try {
-    $resp = Invoke-RestMethod -Uri "$env:SUPABASE_URL/rest/v1/app_releases" -Method Post -Headers $insertHeaders -Body $body
+    # New-style sb_secret_* keys reject browser-like User-Agents on the REST
+    # endpoint, and Invoke-RestMethod defaults to a Mozilla/5.0 UA. Override
+    # it with a server-side identifier so PostgREST accepts the request.
+    $resp = Invoke-RestMethod -Uri "$env:SUPABASE_URL/rest/v1/app_releases" -Method Post -Headers $insertHeaders -Body $body -UserAgent "trailtether-publisher/1.0"
     Write-Host "  [OK] Registered (id=$($resp[0].id))" -ForegroundColor Green
 } catch {
     Write-Error "Insert failed: $_"
