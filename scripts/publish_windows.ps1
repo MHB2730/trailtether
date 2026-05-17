@@ -55,7 +55,7 @@ $nameParts = $versionName.Split('.')
 while ($nameParts.Length -lt 3) { $nameParts += "0" }
 $msixVersion = "$($nameParts[0]).$($nameParts[1]).$($nameParts[2]).$versionCode"
 
-# GitHub release tag — use `-` instead of `+` to avoid URL-encoding surprises.
+# GitHub release tag -- use `-` instead of `+` to avoid URL-encoding surprises.
 $tagName = "v$versionName-$versionCode"
 
 Write-Host ""
@@ -113,7 +113,7 @@ Write-Host "[3/4] Creating GitHub release $tagName..." -ForegroundColor Cyan
 # rather than failing. This makes the script idempotent for re-runs.
 $existing = & gh release view $tagName --json tagName 2>$null
 if ($LASTEXITCODE -eq 0 -and $existing) {
-    Write-Host "  Release $tagName already exists — uploading asset with --clobber" -ForegroundColor Yellow
+    Write-Host "  Release $tagName already exists -- uploading asset with --clobber" -ForegroundColor Yellow
     & gh release upload $tagName $assetPath --clobber
     if ($LASTEXITCODE -ne 0) { Write-Error "gh release upload failed" }
 } else {
