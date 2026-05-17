@@ -189,16 +189,10 @@ class HikeDetailScreen extends StatelessWidget {
             tooltip: 'Sync to Health Connect',
             icon: const Icon(Icons.health_and_safety_outlined),
             onPressed: () async {
-              final ok = await HealthConnectService.writeHike(hike);
+              final result = await HealthConnectService.writeHike(hike);
               if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    ok
-                        ? 'Activity written to Health Connect'
-                        : 'Health Connect sync was not completed',
-                  ),
-                ),
+                SnackBar(content: Text(result.userMessage)),
               );
             },
           ),

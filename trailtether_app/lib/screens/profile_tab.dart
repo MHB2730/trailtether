@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../core/utils.dart';
@@ -350,11 +351,38 @@ class _ProfileView extends StatelessWidget {
                 ],
 
                 const SizedBox(height: 24),
+                const _AppVersionLabel(),
+                const SizedBox(height: 16),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AppVersionLabel extends StatelessWidget {
+  const _AppVersionLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox(height: 16);
+        final info = snapshot.data!;
+        return Center(
+          child: Text(
+            'v${info.version} (build ${info.buildNumber})',
+            style: GoogleFonts.outfit(
+              color: kColorCream.withOpacity(0.35),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        );
+      },
     );
   }
 }

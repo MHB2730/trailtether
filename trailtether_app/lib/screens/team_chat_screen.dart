@@ -8,6 +8,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/constants.dart';
 import '../models/team.dart';
 import '../providers/auth_provider.dart' as ap;
+import '../services/chat_service.dart';
+import '../widgets/common/clear_chat_bar.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TeamChatScreen — private chat for a single team
@@ -105,12 +107,19 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final myUid = context.read<ap.AuthProvider>().uid ?? '';
+    final auth = context.watch<ap.AuthProvider>();
+    final myUid = auth.uid ?? '';
+    final canClear = auth.isAdmin || widget.team.createdBy == myUid;
 
     // Render as a plain Column — this widget is embedded in a TabBarView
     // that already has a Scaffold/AppBar in the parent (TeamDetailScreen).
     return Column(
       children: [
+        if (canClear)
+          ClearChatBar(
+            label: 'Clear team chat',
+            onConfirm: () => ChatService.clearRoom(widget.team.id),
+          ),
         // ── Messages list ─────────────────────────────────────────────
         Expanded(
           child: _msgs.isEmpty
