@@ -162,8 +162,17 @@ if ($certPublicAsset) { $assets += $certPublicAsset }
 
 # Check whether the release already exists; if so, upload the asset to it
 # rather than failing. This makes the script idempotent for re-runs.
+#
+# Note: gh exits 1 when the release doesn't exist (the expected probe case),
+# and under WinPS 5.1 with $ErrorActionPreference=Stop, redirected stderr is
+# promoted to a script-terminating NativeCommandError. Temporarily relax the
+# preference for the probe so the script can interpret the exit code itself.
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $existing = & gh release view $tagName --json tagName 2>$null
-if ($LASTEXITCODE -eq 0 -and $existing) {
+$probeExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($probeExit -eq 0 -and $existing) {
     Write-Host "  Release $tagName already exists -- uploading assets with --clobber" -ForegroundColor Yellow
     & gh release upload $tagName @assets --clobber
     if ($LASTEXITCODE -ne 0) { Write-Error "gh release upload failed" }
