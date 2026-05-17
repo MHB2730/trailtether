@@ -6,23 +6,69 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/saved_hike.dart';
 import 'logger_service.dart';
 
+enum HealthConnectStatus {
+  success,
+  unsupportedPlatform,
+  sdkUnavailable,
+  sdkUpdateRequired,
+  permissionDenied,
+  invalidHike,
+  writeFailed,
+  error,
+}
+
+class HealthConnectResult {
+  final HealthConnectStatus status;
+  final String? detail;
+  const HealthConnectResult(this.status, [this.detail]);
+
+  bool get ok => status == HealthConnectStatus.success;
+
+  String get userMessage {
+    switch (status) {
+      case HealthConnectStatus.success:
+        return 'Activity written to Health Connect';
+      case HealthConnectStatus.unsupportedPlatform:
+        return 'Health Connect is only supported on Android and iOS';
+      case HealthConnectStatus.sdkUnavailable:
+        return 'Health Connect app is not installed on this device';
+      case HealthConnectStatus.sdkUpdateRequired:
+        return 'Health Connect needs to be updated from the Play Store';
+      case HealthConnectStatus.permissionDenied:
+        return 'Health Connect permissions were not granted';
+      case HealthConnectStatus.invalidHike:
+        return 'Hike has too few GPS points to sync';
+      case HealthConnectStatus.writeFailed:
+        return 'Health Connect rejected the write${detail != null ? " ($detail)" : ""}';
+      case HealthConnectStatus.error:
+        return 'Health Connect error${detail != null ? ": $detail" : ""}';
+    }
+  }
+}
+
 class HealthConnectService {
   HealthConnectService._();
 
   static final Health _health = Health();
   static bool _configured = false;
 
-  static const List<HealthDataType> _writeTypes = [
-    HealthDataType.WORKOUT,
-    HealthDataType.DISTANCE_DELTA,
-    HealthDataType.ACTIVE_ENERGY_BURNED,
-  ];
+  // Platform-specific data types.
+  // On Android, writeWorkoutData inserts a TotalCaloriesBurnedRecord for
+  // totalEnergyBurned, so we must request TOTAL_CALORIES_BURNED permission.
+  // On iOS, only ACTIVE_ENERGY_BURNED exists for HKWorkout.totalEnergyBurned.
+  static List<HealthDataType> get _writeTypes => [
+        HealthDataType.WORKOUT,
+        HealthDataType.DISTANCE_DELTA,
+        if (Platform.isAndroid)
+          HealthDataType.TOTAL_CALORIES_BURNED
+        else
+          HealthDataType.ACTIVE_ENERGY_BURNED,
+      ];
 
-  static const List<HealthDataAccess> _writePermissions = [
-    HealthDataAccess.READ_WRITE,
-    HealthDataAccess.READ_WRITE,
-    HealthDataAccess.READ_WRITE,
-  ];
+  static List<HealthDataAccess> get _writePermissions => List.filled(
+        _writeTypes.length,
+        HealthDataAccess.READ_WRITE,
+      );
 
   static Future<void> configure() async {
     if (_configured) return;
@@ -30,37 +76,66 @@ class HealthConnectService {
     _configured = true;
   }
 
-  static Future<bool> isAvailable() async {
-    if (!Platform.isAndroid && !Platform.isIOS) return false;
+  static Future<HealthConnectStatus> _checkAvailability() async {
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      return HealthConnectStatus.unsupportedPlatform;
+    }
     await configure();
+    if (!Platform.isAndroid) return HealthConnectStatus.success;
 
-    if (!Platform.isAndroid) return true;
     final status = await _health.getHealthConnectSdkStatus();
-    return status == HealthConnectSdkStatus.sdkAvailable;
+    LoggerService.log('HEALTH_CONNECT', 'sdkStatus=$status');
+    switch (status) {
+      case HealthConnectSdkStatus.sdkAvailable:
+        return HealthConnectStatus.success;
+      case HealthConnectSdkStatus.sdkUnavailableProviderUpdateRequired:
+        return HealthConnectStatus.sdkUpdateRequired;
+      case HealthConnectSdkStatus.sdkUnavailable:
+      default:
+        return HealthConnectStatus.sdkUnavailable;
+    }
   }
 
-  static Future<bool> requestWriteAccess() async {
-    if (!await isAvailable()) return false;
+  static Future<bool> isAvailable() async =>
+      await _checkAvailability() == HealthConnectStatus.success;
+
+  static Future<HealthConnectStatus> _ensureAuthorized() async {
+    final availability = await _checkAvailability();
+    if (availability != HealthConnectStatus.success) return availability;
 
     if (Platform.isAndroid) {
       await Permission.activityRecognition.request();
       await Permission.location.request();
     }
 
-    return _health.requestAuthorization(
+    final hasPerms = await _health.hasPermissions(
       _writeTypes,
       permissions: _writePermissions,
     );
+    LoggerService.log('HEALTH_CONNECT', 'hasPermissions=$hasPerms');
+
+    if (hasPerms == true) return HealthConnectStatus.success;
+
+    final granted = await _health.requestAuthorization(
+      _writeTypes,
+      permissions: _writePermissions,
+    );
+    LoggerService.log('HEALTH_CONNECT', 'requestAuthorization=$granted');
+    return granted
+        ? HealthConnectStatus.success
+        : HealthConnectStatus.permissionDenied;
   }
 
-  static Future<bool> writeHike(SavedHike hike) async {
+  static Future<HealthConnectResult> writeHike(SavedHike hike) async {
     if (hike.points.length < 2 || hike.endedAt.isBefore(hike.startedAt)) {
-      return false;
+      return const HealthConnectResult(HealthConnectStatus.invalidHike);
     }
 
     try {
-      final authorized = await requestWriteAccess();
-      if (!authorized) return false;
+      final authStatus = await _ensureAuthorized();
+      if (authStatus != HealthConnectStatus.success) {
+        return HealthConnectResult(authStatus);
+      }
 
       final workoutType = switch (hike.activityType.toLowerCase()) {
         'run' || 'running' => HealthWorkoutActivityType.RUNNING,
@@ -86,10 +161,12 @@ class HealthConnectService {
         'HEALTH_CONNECT',
         'writeHike ${ok ? "ok" : "failed"}: ${hike.name}',
       );
-      return ok;
+      return ok
+          ? const HealthConnectResult(HealthConnectStatus.success)
+          : const HealthConnectResult(HealthConnectStatus.writeFailed);
     } catch (e, stack) {
       LoggerService.error('HEALTH_CONNECT', 'writeHike failed: $e', stack);
-      return false;
+      return HealthConnectResult(HealthConnectStatus.error, e.toString());
     }
   }
 

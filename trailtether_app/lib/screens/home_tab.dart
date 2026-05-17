@@ -213,6 +213,7 @@ class _HomeTabState extends State<HomeTab> {
                         },
                       ),
                     ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: _QuickActionButton(
                         label: 'LIVE TRACK',
