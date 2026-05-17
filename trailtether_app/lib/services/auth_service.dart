@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../core/supabase_options.dart';
@@ -25,6 +27,16 @@ class AuthService {
       );
 
   static Future<AuthResponse?> signInWithGoogle() async {
+    // google_sign_in only ships native plugins for Android and iOS. On Windows
+    // / macOS / Linux the call throws MissingPluginException, which the auth
+    // provider previously masked as "Something went wrong". Surface a real
+    // message instead, until desktop OAuth (browser + deep-link) is wired up.
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      throw const AuthException(
+        'Google Sign-In is not yet supported on desktop. Please sign in with email and password.',
+      );
+    }
+
     try {
       // 1. Initialize Google Sign In
       // NOTE: For Android, the SHA-1 must be registered in Google Cloud Console.
