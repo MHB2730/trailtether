@@ -8,6 +8,8 @@ import '../models/community.dart';
 import '../providers/auth_provider.dart' as ap;
 import '../providers/chat_provider.dart';
 import '../providers/community_provider.dart';
+import '../services/chat_service.dart';
+import '../widgets/common/clear_chat_bar.dart';
 import '../widgets/common/user_avatar.dart';
 import '../widgets/common/blueprint_background.dart';
 import '../widgets/common/glass_panel.dart';
@@ -438,8 +440,14 @@ class _GeneralChatView extends StatelessWidget {
     return Consumer<ChatProvider>(
       builder: (_, chat, __) {
         final msgs = chat.messages;
+        final isAdmin = context.watch<ap.AuthProvider>().isAdmin;
         return Column(
           children: [
+            if (isAdmin)
+              ClearChatBar(
+                label: 'Clear community chat',
+                onConfirm: () => ChatService.clearRoom('general'),
+              ),
             Expanded(
               child: msgs.isEmpty
                   ? Center(

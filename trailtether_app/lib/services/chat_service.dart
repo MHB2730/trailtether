@@ -45,6 +45,12 @@ class ChatService {
     });
   }
 
+  /// Delete every message in [roomId]. RLS restricts who can do this:
+  /// global admins for any room; team creators for their team's room.
+  static Future<void> clearRoom(String roomId) async {
+    await _db.from(kColChat).delete().eq('room_id', roomId);
+  }
+
   static Future<void> updateMessage(
     String roomId,
     String messageId,
