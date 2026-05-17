@@ -85,7 +85,7 @@ if ($apkSizeBytes -gt 50000000) {
 $apkSha256 = (Get-FileHash -Algorithm SHA256 -Path $apkPath).Hash.ToLower()
 
 # -- 2. Upload to Supabase Storage -----------------------------------------
-$objectName  = "android/trailtether-$versionName-$versionCode.apk"
+$objectName  = "trailtether-$versionName-$versionCode.apk"
 $uploadUrl   = "$env:SUPABASE_URL/storage/v1/object/app-releases/$objectName"
 $downloadUrl = "$env:SUPABASE_URL/storage/v1/object/public/app-releases/$objectName"
 
@@ -109,10 +109,16 @@ try {
 # -- 3. Insert release row -------------------------------------------------
 Write-Host "[3/3] Registering release in app_releases..." -ForegroundColor Cyan
 
+# Flutter's --split-per-abi mutates versionCode in the APK manifest:
+#   arm64-v8a → 2 * 1000 + baseCode
+# The client reads this mutated value from the manifest, so the DB must store
+# the same number, otherwise the comparison breaks (server=5, phone=2005).
+$arm64VersionCode = 2 * 1000 + $versionCode
+
 $row = @{
     platform                   = "android"
     version_name               = $versionName
-    version_code               = $versionCode
+    version_code               = $arm64VersionCode
     download_url               = $downloadUrl
     sha256                     = $apkSha256
     release_notes              = $ReleaseNotes
