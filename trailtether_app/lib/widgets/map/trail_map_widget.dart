@@ -198,7 +198,11 @@ class _TrailMapWidgetState extends State<TrailMapWidget> {
         ),
         if (widget.showCaves)
           CaveMarkerLayer(
-            onCaveTap: widget.onCaveTap ?? (_) {},
+            // Pass through nullable so CaveMarkerLayer's built-in fallback
+            // (open CaveDetailSheet) fires when the screen doesn't supply
+            // its own handler. The previous `?? (_) {}` no-op swallowed all
+            // cave taps on the 2D map, since map_screen doesn't forward one.
+            onCaveTap: widget.onCaveTap,
           ),
 
         const AccommodationMarkerLayer(),

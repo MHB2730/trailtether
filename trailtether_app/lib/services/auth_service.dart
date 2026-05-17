@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../core/supabase_options.dart';
@@ -25,6 +27,28 @@ class AuthService {
       );
 
   static Future<AuthResponse?> signInWithGoogle() async {
+    // Desktop (Windows/macOS/Linux): google_sign_in has no native plugin, so
+    // hand off to Supabase's browser-based PKCE flow. The browser redirects to
+    // trailtether://login-callback, which DeepLinkService picks up and turns
+    // into a session via getSessionFromUrl. Returning null here is correct —
+    // the AuthProvider listens to authStateStream and will update once the
+    // session lands. The MSIX install registers trailtether:// on Windows; on
+    // macOS / Linux the protocol still needs to be wired in the runner before
+    // the callback can re-enter the app.
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      final launched = await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'trailtether://login-callback',
+        authScreenLaunchMode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        throw const AuthException(
+          'Could not open the browser for Google Sign-In. Check your default browser is set, then try again.',
+        );
+      }
+      return null;
+    }
+
     try {
       // 1. Initialize Google Sign In
       // NOTE: For Android, the SHA-1 must be registered in Google Cloud Console.
