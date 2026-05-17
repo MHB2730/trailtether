@@ -27,14 +27,26 @@ class AuthService {
       );
 
   static Future<AuthResponse?> signInWithGoogle() async {
-    // google_sign_in only ships native plugins for Android and iOS. On Windows
-    // / macOS / Linux the call throws MissingPluginException, which the auth
-    // provider previously masked as "Something went wrong". Surface a real
-    // message instead, until desktop OAuth (browser + deep-link) is wired up.
+    // Desktop (Windows/macOS/Linux): google_sign_in has no native plugin, so
+    // hand off to Supabase's browser-based PKCE flow. The browser redirects to
+    // trailtether://login-callback, which DeepLinkService picks up and turns
+    // into a session via getSessionFromUrl. Returning null here is correct —
+    // the AuthProvider listens to authStateStream and will update once the
+    // session lands. The MSIX install registers trailtether:// on Windows; on
+    // macOS / Linux the protocol still needs to be wired in the runner before
+    // the callback can re-enter the app.
     if (!Platform.isAndroid && !Platform.isIOS) {
-      throw const AuthException(
-        'Google Sign-In is not yet supported on desktop. Please sign in with email and password.',
+      final launched = await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'trailtether://login-callback',
+        authScreenLaunchMode: LaunchMode.externalApplication,
       );
+      if (!launched) {
+        throw const AuthException(
+          'Could not open the browser for Google Sign-In. Check your default browser is set, then try again.',
+        );
+      }
+      return null;
     }
 
     try {

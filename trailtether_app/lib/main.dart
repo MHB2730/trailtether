@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/runtime_config.dart';
 import 'core/supabase_options.dart';
+import 'services/deep_link_service.dart';
 import 'services/logger_service.dart';
 import 'services/notification_service.dart';
 import 'services/offline_map_service.dart';
@@ -62,6 +63,15 @@ void main() async {
     await NotificationService.instance.init();
   } catch (e) {
     LoggerService.error('SYSTEM', 'Notification init failed: $e');
+  }
+
+  // 4b. Start the deep-link listener so OAuth callbacks (desktop) and
+  // future trailtether:// links route to the right handler.
+  try {
+    await DeepLinkService.init();
+    LoggerService.log('SYSTEM', 'Deep link service initialized');
+  } catch (e, stack) {
+    LoggerService.error('SYSTEM', 'Deep link init failed', stack);
   }
 
   // 5. Set orientation/UI overlay

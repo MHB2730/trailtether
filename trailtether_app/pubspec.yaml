@@ -76,6 +76,10 @@ dependencies:
   package_info_plus: ^8.0.2
   open_filex: ^4.5.0
 
+  # Inbound deep links — routes trailtether:// URLs back into the app for
+  # OAuth callback completion on desktop.
+  app_links: 6.4.1
+
 
 dependency_overrides:
   app_links: 6.4.1
@@ -122,6 +126,10 @@ msix_config:
   logo_path: assets/icon/app_icon.png
   capabilities: internetClient, location
   install_certificate: true
+  # Registers the trailtether:// URL scheme on install so the OAuth callback
+  # (trailtether://login-callback?code=...) can reopen the app and complete
+  # Google Sign-In via Supabase's PKCE flow.
+  protocol_activation: trailtether
 
 flutter:
   uses-material-design: true
