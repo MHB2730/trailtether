@@ -10,6 +10,7 @@ import 'package:torch_light/torch_light.dart';
 import '../core/constants.dart';
 import 'gpx_upload_screen.dart';
 import 'hike_history_screen.dart';
+import 'recorded_trails_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/static_data_provider.dart';
 import '../services/logger_service.dart';
@@ -36,6 +37,7 @@ class _ToolsTabState extends State<ToolsTab>
         'Info',
         'Locations',
         'Activities',
+        'Trails',
         'Tracks',
       ];
 
@@ -117,6 +119,7 @@ class _ToolsTabState extends State<ToolsTab>
                   const UsefulInfoTool(),
                   const LocationsTool(),
                   const HikeHistoryScreen(embedded: true),
+                  const RecordedTrailsScreen(embedded: true),
                   const _TracksTool(),
                 ],
               ),
@@ -138,6 +141,7 @@ class _ToolsTabState extends State<ToolsTab>
       'Info' => Icons.info_outline,
       'Locations' => Icons.hotel_outlined,
       'Activities' => Icons.query_stats_rounded,
+      'Trails' => Icons.timeline,
       'Tracks' => Icons.route_outlined,
       _ => Icons.build,
     };

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/saved_hike.dart';
 import '../services/logger_service.dart';
+import '../services/recorded_trail_service.dart';
 
 class HikeHistoryProvider extends ChangeNotifier {
   static const _prefKey = 'saved_hikes_v1';
@@ -34,6 +35,15 @@ class HikeHistoryProvider extends ChangeNotifier {
 
     if (userId != null) {
       await syncToSupabase(hike, userId);
+      // Promote the hike to a (private) recorded trail so it appears in the
+      // Trails section with an elevation profile, ready to be shared to the
+      // community via the share button on the detail screen.
+      try {
+        await RecordedTrailService.saveFromHike(hike, userId);
+      } catch (e, stack) {
+        LoggerService.error(
+            'TRAILS', 'promoteFromHike failed: $e', stack);
+      }
     }
 
     notifyListeners();
