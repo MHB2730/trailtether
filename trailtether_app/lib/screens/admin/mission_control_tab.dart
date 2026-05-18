@@ -248,6 +248,9 @@ class _MissionControlTabState extends State<MissionControlTab> {
 
     if (result == true && controller.text.isNotEmpty) {
       try {
+        // The incidents_insert RLS policy requires auth.uid() = created_by.
+        // Without this the broadcast insert was being rejected with 42501.
+        final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
         final broadcast = Incident(
           id: '',
           lat: _locations.isNotEmpty ? _locations.values.first.lat : 0.0,
@@ -258,6 +261,7 @@ class _MissionControlTabState extends State<MissionControlTab> {
           incidentDate: DateTime.now(),
           reportedAt: DateTime.now(),
           deviceId: 'ADMIN_CONSOLE',
+          createdBy: uid,
           isEmergency: true,
           status: 'open',
         );
@@ -489,12 +493,22 @@ class _MissionControlTabState extends State<MissionControlTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (loc.status != null && loc.status != 'Tracking')
+            // Only badge non-default statuses. 'active' is the baseline
+            // live-sharing state and doesn't need a banner; 'recording'
+            // (currently hiking) gets the brand orange so it pops on the
+            // map; sos/help stay red; arrived shows green.
+            if (loc.status != null &&
+                loc.status != 'active' &&
+                loc.status != 'Tracking')
               Container(
                 margin: const EdgeInsets.only(bottom: 2),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
-                  color: loc.status == 'help' ? Colors.red : Colors.green,
+                  color: (loc.status == 'sos' || loc.status == 'help')
+                      ? Colors.red
+                      : loc.status == 'recording'
+                          ? kColorOrange
+                          : Colors.green,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -725,11 +739,15 @@ class _MissionControlTabState extends State<MissionControlTab> {
 
   Widget _buildSidebarHeader() {
     // Roster summary — at-a-glance state of the whole group.
-    int liveCount = 0, recentCount = 0, lostCount = 0;
+    // recordingCount = live AND status='recording' (actively in a hike right
+    // now, not just leaving the app open). This is what the user actually
+    // wants to see in the command centre header.
+    int liveCount = 0, recentCount = 0, lostCount = 0, recordingCount = 0;
     bool anyEmergency = false;
     for (final loc in _locations.values) {
       if (loc.isLive) {
         liveCount++;
+        if (loc.status == 'recording') recordingCount++;
       } else if (loc.isRecent) {
         recentCount++;
       } else {
@@ -784,12 +802,13 @@ class _MissionControlTabState extends State<MissionControlTab> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
+              _statusPill('Recording', recordingCount, kColorOrange),
               _statusPill('Live', liveCount, const Color(0xFF22C55E)),
-              const SizedBox(width: 6),
               _statusPill('Recent', recentCount, const Color(0xFFEAB308)),
-              const SizedBox(width: 6),
               _statusPill('Lost', lostCount, const Color(0xFFEF4444)),
             ],
           ),

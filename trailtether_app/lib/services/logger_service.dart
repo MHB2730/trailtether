@@ -88,8 +88,11 @@ class LoggerService {
         'level': level,
         'platform': defaultTargetPlatform.name,
       });
-    } catch (_) {
-      // Don't log logging errors to avoid infinite loops
+    } catch (e) {
+      // Surface failures via debugPrint only — never via log()/error() or
+      // we'd loop. Previously this catch was silent, which hid the fact
+      // that the table had no INSERT RLS policy and every sync failed.
+      debugPrint('app_logs sync failed: $e');
     }
   }
 
@@ -100,7 +103,18 @@ class LoggerService {
 
     debugPrint(entry);
     _memoryLogs.add(entry);
+    if (_memoryLogs.length > _maxLogs) _memoryLogs.removeAt(0);
+    for (final listener in _listeners) {
+      listener(entry);
+    }
     _writeToFile(entry);
+
+    // Mirror errors to the remote console too — that's the whole point of
+    // the diagnostic console's "Remote" mode. Previously only log() was
+    // synced, so the most interesting entries never reached the table.
+    if (_remoteLoggingEnabled) {
+      _syncToSupabase(tag, '$error', 'error');
+    }
   }
 
   static Future<void> _writeToFile(String entry) async {

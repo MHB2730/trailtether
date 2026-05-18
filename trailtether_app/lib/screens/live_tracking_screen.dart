@@ -19,6 +19,7 @@ import '../models/saved_hike.dart';
 import '../providers/hike_history_provider.dart';
 import '../providers/recording_provider.dart';
 import '../providers/team_provider.dart';
+import '../providers/team_tracking_provider.dart';
 import '../providers/auth_provider.dart' as ap;
 import '../services/weather_service.dart';
 import '../services/offline_map_service.dart';
@@ -61,11 +62,16 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     _weatherTimer =
         Timer.periodic(const Duration(minutes: 30), (_) => _fetchWeather());
 
-    // Start passive tracking to show signal health before recording
+    // Start passive tracking to show signal health before recording, and
+    // tell TeamTrackingProvider to broadcast position while this screen is
+    // open. Without setLiveSharing(true), tapping LIVE TRACK on the home
+    // tab silently does nothing on the wire — no broadcasts unless the
+    // user also taps START TRACKING or has a selected team.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _recordingProvider ??= context.read<RecordingProvider>();
       _recordingProvider?.startPassiveTracking();
+      context.read<TeamTrackingProvider>().setLiveSharing(true);
     });
   }
 
@@ -75,6 +81,14 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     _weatherTimer?.cancel();
     _recordingProvider?.removeListener(_onRecordingChanged);
     _recordingProvider?.stopPassiveTracking();
+    // Stop broadcasting once the screen is gone (recording, if active,
+    // keeps the broadcast loop alive via its own trigger).
+    try {
+      // ignore: use_build_context_synchronously
+      context.read<TeamTrackingProvider>().setLiveSharing(false);
+    } catch (_) {
+      // Context may be unmounted in some teardown paths; safe to ignore.
+    }
     super.dispose();
   }
 
