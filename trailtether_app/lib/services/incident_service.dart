@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/incident.dart';
 import '../core/constants.dart';
@@ -54,6 +57,36 @@ class IncidentService {
       } else {
         rethrow;
       }
+    }
+  }
+
+  /// Upload an incident photo to the `incident-photos` bucket and return
+  /// its public URL. Caller threads the URL through `Incident.photoUrl`
+  /// so it lands in the row on insert.
+  static Future<String?> uploadPhoto(File file, String userId) async {
+    try {
+      final ext = file.path.split('.').last.toLowerCase();
+      final mime = switch (ext) {
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'heic' => 'image/heic',
+        _ => 'image/jpeg',
+      };
+      final path =
+          '$userId/${DateTime.now().millisecondsSinceEpoch}-${file.uri.pathSegments.last}';
+      final bytes = await file.readAsBytes();
+      await _db.storage.from('incident-photos').uploadBinary(
+            path,
+            Uint8List.fromList(bytes),
+            fileOptions:
+                FileOptions(contentType: mime, upsert: false),
+          );
+      final url = _db.storage.from('incident-photos').getPublicUrl(path);
+      LoggerService.log('INCIDENT', 'Photo uploaded: $path');
+      return url;
+    } catch (e, stack) {
+      LoggerService.error('INCIDENT', 'uploadPhoto failed: $e', stack);
+      return null;
     }
   }
 

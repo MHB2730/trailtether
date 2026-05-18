@@ -18,6 +18,34 @@ class TeamTrackingProvider extends ChangeNotifier {
   RecordingProvider? _recordingProvider;
   TeamProvider? _teamProvider;
 
+  /// Whether the user has explicitly opened the Live Tracking screen and
+  /// expects their position to be visible to the command centre / team.
+  /// Toggled by [LiveTrackingScreen] in initState / dispose. Without this,
+  /// the only triggers for broadcasting are `isRecording` or a selected
+  /// team, which meant tapping LIVE TRACK on the home tab silently did
+  /// nothing.
+  bool _liveSharingEnabled = false;
+  bool get liveSharingEnabled => _liveSharingEnabled;
+
+  bool get _shouldTrack {
+    final isRecording = _recordingProvider?.isRecording ?? false;
+    return isRecording ||
+        _teamProvider?.selectedTeam != null ||
+        _liveSharingEnabled;
+  }
+
+  void setLiveSharing(bool enabled) {
+    if (_liveSharingEnabled == enabled) return;
+    _liveSharingEnabled = enabled;
+    LoggerService.log('TRACKING', 'live sharing -> $enabled');
+    if (enabled) {
+      if (!_isTracking) _startTracking();
+    } else if (!_shouldTrack) {
+      _stopTracking();
+    }
+    _safeNotify();
+  }
+
   set recordingProvider(RecordingProvider p) {
     final bool wasRecording = _recordingProvider?.isRecording ?? false;
     final bool isRecording = p.isRecording;
@@ -26,10 +54,10 @@ class TeamTrackingProvider extends ChangeNotifier {
 
     _recordingProvider = p;
 
-    if (isRecording || _teamProvider?.selectedTeam != null) {
+    if (_shouldTrack) {
       if (!_isTracking) {
         _startTracking();
-      } else if (isRecording && posChanged) {
+      } else if ((isRecording || _liveSharingEnabled) && posChanged) {
         // Feed live data immediately but throttle to avoid DB spam (max once per 3s)
         final now = DateTime.now();
         if (_lastReportAt == null ||
@@ -47,9 +75,9 @@ class TeamTrackingProvider extends ChangeNotifier {
   set teamProvider(TeamProvider p) {
     if (_teamProvider != p) {
       _teamProvider = p;
-      if (p.selectedTeam != null && !_isTracking) {
+      if (_shouldTrack && !_isTracking) {
         _startTracking();
-      } else if (p.selectedTeam == null && !(_recordingProvider?.isRecording ?? false)) {
+      } else if (!_shouldTrack) {
         _stopTracking();
       }
       // If team changes, force an immediate report if active
@@ -176,14 +204,15 @@ class TeamTrackingProvider extends ChangeNotifier {
     _reporting = true;
 
     try {
-      // Report if either an active hike plan exists OR we are recording with a selected team
+      // Report if any of:
+      //   - active hike plan with teamId
+      //   - selected team
+      //   - actively recording (admin console sees all active hikers)
+      //   - live sharing toggled on (user opened the Live Tracking screen)
       final bool isRecording = _recordingProvider?.isRecording ?? false;
       final String? teamId =
           _activeHike?.teamId ?? _teamProvider?.selectedTeam?.id;
-
-      // We allow reporting without a teamId if we are recording, so the admin console can see all active hikers.
-      // Report if we have a teamId OR we are recording
-      if (teamId == null && !isRecording) return;
+      if (teamId == null && !isRecording && !_liveSharingEnabled) return;
 
       final uid = _uid;
       if (uid == null || uid.isEmpty) {

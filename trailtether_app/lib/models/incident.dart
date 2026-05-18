@@ -272,6 +272,7 @@ class Incident {
   final List<String> verifiedUids;
   final bool isVerified;
   final int verificationCount;
+  final String? photoUrl;
 
   const Incident({
     required this.id,
@@ -295,6 +296,7 @@ class Incident {
     this.verifiedUids = const [],
     this.isVerified = false,
     this.verificationCount = 0,
+    this.photoUrl,
   });
 
   /// Parses a row into an Incident. Throws [FormatException] on missing or
@@ -337,6 +339,7 @@ class Incident {
       verifiedUids: (d['verified_uids'] as List?)?.map((e) => e.toString()).toList() ?? [],
       isVerified: d['is_verified'] as bool? ?? false,
       verificationCount: (d['verification_count'] as num?)?.toInt() ?? 0,
+      photoUrl: d['photo_url'] as String?,
     );
   }
 
@@ -368,6 +371,7 @@ class Incident {
         if (trailName != null) 'trail_name': trailName,
         'flag_count': flagCount,
         'verified_uids': verifiedUids,
+        if (photoUrl != null) 'photo_url': photoUrl,
       };
 
   Map<String, dynamic> toUpdateMap() => {

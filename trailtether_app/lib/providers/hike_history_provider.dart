@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/saved_hike.dart';
 import '../services/logger_service.dart';
+import '../services/recorded_trail_service.dart';
 
 class HikeHistoryProvider extends ChangeNotifier {
   static const _prefKey = 'saved_hikes_v1';
@@ -34,6 +35,15 @@ class HikeHistoryProvider extends ChangeNotifier {
 
     if (userId != null) {
       await syncToSupabase(hike, userId);
+      // Promote the hike to a (private) recorded trail so it appears in the
+      // Trails section with an elevation profile, ready to be shared to the
+      // community via the share button on the detail screen.
+      try {
+        await RecordedTrailService.saveFromHike(hike, userId);
+      } catch (e, stack) {
+        LoggerService.error(
+            'TRAILS', 'promoteFromHike failed: $e', stack);
+      }
     }
 
     notifyListeners();
@@ -62,9 +72,54 @@ class HikeHistoryProvider extends ChangeNotifier {
         'created_at': hike.startedAt.toIso8601String(),
       });
       LoggerService.log('SYNC', 'Hike synced to Supabase: ${hike.id}');
+
+      // Post to community_activities so the feed actually has content.
+      // Without this, the feed has only check-ins from cave/trail screens
+      // and shows nothing for recorded hikes.
+      await _postCommunityActivity(client, hike, userId);
     } catch (e, stack) {
       LoggerService.error(
           'SYNC', 'Failed to sync hike ${hike.id} to Supabase: $e', stack);
+    }
+  }
+
+  Future<void> _postCommunityActivity(
+      SupabaseClient client, SavedHike hike, String userId) async {
+    try {
+      final user = client.auth.currentUser;
+      final displayName = (user?.userMetadata?['display_name'] as String?) ??
+          (user?.userMetadata?['full_name'] as String?) ??
+          user?.email?.split('@').first ??
+          'Hiker';
+
+      final hours = hike.durationSeconds ~/ 3600;
+      final minutes = (hike.durationSeconds % 3600) ~/ 60;
+      final durationStr =
+          hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
+      final subtitle =
+          '${hike.distanceKm.toStringAsFixed(1)} km · ${hike.ascentM} m ascent · $durationStr';
+
+      await client.from('community_activities').insert({
+        'user_id': userId,
+        'user_name': displayName,
+        'team_id': hike.teamId,
+        'type': 'hike_completed',
+        'title': hike.name,
+        'subtitle': subtitle,
+        'timestamp': hike.endedAt.toIso8601String(),
+        'metadata': {
+          'distance_km': hike.distanceKm,
+          'ascent_m': hike.ascentM,
+          'duration_seconds': hike.durationSeconds,
+          'activity_type': hike.activityType,
+          'peaks_climbed': hike.peaksClimbed,
+          'hike_id': hike.id,
+        },
+      });
+      LoggerService.log('COMMUNITY', 'Posted activity for hike ${hike.id}');
+    } catch (e, stack) {
+      LoggerService.error(
+          'COMMUNITY', 'Failed to post activity for ${hike.id}: $e', stack);
     }
   }
 

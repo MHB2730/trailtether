@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../providers/team_provider.dart';
@@ -34,6 +37,24 @@ class _FieldIntelSheetState extends State<FieldIntelSheet> {
   final _nameCtrl = TextEditingController();
   bool _submitting = false;
   String? _error;
+  File? _photo;
+  final _picker = ImagePicker();
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        imageQuality: 80,
+      );
+      if (picked == null || !mounted) return;
+      setState(() => _photo = File(picked.path));
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Could not load that photo.');
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -109,6 +130,15 @@ class _FieldIntelSheetState extends State<FieldIntelSheet> {
     try {
       final deviceId = await DeviceService.getDeviceId();
       final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
+
+      // Upload the photo (if any) first so the URL can land on the row in
+      // a single insert. Upload failure doesn't block the report -- the
+      // text content is the safety-critical part; the photo is supporting.
+      String? photoUrl;
+      if (_photo != null && uid.isNotEmpty) {
+        photoUrl = await IncidentService.uploadPhoto(_photo!, uid);
+      }
+
       final incident = Incident(
         id: '',
         lat: widget.position.latitude,
@@ -123,6 +153,7 @@ class _FieldIntelSheetState extends State<FieldIntelSheet> {
         trailId: widget.nearestTrail?.id,
         trailName: name.isNotEmpty ? name : widget.nearestTrail?.name,
         incidentTeamId: teamId,
+        photoUrl: photoUrl,
       );
 
       await IncidentService.addIncident(incident);
@@ -418,6 +449,18 @@ class _FieldIntelSheetState extends State<FieldIntelSheet> {
               ),
             ),
 
+            const SizedBox(height: 20),
+
+            // ── Photo (optional) ────────────────────────────────────────────
+            const _SectionLabel('Photo (optional)'),
+            const SizedBox(height: 10),
+            _PhotoPicker(
+              photo: _photo,
+              onPickCamera: () => _pickPhoto(ImageSource.camera),
+              onPickGallery: () => _pickPhoto(ImageSource.gallery),
+              onRemove: () => setState(() => _photo = null),
+            ),
+
             // ── Error ──────────────────────────────────────────────────────
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -523,4 +566,86 @@ class _SectionLabel extends StatelessWidget {
           letterSpacing: 0.5,
         ),
       );
+}
+
+class _PhotoPicker extends StatelessWidget {
+  final File? photo;
+  final VoidCallback onPickCamera;
+  final VoidCallback onPickGallery;
+  final VoidCallback onRemove;
+
+  const _PhotoPicker({
+    required this.photo,
+    required this.onPickCamera,
+    required this.onPickGallery,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (photo != null) {
+      return Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.file(
+              photo!,
+              width: double.infinity,
+              height: 180,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Material(
+              color: Colors.black.withOpacity(0.55),
+              shape: const CircleBorder(),
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                tooltip: 'Remove photo',
+                onPressed: onRemove,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextButton.icon(
+              icon: Icon(Icons.photo_camera_outlined,
+                  color: kColorOrange.withOpacity(0.85)),
+              label: Text('Camera',
+                  style: GoogleFonts.outfit(
+                      color: kColorCream, fontSize: 13)),
+              onPressed: onPickCamera,
+            ),
+          ),
+          Container(
+              width: 1,
+              height: 28,
+              color: Colors.white.withOpacity(0.08)),
+          Expanded(
+            child: TextButton.icon(
+              icon: Icon(Icons.photo_library_outlined,
+                  color: kColorOrange.withOpacity(0.85)),
+              label: Text('Gallery',
+                  style: GoogleFonts.outfit(
+                      color: kColorCream, fontSize: 13)),
+              onPressed: onPickGallery,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

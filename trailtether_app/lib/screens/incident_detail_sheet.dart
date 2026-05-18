@@ -319,6 +319,39 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                   fontSize: 14,
                   height: 1.6)),
 
+          if ((incident.photoUrl ?? '').isNotEmpty) ...[
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(
+                incident.photoUrl!,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    height: 180,
+                    alignment: Alignment.center,
+                    color: Colors.white.withOpacity(0.03),
+                    child: const CircularProgressIndicator(
+                        strokeWidth: 2, color: kColorOrange),
+                  );
+                },
+                errorBuilder: (_, __, ___) => Container(
+                  height: 80,
+                  alignment: Alignment.center,
+                  color: Colors.white.withOpacity(0.03),
+                  child: Text(
+                    'Photo unavailable offline',
+                    style: GoogleFonts.outfit(
+                        color: kColorCream.withOpacity(0.45),
+                        fontSize: 12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 16),
           _Divider(),
           const SizedBox(height: 14),
