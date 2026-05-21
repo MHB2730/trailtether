@@ -64,19 +64,19 @@ Write-Host ""
 # -- 1. Build APK ----------------------------------------------------------
 # Split-per-ABI on so each APK stays under the 50 MB Supabase free-plan upload cap.
 # Modern Android phones (~2017+) all use arm64-v8a; we publish only that variant.
-Write-Host "[1/3] Building release APKs (split-per-abi)..." -ForegroundColor Cyan
+Write-Host "[1/3] Building release APKs (sideload flavor, split-per-abi)..." -ForegroundColor Cyan
 Push-Location $appDir
 try {
-    flutter build apk --release --split-per-abi
+    flutter build apk --release --flavor sideload --split-per-abi
     if ($LASTEXITCODE -ne 0) { Write-Error "flutter build apk failed" }
 } finally {
     Pop-Location
 }
-$apkPath = Join-Path $appDir "build\app\outputs\flutter-apk\app-arm64-v8a-release.apk"
-if (-not (Test-Path $apkPath)) { Write-Error "arm64-v8a APK not found at $apkPath" }
+$apkPath = Join-Path $appDir "build\app\outputs\flutter-apk\app-arm64-v8a-sideload-release.apk"
+if (-not (Test-Path $apkPath)) { Write-Error "arm64-v8a sideload APK not found at $apkPath" }
 $apkSizeBytes = (Get-Item $apkPath).Length
 $apkSizeMB = [math]::Round(($apkSizeBytes / 1048576), 1)
-Write-Host "  [OK] arm64-v8a APK ready ($apkSizeMB MB)" -ForegroundColor Green
+Write-Host "  [OK] arm64-v8a sideload APK ready ($apkSizeMB MB)" -ForegroundColor Green
 if ($apkSizeBytes -gt 50000000) {
     Write-Warning "APK is over 50 MB. Supabase free plan will reject the upload."
 }
