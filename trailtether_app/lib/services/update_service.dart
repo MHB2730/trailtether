@@ -57,6 +57,13 @@ class UpdateService {
   ///   - Others  → unknown (no-op)
   Future<UpdateStatus> check() async {
     try {
+      // Under Google Play Store guidelines, self-updates are strictly prohibited.
+      const flavor = String.fromEnvironment('FLUTTER_APP_FLAVOR');
+      if (flavor == 'playStore') {
+        LoggerService.log('UPDATE', 'Self-update disabled for Google Play Store build');
+        return _status = const UpdateStatus.unknown();
+      }
+
       final info = await PackageInfo.fromPlatform();
       final currentCode = int.tryParse(info.buildNumber) ?? 0;
 
@@ -179,6 +186,12 @@ class UpdateService {
   /// location, then hand it to the system installer. The OS-level "Install?"
   /// prompt the user sees is a security guarantee — we can't bypass it.
   Future<bool> downloadAndInstall() async {
+    const flavor = String.fromEnvironment('FLUTTER_APP_FLAVOR');
+    if (flavor == 'playStore') {
+      LoggerService.log('UPDATE', 'downloadAndInstall aborted: self-updates disabled on Google Play');
+      return false;
+    }
+
     final s = _status;
     if (s is! _AvailableUpdate) {
       LoggerService.log('UPDATE', 'downloadAndInstall called with no pending update');

@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/runtime_config.dart';
 import 'core/supabase_options.dart';
+import 'core/theme.dart';
 import 'services/deep_link_service.dart';
 import 'services/logger_service.dart';
 import 'services/notification_service.dart';
@@ -163,17 +164,7 @@ class _TrailtetherAppState extends State<TrailtetherApp> {
     return MaterialApp(
       title: 'Trailtether',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0A0A0A),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE8541A),
-          brightness: Brightness.dark,
-          primary: const Color(0xFFE8541A),
-          surface: const Color(0xFF141414),
-        ),
-      ),
+      theme: appDarkTheme,
       // UpdateGate sits above AuthGate so a critical update can block even
       // unauthenticated users — without it, a safety-fix release couldn't be
       // enforced for someone stuck on a broken sign-in flow.

@@ -35,8 +35,6 @@
     <!-- ── Vibration (SOS haptic feedback) ──────────────────────────── -->
     <uses-permission android:name="android.permission.VIBRATE"/>
 
-    <!-- ── Self-update: sideload-install a downloaded APK ──────────── -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <application
         android:label="Trailtether"
@@ -133,10 +131,6 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- Self-update: launch the system package installer for the downloaded APK. -->
-        <intent>
-            <action android:name="android.intent.action.VIEW"/>
-            <data android:mimeType="application/vnd.android.package-archive"/>
-        </intent>
+
     </queries>
 </manifest>

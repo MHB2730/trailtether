@@ -7,7 +7,7 @@ import 'logger_service.dart';
 class InboundFileService {
   InboundFileService._();
 
-  static const _channel = MethodChannel('com.trailtether.app/inbound_files');
+  static const _channel = MethodChannel('co.za.trailtether.app/inbound_files');
   static bool _initialized = false;
 
   static Future<void> init(GpxProvider gpxProvider) async {

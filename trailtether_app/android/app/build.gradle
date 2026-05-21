@@ -23,7 +23,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace "com.trailtether.app"
+    namespace "co.za.trailtether.app"
     compileSdk 36
     ndkVersion "27.0.12077973"
 
@@ -38,12 +38,23 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.trailtether.app"
+        applicationId "co.za.trailtether.app"
         minSdk 26
-        targetSdk 36
+        targetSdk 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
+    }
+
+    flavorDimensions "distribution"
+
+    productFlavors {
+        sideload {
+            dimension "distribution"
+        }
+        playStore {
+            dimension "distribution"
+        }
     }
 
     signingConfigs {
