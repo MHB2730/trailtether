@@ -146,7 +146,7 @@ class _TrailMapWidgetState extends State<TrailMapWidget> {
       key: ValueKey('${widget.tileStyleIndex}'),
       urlTemplate: style.url,
       tileProvider: OfflineMapService.tileProvider(),
-      userAgentPackageName: 'co.za.trailtether.app',
+      userAgentPackageName: 'com.trailtether.app',
       maxZoom: style.maxZoom,
     );
 

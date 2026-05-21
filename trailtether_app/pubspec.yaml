@@ -1,7 +1,7 @@
 name: trailtether_app
 description: Trailtether - Trail Planner
 publish_to: 'none'
-version: 2.0.1+15
+version: 2.0.1+16
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -121,7 +121,7 @@ msix_config:
   display_name: Trailtether
   publisher_display_name: Hilltrek
   publisher: CN=Hilltrek, O=Hilltrek, L=Cape Town, S=Western Cape, C=ZA
-  identity_name: co.za.trailtether.app
+  identity_name: com.trailtether.app
   msix_version: 1.0.0.0
   logo_path: assets/icon/app_icon.png
   capabilities: internetClient, location
