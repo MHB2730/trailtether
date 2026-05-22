@@ -9,7 +9,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:torch_light/torch_light.dart';
 import '../core/constants.dart';
 import 'gpx_upload_screen.dart';
-import 'hike_history_screen.dart';
+import 'tt_activity_screen.dart';
 import 'recorded_trails_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/static_data_provider.dart';
@@ -118,7 +118,7 @@ class _ToolsTabState extends State<ToolsTab>
                   const _SunCalculatorTool(),
                   const UsefulInfoTool(),
                   const LocationsTool(),
-                  const HikeHistoryScreen(embedded: true),
+                  const TTActivityScreen(embedded: true),
                   const RecordedTrailsScreen(embedded: true),
                   const _TracksTool(),
                 ],
