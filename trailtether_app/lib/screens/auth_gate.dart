@@ -5,7 +5,8 @@ import 'app_shell.dart';
 import 'desktop_shell.dart';
 import '../core/constants.dart';
 
-import 'onboarding_screen.dart';
+import 'onboarding_screen.dart' show hasCompletedOnboarding, markOnboardingDone;
+import 'tt_welcome_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -44,9 +45,10 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     if (!_onboardingDone) {
-      return OnboardingScreen(
-        onDone: () {
-          setState(() => _onboardingDone = true);
+      return TTWelcomeScreen(
+        onDone: () async {
+          await markOnboardingDone();
+          if (mounted) setState(() => _onboardingDone = true);
         },
       );
     }

@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import '../core/constants.dart';
-import 'home_tab.dart';
-import 'map_screen.dart';
-import 'tools_tab.dart';
-import 'chat_tab.dart';
-import 'teams_tab.dart';
-import 'profile_tab.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../core/design_tokens.dart';
+import '../providers/team_provider.dart';
+import '../widgets/design/tt_bottom_nav.dart';
+import 'tt_community_screen.dart';
+import 'tt_home_screen.dart';
+import 'tt_map_screen.dart';
+import 'tt_profile_screen.dart';
+import 'tt_team_screen.dart';
+import 'tt_tools_screen.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
-// App Shell — 6-tab navigation (Trails moved to Map button)
+// App Shell — Trailtether v3.0 6-tab navigation
 //   0 Home · 1 Map · 2 Tools · 3 Community · 4 Teams · 5 Profile
+// Each tab hosts a TT-skinned screen embedded inside this shell's Scaffold so
+// the bottom nav stays persistent across tab switches.
 // ══════════════════════════════════════════════════════════════════════════════
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart';
-import '../providers/team_provider.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -39,29 +42,19 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: TT.bg,
       body: _LazyTabStack(
         index: _index,
         children: [
-          HomeTab(onNavigate: (i) {
-            // Adjust home navigation indices to match new shell
-            // Home originally pointed to: 1 Trails, 2 Map, 3 Tools, 4 Chat...
-            // Now: 1 Map, 2 Tools, 3 Community...
-            if (i == 1) _goTo(1); // Trails -> Map (since trails are on map now)
-            if (i == 2) _goTo(1); // Map -> Map
-            if (i == 3) _goTo(2); // Tools -> Tools
-            if (i == 4) _goTo(3); // Chat -> Community
-            if (i == 5) _goTo(4); // Teams -> Teams
-            if (i == 6) _goTo(5); // Profile -> Profile
-          }),
-          const MapScreen(), // 1 Map
-          const ToolsTab(), // 2 Tools
-          const ChatTab(), // 3 Community
-          const TeamsTab(), // 4 Teams
-          const ProfileTab(), // 5 Profile
+          TTHomeScreen(embedded: true, onNavigate: _goTo),
+          const TTMapScreen(embedded: true),
+          const TTToolsScreen(embedded: true),
+          const TTCommunityScreen(embedded: true),
+          const TTTeamScreen(embedded: true),
+          const TTProfileScreen(embedded: true),
         ],
       ),
-      bottomNavigationBar: _BottomNav(
+      bottomNavigationBar: TTBottomNav(
         currentIndex: _index,
         onTap: _goTo,
       ),
@@ -99,92 +92,4 @@ class _LazyTabStackState extends State<_LazyTabStack> {
       }),
     );
   }
-}
-
-class _BottomNav extends StatelessWidget {
-  final int currentIndex;
-  final void Function(int) onTap;
-  const _BottomNav({required this.currentIndex, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      _NavItem(Icons.home_outlined, Icons.home_rounded, 'Home'),
-      _NavItem(Icons.map_outlined, Icons.map_rounded, 'Map'),
-      _NavItem(Icons.explore_outlined, Icons.explore, 'Tools'),
-      _NavItem(Icons.public_outlined, Icons.public_rounded, 'Community'),
-      _NavItem(Icons.group_outlined, Icons.group, 'Teams'),
-      _NavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
-    ];
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: kColorBg,
-        border: Border(top: BorderSide(color: kColorBorder, width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (i) {
-              final item = items[i];
-              final sel = i == currentIndex;
-              return Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onTap(i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: sel ? 20 : 0,
-                          height: sel ? 3 : 0,
-                          margin: const EdgeInsets.only(bottom: 4),
-                          decoration: BoxDecoration(
-                            color: kColorOrange,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        Icon(
-                          sel ? item.activeIcon : item.icon,
-                          color: sel
-                              ? kColorOrange
-                              : kColorCream.withOpacity(0.35),
-                          size: 20,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          item.label,
-                          style: GoogleFonts.outfit(
-                            color: sel
-                                ? kColorOrange
-                                : kColorCream.withOpacity(0.35),
-                            fontSize: 9,
-                            fontWeight:
-                                sel ? FontWeight.w700 : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem {
-  final IconData icon, activeIcon;
-  final String label;
-  const _NavItem(this.icon, this.activeIcon, this.label);
 }
