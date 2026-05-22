@@ -10,7 +10,11 @@
 const kSupabaseUrl = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
 const kSupabaseAnonKey = 'sb_publishable_1EoOSHJLk5Wlh8ZSDR3Vjw_9WtQgv30';
 
-/// The "Web Client ID" from Google Cloud Console.
-/// Required for Google Sign-In on Android to return an ID token.
+/// Web OAuth Client ID from Google Cloud Console.
+/// Used as serverClientId by the native google_sign_in flow on Android/iOS so
+/// Google returns an ID token Supabase can validate. The Android OAuth client
+/// (same Google Cloud project, package com.trailtether.app + the upload
+/// keystore's SHA-1) authorizes the calling app at consent time but is not
+/// referenced in code.
 const kGoogleWebClientId =
-    '336083371264-tuh7egb5imrd34o12rsgoornvu2s25ek.apps.googleusercontent.com';
+    '269171860007-38o8kk1tm1p59el7e5ghscmu812rpn6g.apps.googleusercontent.com';

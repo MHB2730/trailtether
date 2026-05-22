@@ -1,10 +1,16 @@
 import 'dart:io' show Platform;
 
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../core/supabase_options.dart';
 
 SupabaseClient get _supabase => Supabase.instance.client;
+
+final GoogleSignIn _googleSignIn = GoogleSignIn(
+  serverClientId: kGoogleWebClientId,
+);
 
 class AuthService {
   // â”€â”€ Stream â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -27,60 +33,58 @@ class AuthService {
       );
 
   static Future<AuthResponse?> signInWithGoogle() async {
-    // Desktop (Windows/macOS/Linux): google_sign_in has no native plugin, so
-    // hand off to Supabase's browser-based PKCE flow. The browser redirects to
-    // trailtether://login-callback, which DeepLinkService picks up and turns
-    // into a session via getSessionFromUrl. Returning null here is correct —
-    // the AuthProvider listens to authStateStream and will update once the
-    // session lands. The MSIX install registers trailtether:// on Windows; on
-    // macOS / Linux the protocol still needs to be wired in the runner before
-    // the callback can re-enter the app.
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      final launched = await _supabase.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'trailtether://login-callback',
-        authScreenLaunchMode: LaunchMode.externalApplication,
-      );
-      if (!launched) {
+    // Mobile: native account picker via Play Services / Sign In with Apple
+    // bridge. The Android OAuth client in Google Cloud Console (package
+    // com.trailtether.app + the upload keystore's SHA-1) authorizes the
+    // calling app; the Web client whose ID we pass as serverClientId is what
+    // mints the ID token Supabase validates.
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null; // user dismissed the sheet
+
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null) {
         throw const AuthException(
-          'Could not open the browser for Google Sign-In. Check your default browser is set, then try again.',
+          'Google did not return an ID token. Make sure the Android OAuth client in Google Cloud Console matches this app\'s package name and signing-cert SHA-1.',
         );
       }
-      return null;
-    }
-
-    try {
-      // 1. Initialize Google Sign In
-      // NOTE: For Android, the SHA-1 must be registered in Google Cloud Console.
-      // For iOS, the reverse client ID must be added to Info.plist.
-      final googleSignIn = GoogleSignIn(
-        serverClientId: kGoogleWebClientId,
-      );
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) return null; // User cancelled
-
-      // 2. Get auth details from Google
-      final googleAuth = await googleUser.authentication;
-      final accessToken = googleAuth.accessToken;
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null) {
-        throw const AuthException('No ID Token found.');
-      }
-
-      // 3. Authenticate with Supabase
-      return await _supabase.auth.signInWithIdToken(
+      return _supabase.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
-        accessToken: accessToken,
+        accessToken: googleAuth.accessToken,
       );
-    } catch (e) {
-      rethrow;
     }
+
+    // Desktop/web: browser PKCE flow. The OAuth redirect lands on
+    // trailtether://login-callback, picked up by DeepLinkService which
+    // exchanges the code through getSessionFromUrl. Returning null is
+    // correct — AuthProvider's authStateStream listener notices the new
+    // session asynchronously.
+    final launched = await _supabase.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: 'trailtether://login-callback',
+      authScreenLaunchMode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      throw const AuthException(
+        'Could not open the browser for Google Sign-In. Check your default browser is set, then try again.',
+      );
+    }
+    return null;
   }
 
   // â”€â”€ Sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  static Future<void> signOut() => _supabase.auth.signOut();
+  static Future<void> signOut() async {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {
+        // not signed in via Google — fine, fall through to Supabase signOut
+      }
+    }
+    await _supabase.auth.signOut();
+  }
 
   // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   /// Display-friendly error messages for Supabase AuthException.

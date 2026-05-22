@@ -27,6 +27,8 @@ out/
 *.aab
 *.keystore
 *.jks
+*.jks.*
+**/android/key.properties
 
 # iOS
 **/ios/Pods/
@@ -44,6 +46,7 @@ out/
 # Logs
 *.log
 build_*.log
+doctor.txt
 
 # Env / secrets
 .env

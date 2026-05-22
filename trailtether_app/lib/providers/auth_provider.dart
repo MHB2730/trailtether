@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/runtime_config.dart';
 import '../services/auth_service.dart';
@@ -115,6 +116,12 @@ class AuthProvider extends ChangeNotifier {
       _busy = false;
       notifyListeners();
       return false;
+    } on PlatformException catch (e, stack) {
+      _error = _friendlyPlatformError(e);
+      LoggerService.error('AUTH_PLATFORM_ERROR', _error, stack);
+      _busy = false;
+      notifyListeners();
+      return false;
     } catch (e, stack) {
       _error = 'Something went wrong. Please try again.';
       LoggerService.error('AUTH_ERROR', e, stack);
@@ -122,6 +129,14 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  String _friendlyPlatformError(PlatformException e) {
+    final msg = e.message ?? '';
+    if (msg.toLowerCase().contains('network')) {
+      return 'No internet connection. Please check your network and try again.';
+    }
+    return 'Sign-in failed: ${e.message ?? e.toString()}';
   }
 
   void clearError() {
