@@ -37,24 +37,42 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  void _goTo(int i) => setState(() => _index = i);
+  void _goTo(int i) {
+    // Tab switch is one of the two places the soft keyboard most often
+    // overstays its welcome (the other is a route/dialog pop). If the user
+    // was typing in, say, Community search and taps Home, Flutter won't
+    // release the IME on its own — the keyboard sits there blanketing the
+    // new tab. Drop focus before swapping the body so the IME hides.
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _index = i);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TT.bg,
-      body: SafeArea(
-        bottom: false,
-        child: _LazyTabStack(
-          index: _index,
-          children: [
-            TTHomeScreen(embedded: true, onNavigate: _goTo),
-            const TTMapScreen(embedded: true),
-            const TTToolsScreen(embedded: true),
-            const TTCommunityScreen(embedded: true),
-            TTTeamScreen(embedded: true, onNavigate: _goTo),
-            const TTProfileScreen(embedded: true),
-          ],
+      // Tap-anywhere-outside-an-input dismisses the keyboard. Without this
+      // the IME hangs around any time a TextField loses focus by route
+      // change, scroll, or sheet dismissal, and feels like the app is
+      // "pulling the keyboard up" unprompted. HitTestBehavior.translucent
+      // lets the tap continue through to children so tapping a button or
+      // link still works — we only intercept the dead space.
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: SafeArea(
+          bottom: false,
+          child: _LazyTabStack(
+            index: _index,
+            children: [
+              TTHomeScreen(embedded: true, onNavigate: _goTo),
+              const TTMapScreen(embedded: true),
+              const TTToolsScreen(embedded: true),
+              const TTCommunityScreen(embedded: true),
+              TTTeamScreen(embedded: true, onNavigate: _goTo),
+              const TTProfileScreen(embedded: true),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: TTBottomNav(
