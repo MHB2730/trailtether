@@ -111,57 +111,73 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
     final onNavigate = widget.onNavigate;
     final body = Stack(
       children: [
-        // ── Full-page hero image background ────────────────────────────────
-        // Sits behind every other layer. Swaps between the dark
-        // "no-snow" hero and the snowy daytime hero based on real
-        // Drakensberg weather (WeatherProvider.isSnowingInDrakensberg).
-        // AnimatedSwitcher crossfades the two images over 600 ms so the
-        // change is smooth, not a hard cut.
-        // Hero photo — swaps between dark and snowy hero based on
-        // real Drakensberg conditions. Uses Selector (not Consumer)
-        // so we ONLY rebuild when the snow flag flips, not on every
-        // weather notifyListeners() — that previously confused the
-        // image stream and rendered black. AnimatedCrossFade keeps
-        // both images in the tree at all times so the swap is a true
-        // cross-fade with no "decode from scratch" gap.
-        Positioned.fill(
+        // App-wide canvas colour for everything below the hero zone.
+        const Positioned.fill(child: ColoredBox(color: TT.bg)),
+
+        // ── Hero banner ────────────────────────────────────────────
+        // Constrained to a fixed-height zone at the top of the screen
+        // instead of filling the whole Stack. The brand row, greeting
+        // and avatar overlay this zone; below it the screen is plain
+        // TT.bg so the cards land on a calm dark surface.
+        //
+        // BoxFit.fitWidth means the source photo's full WIDTH fills
+        // the panel — no horizontal cropping. With the source aspect
+        // (2816x1374 ≈ 2.05:1) and a 1440-wide panel the rendered
+        // hero is ~700 dp tall, which is roughly where the design's
+        // hero zone ended.
+        //
+        // Selector (not Consumer) + AnimatedCrossFade together keep
+        // the image stream stable across WeatherProvider rebuilds —
+        // see commit 651aaf4 for the regression that motivated this
+        // structure.
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
           child: Selector<WeatherProvider, bool>(
             selector: (_, w) => w.isSnowingInDrakensberg,
             builder: (_, snow, __) {
-              return AnimatedCrossFade(
-                duration: const Duration(milliseconds: 600),
-                crossFadeState: snow
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
-                firstCurve: Curves.easeOut,
-                secondCurve: Curves.easeOut,
-                sizeCurve: Curves.easeOut,
-                firstChild: Image.asset(
-                  'assets/icon/hero_mountain.png',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (_, __, ___) => Container(color: TT.bg),
-                ),
-                secondChild: Image.asset(
-                  'assets/icon/hero_snow.png',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (_, __, ___) => Container(color: TT.bg),
-                ),
+              return Stack(
+                children: [
+                  AnimatedCrossFade(
+                    duration: const Duration(milliseconds: 600),
+                    crossFadeState: snow
+                        ? CrossFadeState.showSecond
+                        : CrossFadeState.showFirst,
+                    firstCurve: Curves.easeOut,
+                    secondCurve: Curves.easeOut,
+                    sizeCurve: Curves.easeOut,
+                    firstChild: Image.asset(
+                      'assets/icon/hero_mountain.png',
+                      fit: BoxFit.fitWidth,
+                      alignment: Alignment.topCenter,
+                      filterQuality: FilterQuality.medium,
+                      errorBuilder: (_, __, ___) =>
+                          const SizedBox(height: 720),
+                    ),
+                    secondChild: Image.asset(
+                      'assets/icon/hero_snow.png',
+                      fit: BoxFit.fitWidth,
+                      alignment: Alignment.topCenter,
+                      filterQuality: FilterQuality.medium,
+                      errorBuilder: (_, __, ___) =>
+                          const SizedBox(height: 720),
+                    ),
+                  ),
+                  // Local bottom-fade INSIDE the hero zone so it
+                  // melts into the body bg below. No more full-screen
+                  // scrim — the cards beneath sit on plain TT.bg.
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 180,
+                    child: IgnorePointer(child: _HomeHeroFooterFade()),
+                  ),
+                ],
               );
             },
           ),
-        ),
-        // Scrim — kept light at the top so the peak / orange trail stays
-        // visible behind the brand row + greeting, then ramps to nearly-
-        // opaque body colour below so cards have a calm background to sit
-        // on. The topo backdrop is removed entirely (the image is now the
-        // backdrop), and TTAmbient is dropped so its ember bloom doesn't
-        // fight the orange trail in the photo.
-        const Positioned.fill(
-          child: IgnorePointer(child: _HomeBackgroundScrim()),
         ),
         SafeArea(
           top: !widget.embedded,
@@ -194,29 +210,21 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
 /// (the peak / orange trail stay visible), heavy at the bottom (cards stay
 /// readable on the solid body colour). Pulled out as a separate widget so
 /// the gradient stops are in one place if we want to tweak the falloff.
-class _HomeBackgroundScrim extends StatelessWidget {
-  const _HomeBackgroundScrim();
+/// The tight 180-dp gradient that melts the bottom edge of the hero
+/// banner into the body bg. Replaces the old `_HomeBackgroundScrim`
+/// which dimmed the entire screen.
+class _HomeHeroFooterFade extends StatelessWidget {
+  const _HomeHeroFooterFade();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
+    return const DecoratedBox(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            // Top 30%: transparent so the hero peak / topo trail show
-            // at full strength behind the brand row + greeting.
-            Color(0x00000000),
-            // Light tint behind the greeting so the white text stays
-            // legible without crushing the ember lines.
-            Color(0x4007090C),
-            // From ~55% down: ramp up so the cards have a calm dark
-            // surface to land on instead of fighting the photo.
-            Color(0xE807090C),
-            TT.bg,
-          ],
-          stops: [0.0, 0.32, 0.55, 0.85],
+          colors: [Color(0x0007090C), TT.bg],
+          stops: [0.0, 1.0],
         ),
       ),
     );
