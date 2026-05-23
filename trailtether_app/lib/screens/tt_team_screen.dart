@@ -24,6 +24,9 @@ import '../widgets/design/tt_pill.dart';
 import '../widgets/design/tt_topo.dart';
 import 'create_team_screen.dart';
 import 'join_team_screen.dart';
+import 'live_tracking_screen.dart';
+import 'team_chat_screen.dart';
+import 'team_detail_screen.dart';
 
 enum _MemberStatus { onTrail, atCamp, offGrid }
 
@@ -207,6 +210,33 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
     }
   }
 
+  void _openDetail(BuildContext ctx, Team team) {
+    Navigator.of(ctx).push(MaterialPageRoute(
+      builder: (_) => TeamDetailScreen(team: team),
+    ));
+  }
+
+  void _openChat(BuildContext ctx, Team team) {
+    Navigator.of(ctx).push(MaterialPageRoute(
+      builder: (_) => _StandaloneTeamChat(team: team),
+    ));
+  }
+
+  void _openLiveMap(BuildContext ctx) {
+    Navigator.of(ctx).push(MaterialPageRoute(
+      builder: (_) => const LiveTrackingScreen(),
+    ));
+  }
+
+  void _showMemberSheet(BuildContext ctx, _TeamMemberVM m) {
+    showModalBottomSheet<void>(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _MemberDetailSheet(member: m),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tp = context.watch<TeamProvider>();
@@ -237,8 +267,18 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                   TTPageAppBar(
                     title: 'Team',
                     trailing: [
-                      TTIconBtn(icon: Icons.chat_bubble_outline, onTap: () {}),
-                      TTIconBtn(icon: Icons.settings_outlined, onTap: () {}),
+                      TTIconBtn(
+                        icon: Icons.chat_bubble_outline,
+                        onTap: team == null
+                            ? null
+                            : () => _openChat(context, team),
+                      ),
+                      TTIconBtn(
+                        icon: Icons.settings_outlined,
+                        onTap: team == null
+                            ? null
+                            : () => _openDetail(context, team),
+                      ),
                     ],
                   ),
                   Expanded(
@@ -255,13 +295,18 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                                   members: memberCount,
                                   active: activeCount,
                                   distanceMi: totalDistanceMi,
+                                  onTap: () => _openDetail(context, team),
                                 ),
                               ),
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(
                                     18, 0, 18, 16),
-                                child:
-                                    _TeamMapPreview(members: mapMembers),
+                                child: _TeamMapPreview(
+                                  members: mapMembers,
+                                  onMapTap: () => _openLiveMap(context),
+                                  onMemberTap: (m) =>
+                                      _showMemberSheet(context, m),
+                                ),
                               ),
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(
@@ -309,7 +354,11 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                                     child: _FadeUpDelayed(
                                       delay: Duration(
                                           milliseconds: 400 + i * 90),
-                                      child: _TeamRow(member: members[i]),
+                                      child: _TeamRow(
+                                        member: members[i],
+                                        onTap: () => _showMemberSheet(
+                                            context, members[i]),
+                                      ),
                                     ),
                                   );
                                 }),
@@ -469,10 +518,12 @@ class _SummaryRow extends StatelessWidget {
   final int members;
   final int active;
   final double distanceMi;
+  final VoidCallback? onTap;
   const _SummaryRow({
     required this.members,
     required this.active,
     required this.distanceMi,
+    this.onTap,
   });
 
   @override
@@ -484,6 +535,7 @@ class _SummaryRow extends StatelessWidget {
             icon: Icons.group_outlined,
             label: 'Members',
             value: '$members',
+            onTap: onTap,
           ),
         ),
         const SizedBox(width: 10),
@@ -493,6 +545,7 @@ class _SummaryRow extends StatelessWidget {
             label: 'Active',
             value: '$active',
             ember: true,
+            onTap: onTap,
           ),
         ),
         const SizedBox(width: 10),
@@ -502,6 +555,7 @@ class _SummaryRow extends StatelessWidget {
             label: 'Distance',
             value: distanceMi.toStringAsFixed(1),
             unit: 'mi',
+            onTap: onTap,
           ),
         ),
       ],
@@ -515,18 +569,21 @@ class _StatTile extends StatelessWidget {
   final String value;
   final String? unit;
   final bool ember;
+  final VoidCallback? onTap;
   const _StatTile({
     required this.icon,
     required this.label,
     required this.value,
     this.unit,
     this.ember = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return TTCard(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -585,7 +642,13 @@ class _StatTile extends StatelessWidget {
 
 class _TeamMapPreview extends StatefulWidget {
   final List<_TeamMemberVM> members;
-  const _TeamMapPreview({required this.members});
+  final VoidCallback? onMapTap;
+  final ValueChanged<_TeamMemberVM>? onMemberTap;
+  const _TeamMapPreview({
+    required this.members,
+    this.onMapTap,
+    this.onMemberTap,
+  });
 
   @override
   State<_TeamMapPreview> createState() => _TeamMapPreviewState();
@@ -645,55 +708,82 @@ class _TeamMapPreviewState extends State<_TeamMapPreview>
       borderRadius: BorderRadius.circular(TT.rLg),
       child: SizedBox(
         height: 200,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            AnimatedBuilder(
-              animation: Listenable.merge([_drawCtl, _pulseCtl, ..._popCtls]),
-              builder: (_, __) {
-                return CustomPaint(
-                  painter: _TeamMapPainter(
-                    members: widget.members,
-                    drawT: TT.drawCurve.transform(_drawCtl.value),
-                    pulseT: _pulseCtl.value,
-                    popT: _popCtls
-                        .map((c) => TT.easeOut.transform(c.value))
-                        .toList(),
-                  ),
-                );
-              },
-            ),
-            if (widget.members.isEmpty)
-              Center(
-                child: Text(
-                  'No team members live right now',
-                  textAlign: TextAlign.center,
-                  style: TT.mono(size: 11, color: TT.text2),
+        child: LayoutBuilder(builder: (ctx, c) {
+          final w = c.maxWidth;
+          final h = c.maxHeight;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              // Background map (tap routes to fullscreen live map).
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onMapTap,
+                child: AnimatedBuilder(
+                  animation:
+                      Listenable.merge([_drawCtl, _pulseCtl, ..._popCtls]),
+                  builder: (_, __) {
+                    return CustomPaint(
+                      painter: _TeamMapPainter(
+                        members: widget.members,
+                        drawT: TT.drawCurve.transform(_drawCtl.value),
+                        pulseT: _pulseCtl.value,
+                        popT: _popCtls
+                            .map((c) => TT.easeOut.transform(c.value))
+                            .toList(),
+                      ),
+                    );
+                  },
                 ),
               ),
-            Positioned(
-              top: 10,
-              left: 10,
-              child: _LiveTag(),
-            ),
-            Positioned(
-              right: 10,
-              bottom: 10,
-              child: TTGlass(
-                padding: const EdgeInsets.all(8),
-                onTap: () {},
-                child:
-                    const Icon(Icons.gps_fixed, size: 16, color: TT.ember),
+              // Hit-targets for member pins so a tap routes to their detail
+              // sheet instead of opening the fullscreen map.
+              for (var i = 0; i < widget.members.length; i++)
+                Positioned(
+                  left: w * widget.members[i].mapX - 18,
+                  top: h * widget.members[i].mapY - 18,
+                  width: 36,
+                  height: 36,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () =>
+                        widget.onMemberTap?.call(widget.members[i]),
+                  ),
+                ),
+              if (widget.members.isEmpty)
+                IgnorePointer(
+                  child: Center(
+                    child: Text(
+                      'No team members live right now',
+                      textAlign: TextAlign.center,
+                      style: TT.mono(size: 11, color: TT.text2),
+                    ),
+                  ),
+                ),
+              const Positioned(
+                top: 10,
+                left: 10,
+                child: _LiveTag(),
               ),
-            ),
-          ],
-        ),
+              Positioned(
+                right: 10,
+                bottom: 10,
+                child: TTGlass(
+                  padding: const EdgeInsets.all(8),
+                  onTap: widget.onMapTap,
+                  child:
+                      const Icon(Icons.gps_fixed, size: 16, color: TT.ember),
+                ),
+              ),
+            ],
+          );
+        }),
       ),
     );
   }
 }
 
 class _LiveTag extends StatelessWidget {
+  const _LiveTag();
   @override
   Widget build(BuildContext context) {
     return TTGlass(
@@ -1000,7 +1090,8 @@ class _TeamMapPainter extends CustomPainter {
 
 class _TeamRow extends StatelessWidget {
   final _TeamMemberVM member;
-  const _TeamRow({required this.member});
+  final VoidCallback? onTap;
+  const _TeamRow({required this.member, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1009,7 +1100,7 @@ class _TeamRow extends StatelessWidget {
     final battery = member.batteryPct;
     return TTCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      onTap: () {},
+      onTap: onTap,
       child: Stack(
         children: [
           if (member.lead)
@@ -1314,6 +1405,262 @@ class _FadeUpDelayedState extends State<_FadeUpDelayed>
           ),
         );
       },
+    );
+  }
+}
+
+// ──────────────────────────── STANDALONE CHAT WRAPPER ───────────────────────
+//
+// [TeamChatScreen] renders as a plain Column because it's embedded inside the
+// [TeamDetailScreen] TabBarView. When we push it from the Team tab's chat
+// icon we need our own Scaffold + AppBar so it doesn't sit headless in the
+// route.
+
+class _StandaloneTeamChat extends StatelessWidget {
+  final Team team;
+  const _StandaloneTeamChat({required this.team});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: TT.bg,
+      appBar: AppBar(
+        backgroundColor: TT.bg,
+        foregroundColor: TT.text,
+        elevation: 0,
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(team.name,
+                style: TT.title(16, letterSpacing: -0.01 * 16)),
+            Text('Team chat',
+                style: TT.mono(size: 10, color: TT.text3)),
+          ],
+        ),
+      ),
+      body: TeamChatScreen(team: team),
+    );
+  }
+}
+
+// ──────────────────────────── HIKER DETAIL SHEET ────────────────────────────
+
+class _MemberDetailSheet extends StatelessWidget {
+  final _TeamMemberVM member;
+  const _MemberDetailSheet({required this.member});
+
+  String _eta(_TeamMemberVM m) {
+    switch (m.status) {
+      case _MemberStatus.atCamp:
+        return 'Arrived';
+      case _MemberStatus.offGrid:
+        return 'No signal';
+      case _MemberStatus.onTrail:
+        return 'In transit';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ringColor = _statusColor(member.status);
+    final tileColor = _pinColor(member.status);
+    final battery = member.batteryPct;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+        child: TTCard(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Grab handle
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: TT.line3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _AvatarBlock(
+                    initial: member.initial,
+                    photoUrl: member.photoUrl,
+                    tileColor: tileColor,
+                    ringColor: ringColor,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(member.name,
+                            style: TT.title(18,
+                                letterSpacing: -0.01 * 18)),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: ringColor,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: ringColor, blurRadius: 6),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _statusLabel(member.status),
+                              style: TT.mono(
+                                  size: 11,
+                                  color: ringColor,
+                                  w: FontWeight.w800),
+                            ),
+                            if (member.lead) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: TT.emberDim,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'LEAD',
+                                  style: TT
+                                      .mono(
+                                          size: 8.5,
+                                          color: TT.ember,
+                                          w: FontWeight.w800)
+                                      .copyWith(
+                                          letterSpacing: 0.12 * 8.5),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _DetailRow(
+                  icon: Icons.info_outline,
+                  label: 'STATUS',
+                  value: member.subStatus),
+              _DetailRow(
+                  icon: Icons.history,
+                  label: 'LAST SEEN',
+                  value: member.lastSeen == '--:--'
+                      ? 'No signal yet'
+                      : '${member.lastSeen} ago',
+                  mono: true),
+              _DetailRow(
+                icon: Icons.battery_full,
+                label: 'BATTERY',
+                value: battery != null ? '$battery%' : 'Not reported',
+                mono: true,
+              ),
+              _DetailRow(
+                icon: Icons.schedule,
+                label: 'ETA',
+                value: _eta(member),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: TT.emberDim,
+                      borderRadius: BorderRadius.circular(TT.rMd),
+                      border: Border.all(
+                          color: const Color(0x52FF6A2C), width: 1),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'CLOSE',
+                      style: TT
+                          .body(size: 12, w: FontWeight.w900, color: TT.ember)
+                          .copyWith(letterSpacing: 0.18 * 12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool mono;
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.mono = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: const Color(0x08FFFFFF),
+              border: Border.all(color: TT.line2, width: 1),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 14, color: TT.text2),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label,
+                    style: TT.label(size: 10, color: TT.text3)),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: mono
+                      ? TT.mono(size: 12.5, color: TT.text, w: FontWeight.w800)
+                      : TT.body(size: 13, w: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

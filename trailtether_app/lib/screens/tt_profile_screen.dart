@@ -3,9 +3,14 @@
 // Recreates project/screens/profile.jsx from the design bundle: gradient avatar
 // header, four count-up stat tiles, an 8-badge achievements grid, and grouped
 // settings sections. Wired to live AuthProvider / ProfileProvider /
-// HikeHistoryProvider data — falls back gracefully when fields are empty.
+// HikeHistoryProvider data — every row, tile, badge and toggle performs a real
+// action: tapping the avatar opens the photo picker, tapping the bio opens an
+// inline editor, the stat tiles push the Activity screen, the badges show
+// detail or "how-to-unlock" dialogs, and all four preference toggles persist
+// to SharedPreferences (live tracking, trail weather, off-trail alerts, haptic).
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -19,8 +24,9 @@ import '../services/auth_service.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import 'privacy_policy_screen.dart';
-import 'safety_center_screen.dart';
 import 'profile_tab.dart' as legacy;
+import 'safety_center_screen.dart';
+import 'tt_activity_screen.dart';
 import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
@@ -84,33 +90,73 @@ class _TTProfileScreenState extends State<TTProfileScreen>
   late final AnimationController _headerCtl =
       AnimationController(vsync: this, duration: TT.dSlow)..forward();
 
-  // Local toggles — visual state. Notifications toggle persists via prefs.
-  static const _kNotifPrefKey = 'tt_notifications_enabled';
+  // Preference keys — every toggle here persists across launches.
+  static const _kLiveTrackingKey = 'tt_live_tracking';
+  static const _kTrailWeatherKey = 'tt_trail_weather';
+  static const _kOffTrailAlertsKey = 'tt_off_trail_alerts';
+  static const _kHapticKey = 'tt_haptic';
+  static const _kUnitsKey = 'tt_units';
+
   bool _liveTracking = true;
   bool _hapticFeedback = true;
   bool _trailWeather = true;
   bool _offTrailAlerts = false;
+  String _units = 'imperial';
 
   @override
   void initState() {
     super.initState();
-    _loadNotifPref();
+    _loadPrefs();
   }
 
-  Future<void> _loadNotifPref() async {
+  Future<void> _loadPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final v = prefs.getBool(_kNotifPrefKey);
-      if (v != null && mounted) setState(() => _trailWeather = v);
-    } catch (_) {/* prefs unavailable — keep default */}
+      final live = prefs.getBool(_kLiveTrackingKey);
+      final weather = prefs.getBool(_kTrailWeatherKey);
+      final offTrail = prefs.getBool(_kOffTrailAlertsKey);
+      final haptic = prefs.getBool(_kHapticKey);
+      final units = prefs.getString(_kUnitsKey);
+      if (!mounted) return;
+      setState(() {
+        if (live != null) _liveTracking = live;
+        if (weather != null) _trailWeather = weather;
+        if (offTrail != null) _offTrailAlerts = offTrail;
+        if (haptic != null) _hapticFeedback = haptic;
+        if (units != null) _units = units;
+      });
+    } catch (_) {
+      // SharedPreferences unavailable — keep defaults.
+    }
+  }
+
+  Future<void> _persistBool(String key, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(key, value);
+    } catch (_) {
+      // Best effort — in-memory state already updated.
+    }
+  }
+
+  Future<void> _setLiveTracking(bool v) async {
+    setState(() => _liveTracking = v);
+    await _persistBool(_kLiveTrackingKey, v);
   }
 
   Future<void> _setTrailWeather(bool v) async {
     setState(() => _trailWeather = v);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_kNotifPrefKey, v);
-    } catch (_) {/* best effort */}
+    await _persistBool(_kTrailWeatherKey, v);
+  }
+
+  Future<void> _setOffTrailAlerts(bool v) async {
+    setState(() => _offTrailAlerts = v);
+    await _persistBool(_kOffTrailAlertsKey, v);
+  }
+
+  Future<void> _setHaptic(bool v) async {
+    setState(() => _hapticFeedback = v);
+    await _persistBool(_kHapticKey, v);
   }
 
   @override
@@ -159,16 +205,19 @@ class _TTProfileScreenState extends State<TTProfileScreen>
   }
 
   Future<void> _toggleUnits() async {
-    final prefs = await SharedPreferences.getInstance();
-    final current = prefs.getString('tt_units') ?? 'imperial';
-    final next = current == 'imperial' ? 'metric' : 'imperial';
-    await prefs.setString('tt_units', next);
+    final next = _units == 'imperial' ? 'metric' : 'imperial';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kUnitsKey, next);
+    } catch (_) {/* best effort */}
     if (!mounted) return;
-    setState(() {}); // Rebuild to refresh the "Imperial" / "Metric" label
+    setState(() => _units = next);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Units: ${next == 'imperial' ? 'Imperial (ft / mi)' : 'Metric (m / km)'}',
-            style: TT.body(size: 13, color: TT.text)),
+        content: Text(
+          'Units: ${next == 'imperial' ? 'Imperial (ft / mi)' : 'Metric (m / km)'}',
+          style: TT.body(size: 13, color: TT.text),
+        ),
         backgroundColor: TT.surf,
         behavior: SnackBarBehavior.floating,
       ),
@@ -210,8 +259,150 @@ class _TTProfileScreenState extends State<TTProfileScreen>
     );
   }
 
+  // ── Avatar photo picker ────────────────────────────────────────────────
+  Future<void> _pickAvatarPhoto() async {
+    final pp = context.read<ProfileProvider>();
+    final hasPhoto = pp.profile.photoUrl.trim().isNotEmpty;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: TT.surf,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: TT.line3,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 14),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: TT.ember, size: 20),
+              title: Text('Choose from gallery',
+                  style: TT.body(size: 14, w: FontWeight.w700)),
+              onTap: () => Navigator.pop(context, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined,
+                  color: TT.ember, size: 20),
+              title: Text('Take a photo',
+                  style: TT.body(size: 14, w: FontWeight.w700)),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            if (hasPhoto)
+              ListTile(
+                leading:
+                    const Icon(Icons.delete_outline, color: TT.red, size: 20),
+                title: Text('Remove photo',
+                    style: TT.body(size: 14, w: FontWeight.w700, color: TT.red)),
+                onTap: () => Navigator.pop(context, 'remove'),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'remove') {
+      await pp.removePhoto();
+      return;
+    }
+    final source =
+        choice == 'camera' ? ImageSource.camera : ImageSource.gallery;
+    final result = await pp.pickAndUploadPhoto(source: source);
+    if (!mounted) return;
+    if (result == 'ok' || result == 'cancelled') return;
+    final message = result == 'no-auth'
+        ? 'Sign in to upload a profile photo'
+        : 'Photo update failed: $result';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: TT.body(size: 13, color: TT.text)),
+        backgroundColor: TT.surf,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // ── Bio inline editor ─────────────────────────────────────────────────
+  Future<void> _editBio() async {
+    final pp = context.read<ProfileProvider>();
+    final controller = TextEditingController(text: pp.profile.bio);
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Text('Edit bio',
+            style: TT.body(size: 16, w: FontWeight.w800)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 4,
+          maxLength: 240,
+          style: TT.body(size: 13, color: TT.text).copyWith(height: 1.4),
+          decoration: InputDecoration(
+            hintText: 'Tell other hikers about yourself…',
+            hintStyle: TT.body(size: 13, color: TT.text3),
+            counterStyle: TT.mono(size: 10, color: TT.text3),
+            filled: true,
+            fillColor: TT.bg3,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TT.rSm),
+              borderSide: const BorderSide(color: TT.line),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TT.rSm),
+              borderSide: const BorderSide(color: TT.line),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TT.rSm),
+              borderSide: const BorderSide(color: TT.ember, width: 1.5),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(ctx).pop(controller.text.trim()),
+            child: Text('Save',
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (saved == null || !mounted) return;
+    final updated = pp.profile.copyWith(bio: saved);
+    final ok = await pp.save(updated);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Bio updated' : 'Could not save bio',
+            style: TT.body(size: 13, color: TT.text)),
+        backgroundColor: TT.surf,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final unitsLabel = _units == 'imperial' ? 'Imperial' : 'Metric';
+    final unitsSub =
+        _units == 'imperial' ? 'Imperial · ft / mi' : 'Metric · m / km';
+
     final body = Stack(
       children: [
         const Positioned.fill(child: TTAmbient()),
@@ -234,10 +425,15 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                   padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
                   children: [
                     _ProfileHeader(
-                        animation: _headerCtl,
-                        onEditBio: () => _pushScreen(const legacy.ProfileTab())),
+                      animation: _headerCtl,
+                      onTapAvatar: _pickAvatarPhoto,
+                      onEditBio: _editBio,
+                    ),
                     const SizedBox(height: 14),
-                    const _StatTilesRow(),
+                    _StatTilesRow(
+                      onTapTile: () =>
+                          _pushScreen(const TTActivityScreen()),
+                    ),
                     const SizedBox(height: 22),
                     const _AchievementsSection(),
                     const SizedBox(height: 22),
@@ -280,8 +476,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: 'Always-on when hiking',
                           trailing: _SettingTrailing.toggle(
                             value: _liveTracking,
-                            onChanged: (v) =>
-                                setState(() => _liveTracking = v),
+                            onChanged: _setLiveTracking,
                           ),
                         ),
                         _SettingRowData(
@@ -299,8 +494,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: 'Get nudged when drifting',
                           trailing: _SettingTrailing.toggle(
                             value: _offTrailAlerts,
-                            onChanged: (v) =>
-                                setState(() => _offTrailAlerts = v),
+                            onChanged: _setOffTrailAlerts,
                           ),
                         ),
                         _SettingRowData(
@@ -309,15 +503,14 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: 'Pings on alerts',
                           trailing: _SettingTrailing.toggle(
                             value: _hapticFeedback,
-                            onChanged: (v) =>
-                                setState(() => _hapticFeedback = v),
+                            onChanged: _setHaptic,
                           ),
                         ),
                         _SettingRowData(
                           icon: Icons.straighten,
                           label: 'Units',
-                          sub: 'Imperial · ft / mi',
-                          trailing: _SettingTrailing.value('Imperial'),
+                          sub: unitsSub,
+                          trailing: _SettingTrailing.value(unitsLabel),
                           onTap: _toggleUnits,
                         ),
                       ],
@@ -405,8 +598,13 @@ class _TTProfileScreenState extends State<TTProfileScreen>
 
 class _ProfileHeader extends StatelessWidget {
   final AnimationController animation;
+  final VoidCallback onTapAvatar;
   final VoidCallback onEditBio;
-  const _ProfileHeader({required this.animation, required this.onEditBio});
+  const _ProfileHeader({
+    required this.animation,
+    required this.onTapAvatar,
+    required this.onEditBio,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -438,9 +636,9 @@ class _ProfileHeader extends StatelessWidget {
         final hikes = context.watch<HikeHistoryProvider>().hikes.length;
         final tier = _tierFor(hikes);
         final bio = pp.profile.bio.trim();
-        final photoUrl = (auth.photoUrl?.trim().isNotEmpty == true)
-            ? auth.photoUrl!.trim()
-            : pp.profile.photoUrl.trim();
+        final photoUrl = (pp.profile.photoUrl.trim().isNotEmpty
+                ? pp.profile.photoUrl.trim()
+                : auth.photoUrl?.trim() ?? '');
         final initials = _initialsFor(
             displayName: name, email: auth.email);
 
@@ -486,6 +684,8 @@ class _ProfileHeader extends StatelessWidget {
                           _GradientAvatar(
                             initials: initials,
                             photoUrl: photoUrl,
+                            uploading: pp.uploadingPhoto,
+                            onTap: onTapAvatar,
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -559,72 +759,104 @@ class _ProfileHeader extends StatelessWidget {
 class _GradientAvatar extends StatelessWidget {
   final String initials;
   final String photoUrl;
-  const _GradientAvatar({required this.initials, required this.photoUrl});
+  final bool uploading;
+  final VoidCallback onTap;
+  const _GradientAvatar({
+    required this.initials,
+    required this.photoUrl,
+    required this.uploading,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final hasRemotePhoto =
         photoUrl.startsWith('http://') || photoUrl.startsWith('https://');
-    return SizedBox(
-      width: 72,
-      height: 72,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: hasRemotePhoto
-                  ? null
-                  : const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF6B3A1A), TT.ember2],
-                    ),
-              image: hasRemotePhoto
-                  ? DecorationImage(
-                      image: NetworkImage(photoUrl),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-              border: Border.all(color: TT.ember, width: 3),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x73FF6A2C),
-                  blurRadius: 22,
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: hasRemotePhoto
-                ? null
-                : Text(
-                    initials,
-                    style: TT
-                        .body(size: 26, w: FontWeight.w900, color: Colors.white)
-                        .copyWith(letterSpacing: -0.02 * 26),
-                  ),
-          ),
-          Positioned(
-            right: 1,
-            bottom: 1,
-            child: Container(
-              width: 16,
-              height: 16,
+    return GestureDetector(
+      onTap: uploading ? null : onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 72,
+        height: 72,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: TT.green,
-                border: Border.all(color: TT.bg3, width: 3),
+                gradient: hasRemotePhoto
+                    ? null
+                    : const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF6B3A1A), TT.ember2],
+                      ),
+                image: hasRemotePhoto
+                    ? DecorationImage(
+                        image: NetworkImage(photoUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+                border: Border.all(color: TT.ember, width: 3),
                 boxShadow: const [
-                  BoxShadow(color: Color(0xAA4CC38A), blurRadius: 8),
+                  BoxShadow(
+                    color: Color(0x73FF6A2C),
+                    blurRadius: 22,
+                    spreadRadius: 0,
+                  ),
                 ],
               ),
+              alignment: Alignment.center,
+              child: hasRemotePhoto
+                  ? null
+                  : Text(
+                      initials,
+                      style: TT
+                          .body(size: 26, w: FontWeight.w900, color: Colors.white)
+                          .copyWith(letterSpacing: -0.02 * 26),
+                    ),
             ),
-          ),
-        ],
+            if (uploading)
+              Positioned.fill(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0x99000000),
+                  ),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // Camera badge — signals the avatar is tappable for upload.
+            if (!uploading)
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: TT.ember,
+                    border: Border.all(color: TT.bg3, width: 2),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.camera_alt,
+                      color: Colors.white, size: 11),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -633,7 +865,8 @@ class _GradientAvatar extends StatelessWidget {
 // ──────────────────────────── STAT TILES ────────────────────────────────────
 
 class _StatTilesRow extends StatelessWidget {
-  const _StatTilesRow();
+  final VoidCallback onTapTile;
+  const _StatTilesRow({required this.onTapTile});
 
   @override
   Widget build(BuildContext context) {
@@ -652,6 +885,7 @@ class _StatTilesRow extends StatelessWidget {
             value: hikeCount.toString(),
             unit: null,
             ember: false,
+            onTap: onTapTile,
           ),
           _StatTile(
             icon: Icons.navigation_outlined,
@@ -659,6 +893,7 @@ class _StatTilesRow extends StatelessWidget {
             value: distMi.round().toString(),
             unit: 'mi',
             ember: true,
+            onTap: onTapTile,
           ),
           _StatTile(
             icon: Icons.arrow_upward,
@@ -666,6 +901,7 @@ class _StatTilesRow extends StatelessWidget {
             value: _formatThousands(ascentFt),
             unit: 'ft',
             ember: false,
+            onTap: onTapTile,
           ),
           _StatTile(
             icon: Icons.flag_outlined,
@@ -673,6 +909,7 @@ class _StatTilesRow extends StatelessWidget {
             value: peaks.toString(),
             unit: null,
             ember: false,
+            onTap: onTapTile,
           ),
         ];
 
@@ -715,6 +952,7 @@ class _StatTile extends StatelessWidget {
   final String value;
   final String? unit;
   final bool ember;
+  final VoidCallback onTap;
 
   const _StatTile({
     required this.icon,
@@ -722,13 +960,14 @@ class _StatTile extends StatelessWidget {
     required this.value,
     required this.unit,
     required this.ember,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return TTCard(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      onTap: () {},
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -773,61 +1012,85 @@ class _StatTile extends StatelessWidget {
 class _AchievementsSection extends StatelessWidget {
   const _AchievementsSection();
 
-  // Mock grid used when the user has no unlocked achievements yet — keeps the
-  // 8-tile layout but renders every badge as "locked".
+  // Achievement catalog shown locked when none unlocked yet — these are real
+  // achievement IDs.
   static const _mockGrid = <_AchievementData>[
     _AchievementData(
+      id: 'first_hike',
       icon: Icons.play_arrow,
       label: 'First Steps',
+      description: 'Record your very first hike.',
+      requirement: 'Complete and save 1 hike recording.',
       date: 'LOCKED',
       color: TT.ember,
       unlocked: false,
     ),
     _AchievementData(
+      id: 'peak_1',
       icon: Icons.terrain,
       label: '4K Club',
+      description: 'Reach an altitude of 3,000m or higher.',
+      requirement: 'Summit any 3,000m+ peak.',
       date: 'LOCKED',
       color: TT.ember2,
       unlocked: false,
     ),
     _AchievementData(
+      id: 'team_join',
       icon: Icons.link,
       label: 'Tethered',
+      description: 'Join your first team.',
+      requirement: 'Join a team via invite code.',
       date: 'LOCKED',
       color: TT.blue,
       unlocked: false,
     ),
     _AchievementData(
+      id: 'new_trail',
       icon: Icons.route,
       label: 'Plan Maker',
+      description: 'Hike a new trail.',
+      requirement: 'Complete a trail not in your history.',
       date: 'LOCKED',
       color: TT.green,
       unlocked: false,
     ),
     _AchievementData(
+      id: 'storm_hiker',
       icon: Icons.air,
       label: 'Storm Survivor',
+      description: 'Hike during a weather incident report.',
+      requirement: 'Record a hike during active storm warnings.',
       date: 'LOCKED',
       color: TT.amber,
       unlocked: false,
     ),
     _AchievementData(
+      id: 'peak_10',
       icon: Icons.flag_outlined,
       label: 'Summit X12',
+      description: 'Summit 10 different peaks.',
+      requirement: 'Log 10 unique peaks in the Drakensberg.',
       date: 'LOCKED',
       color: TT.text3,
       unlocked: false,
     ),
     _AchievementData(
+      id: 'reporter',
       icon: Icons.shield_outlined,
       label: 'First Responder',
+      description: 'Submit your first verified incident report.',
+      requirement: 'Report your first trail incident.',
       date: 'LOCKED',
       color: TT.text3,
       unlocked: false,
     ),
     _AchievementData(
+      id: 'night_owl',
       icon: Icons.nights_stay_outlined,
       label: 'Night Owl',
+      description: 'Finish a hike after 7:00 PM.',
+      requirement: 'Complete a hike recording after 19:00.',
       date: 'LOCKED',
       color: TT.text3,
       unlocked: false,
@@ -908,8 +1171,11 @@ class _AchievementsSection extends StatelessWidget {
 
   static _AchievementData _fromAchievement(Achievement a) {
     return _AchievementData(
+      id: a.id,
       icon: a.icon,
       label: a.title,
+      description: a.description,
+      requirement: a.requirement,
       date: a.unlocked && a.dateUnlocked != null
           ? _shortDate(a.dateUnlocked!)
           : 'LOCKED',
@@ -928,15 +1194,21 @@ class _AchievementsSection extends StatelessWidget {
 }
 
 class _AchievementData {
+  final String id;
   final IconData icon;
   final String label;
+  final String description;
+  final String requirement;
   final String date;
   final Color color;
   final bool unlocked;
 
   const _AchievementData({
+    required this.id,
     required this.icon,
     required this.label,
+    required this.description,
+    required this.requirement,
     required this.date,
     required this.color,
     required this.unlocked,
@@ -947,11 +1219,93 @@ class _AchievementBadge extends StatelessWidget {
   final _AchievementData data;
   const _AchievementBadge({required this.data});
 
+  void _showDetail(BuildContext context) {
+    final unlocked = data.unlocked;
+    final tintColor = unlocked ? data.color : TT.text3;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: tintColor.withOpacity(0.14),
+                border: Border.all(color: tintColor, width: 2),
+              ),
+              alignment: Alignment.center,
+              child: Icon(data.icon, size: 18, color: tintColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                data.label,
+                style: TT.body(size: 15, w: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              unlocked ? data.description : 'How to unlock',
+              style: TT.body(size: 13, color: TT.text2)
+                  .copyWith(height: 1.4),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: TT.bg3,
+                border: Border.all(color: TT.line, width: 1),
+                borderRadius: BorderRadius.circular(TT.rSm),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    unlocked ? Icons.check_circle : Icons.lock_outline,
+                    size: 14,
+                    color: unlocked ? TT.green : TT.text3,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      unlocked
+                          ? 'Unlocked · ${data.date}'
+                          : data.requirement,
+                      style: TT.mono(
+                        size: 11,
+                        color: unlocked ? TT.green : TT.text2,
+                        letterSpacing: 0.04 * 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Close',
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final card = TTCard(
       padding: const EdgeInsets.fromLTRB(6, 12, 6, 10),
-      onTap: () {},
+      onTap: () => _showDetail(context),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.center,

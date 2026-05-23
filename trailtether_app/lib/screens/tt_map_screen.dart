@@ -17,6 +17,8 @@ import 'package:provider/provider.dart';
 
 import '../core/constants.dart';
 import '../core/design_tokens.dart';
+import '../models/recording_point.dart';
+import '../models/trail.dart';
 import '../providers/recording_provider.dart';
 import '../providers/static_data_provider.dart';
 import '../services/location_service.dart';
@@ -41,6 +43,9 @@ class _TTMapScreenState extends State<TTMapScreen>
   // Tile style index into kMapTileStyles.
   int _tileStyleIndex = 0; // 0 = Outdoor / OpenTopoMap
 
+  // Night-map overlay toggle (uses Stadia dark tiles under a red filter).
+  bool _nightMap = false;
+
   // Live GPS position (drives the user marker + recenter).
   LatLng? _currentLatLng;
   double? _currentHeading;
@@ -49,6 +54,17 @@ class _TTMapScreenState extends State<TTMapScreen>
   // Drives the route draw + panel entry anim.
   late final AnimationController _entryCtl =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+
+  // Drives the DraggableScrollableSheet from the grab-handle tap so users on
+  // smaller screens can pop the panel open without dragging.
+  final DraggableScrollableController _sheetCtl =
+      DraggableScrollableController();
+  static const double _sheetMin = 0.32;
+  static const double _sheetMid = 0.52;
+  static const double _sheetMax = 0.92;
+
+  // Unit toggle for distance / speed display. Tap the scale bar to flip.
+  bool _useMiles = true;
 
   @override
   void initState() {
@@ -79,6 +95,7 @@ class _TTMapScreenState extends State<TTMapScreen>
   void dispose() {
     _entryCtl.dispose();
     _positionSub?.cancel();
+    _sheetCtl.dispose();
     super.dispose();
   }
 
@@ -118,17 +135,7 @@ class _TTMapScreenState extends State<TTMapScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: TT.line3,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              const _SheetHandle(),
               Text('MAP STYLE',
                   style: TT.label(size: 11, color: TT.text2, letterSpacing: 1.6)),
               const SizedBox(height: 10),
@@ -149,6 +156,326 @@ class _TTMapScreenState extends State<TTMapScreen>
     );
   }
 
+  // ── Top-bar actions ────────────────────────────────────────────────────────
+
+  Future<void> _openSearch() async {
+    final trails = context.read<StaticDataProvider>().allTrails;
+    final picked = await showSearch<Trail?>(
+      context: context,
+      delegate: _TrailSearchDelegate(trails),
+    );
+    if (picked == null || !mounted) return;
+    _focusTrail(picked);
+  }
+
+  void _focusTrail(Trail trail) {
+    if (trail.coords.isEmpty) return;
+    if (trail.coords.length == 1) {
+      final c = trail.coords.first;
+      _mapCtrl.move(LatLng(c.lat, c.lon), 14);
+      return;
+    }
+    _mapCtrl.fitCamera(
+      CameraFit.bounds(
+        bounds: LatLngBounds(
+          LatLng(trail.minLat, trail.minLon),
+          LatLng(trail.maxLat, trail.maxLon),
+        ),
+        padding: const EdgeInsets.fromLTRB(40, 120, 40, 240),
+      ),
+    );
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: TT.surf,
+          content: Text(
+            'Centered on ${trail.name}',
+            style: TT.body(size: 13),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
+  void _openMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: TT.bg2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rLg)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SheetHandle(),
+              Text('MAP ACTIONS',
+                  style: TT.label(size: 11, color: TT.text2, letterSpacing: 1.6)),
+              const SizedBox(height: 10),
+              _MenuRow(
+                icon: Icons.gps_fixed,
+                label: 'Recenter on me',
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  _recenter();
+                },
+              ),
+              _MenuRow(
+                icon: _nightMap ? Icons.nightlight_round : Icons.nightlight_outlined,
+                label: _nightMap ? 'Disable night map' : 'Enable night map',
+                ember: _nightMap,
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  setState(() => _nightMap = !_nightMap);
+                },
+              ),
+              _MenuRow(
+                icon: Icons.layers_outlined,
+                label: 'Switch tile style',
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  _openLayerSheet();
+                },
+              ),
+              _MenuRow(
+                icon: Icons.straighten,
+                label: _useMiles ? 'Show distance in km' : 'Show distance in mi',
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  setState(() => _useMiles = !_useMiles);
+                },
+              ),
+              _MenuRow(
+                icon: Icons.download_for_offline_outlined,
+                label: 'Cached offline maps',
+                trailing: 'view',
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  await _showOfflineInfo();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showOfflineInfo() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: TT.bg2,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(TT.rLg)),
+        title: Text('Offline tile cache', style: TT.title(16)),
+        content: Text(
+          'Trailtether caches map tiles for the regions you have viewed so you '
+          'have a working map when you lose signal on the trail. Clearing the '
+          'cache frees space but you will need data to reload tiles.',
+          style: TT.body(size: 13, color: TT.text2),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dCtx).pop(),
+            child: Text('Close',
+                style: TT.body(size: 13, color: TT.text2, w: FontWeight.w700)),
+          ),
+          TextButton(
+            onPressed: () async {
+              await OfflineMapService.clearCache();
+              if (!dCtx.mounted) return;
+              Navigator.of(dCtx).pop();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  backgroundColor: TT.surf,
+                  content: Text('Offline tile cache cleared.',
+                      style: TT.body(size: 13)),
+                ),
+              );
+            },
+            child: Text('Clear cache',
+                style: TT.body(size: 13, color: TT.ember, w: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleUnits() {
+    setState(() => _useMiles = !_useMiles);
+  }
+
+  void _toggleSheet() {
+    if (!_sheetCtl.isAttached) return;
+    final size = _sheetCtl.size;
+    final target = size > (_sheetMid + 0.04) ? _sheetMin : _sheetMax;
+    _sheetCtl.animateTo(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: TT.easeOut,
+    );
+  }
+
+  // ── Stat-card popovers ─────────────────────────────────────────────────────
+  void _showDistanceBreakdown() {
+    final rec = context.read<RecordingProvider>();
+    final hike = _safeHikeSnapshot(rec);
+    _presentBreakdown(
+      title: 'Distance breakdown',
+      rows: [
+        _BreakRow(label: 'Total distance', value: _formatDist(rec.distanceKm)),
+        _BreakRow(
+            label: 'Moving distance',
+            value: _formatDist(hike?.movingDistanceKm ?? rec.distanceKm)),
+        _BreakRow(label: 'Max speed', value: _formatSpeed(hike?.maxSpeedKmh)),
+        _BreakRow(
+            label: 'Avg speed', value: _formatSpeed(rec.averageSpeedKmh)),
+        _BreakRow(
+            label: 'Elevation gain', value: '${rec.totalGainM.toString()} m'),
+      ],
+    );
+  }
+
+  void _showTimeBreakdown() {
+    final rec = context.read<RecordingProvider>();
+    final hike = _safeHikeSnapshot(rec);
+    final paceMinPerKm = rec.averageSpeedKmh > 0.1
+        ? (60.0 / rec.averageSpeedKmh)
+        : null;
+    _presentBreakdown(
+      title: 'Time breakdown',
+      rows: [
+        _BreakRow(label: 'Elapsed', value: _formatDurationLong(rec.duration)),
+        _BreakRow(
+            label: 'Moving time',
+            value: _formatDurationLong(
+                Duration(seconds: hike?.movingSeconds ?? rec.duration.inSeconds))),
+        _BreakRow(
+            label: 'Avg pace',
+            value: paceMinPerKm == null
+                ? '—'
+                : '${paceMinPerKm.toStringAsFixed(1)} min/km'),
+        _BreakRow(
+            label: 'Avg speed', value: _formatSpeed(rec.averageSpeedKmh)),
+      ],
+    );
+  }
+
+  /// Builds a lightweight derived stat snapshot from the recording without
+  /// requiring the recording to be saved. Returns `null` when there isn't
+  /// enough data to compute anything beyond the live counters.
+  _HikeSnapshot? _safeHikeSnapshot(RecordingProvider rec) {
+    if (rec.points.length < 2) return null;
+    final pts = rec.points;
+    var movingMs = 0;
+    var movingDistM = 0.0;
+    var maxSpeedKmh = 0.0;
+    for (var i = 1; i < pts.length; i++) {
+      final a = pts[i - 1];
+      final b = pts[i];
+      final dt = b.timestamp.difference(a.timestamp);
+      if (dt <= Duration.zero) continue;
+      final dist = Geolocator.distanceBetween(
+        a.latitude,
+        a.longitude,
+        b.latitude,
+        b.longitude,
+      );
+      final speedMps = dist / dt.inMilliseconds * 1000.0;
+      final speedKmh = speedMps * 3.6;
+      if (speedKmh > maxSpeedKmh) maxSpeedKmh = speedKmh;
+      if (speedMps >= 0.25) {
+        movingMs += dt.inMilliseconds;
+        movingDistM += dist;
+      }
+    }
+    return _HikeSnapshot(
+      movingSeconds: movingMs ~/ 1000,
+      movingDistanceKm: movingDistM / 1000.0,
+      maxSpeedKmh: maxSpeedKmh,
+    );
+  }
+
+  void _presentBreakdown({required String title, required List<_BreakRow> rows}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: TT.bg2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rLg)),
+      ),
+      builder: (_) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SheetHandle(),
+              Text(title.toUpperCase(),
+                  style: TT.label(
+                      size: 11, color: TT.text2, letterSpacing: 1.6)),
+              const SizedBox(height: 12),
+              TTCard(
+                padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < rows.length; i++) ...[
+                      _BreakRowView(row: rows[i]),
+                      if (i != rows.length - 1)
+                        Container(
+                          height: 1,
+                          color: TT.line,
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDist(double km) {
+    if (_useMiles) {
+      final mi = km * 0.621371;
+      if (mi < 10) return '${mi.toStringAsFixed(2)} mi';
+      return '${mi.toStringAsFixed(1)} mi';
+    }
+    if (km < 10) return '${km.toStringAsFixed(2)} km';
+    return '${km.toStringAsFixed(1)} km';
+  }
+
+  String _formatDistValueOnly(double km) {
+    if (_useMiles) {
+      final mi = km * 0.621371;
+      if (mi < 10) return mi.toStringAsFixed(2);
+      return mi.toStringAsFixed(1);
+    }
+    if (km < 10) return km.toStringAsFixed(2);
+    return km.toStringAsFixed(1);
+  }
+
+  String _formatSpeed(double? kmh) {
+    if (kmh == null || kmh <= 0) return '—';
+    if (_useMiles) {
+      return '${(kmh * 0.621371).toStringAsFixed(1)} mph';
+    }
+    return '${kmh.toStringAsFixed(1)} km/h';
+  }
+
   // ── Recording actions ──────────────────────────────────────────────────────
   Future<void> _startRecording() async {
     final rec = context.read<RecordingProvider>();
@@ -164,6 +491,9 @@ class _TTMapScreenState extends State<TTMapScreen>
   // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    // The body is a Stack: map fills the whole area, and a
+    // DraggableScrollableSheet sits on top so users can pull it up to see the
+    // elevation chart at full size.
     final body = SafeArea(
       top: !widget.embedded,
       bottom: false,
@@ -172,29 +502,48 @@ class _TTMapScreenState extends State<TTMapScreen>
           TTPageAppBar(
             title: 'Peak Tracker',
             trailing: [
-              TTIconBtn(icon: Icons.search, onTap: () {}),
-              TTIconBtn(icon: Icons.menu, onTap: () {}),
+              TTIconBtn(icon: Icons.search, onTap: _openSearch),
+              TTIconBtn(icon: Icons.menu, onTap: _openMenu),
             ],
           ),
           Expanded(
-            child: Column(
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Expanded(
-                  child: _MapView(
-                    mapCtrl: _mapCtrl,
-                    tileStyleIndex: _tileStyleIndex,
-                    currentLatLng: _currentLatLng,
-                    currentHeading: _currentHeading,
-                    entryCtl: _entryCtl,
-                    onZoomIn: _zoomIn,
-                    onZoomOut: _zoomOut,
-                    onRecenter: _recenter,
-                    onOpenLayers: _openLayerSheet,
-                  ),
-                ),
-                _RecordingPanel(
+                _MapView(
+                  mapCtrl: _mapCtrl,
+                  tileStyleIndex: _tileStyleIndex,
+                  nightMap: _nightMap,
+                  currentLatLng: _currentLatLng,
+                  currentHeading: _currentHeading,
                   entryCtl: _entryCtl,
-                  onStart: _startRecording,
+                  useMiles: _useMiles,
+                  formatDistValueOnly: _formatDistValueOnly,
+                  unitLabel: _useMiles ? 'mi' : 'km',
+                  onZoomIn: _zoomIn,
+                  onZoomOut: _zoomOut,
+                  onRecenter: _recenter,
+                  onOpenLayers: _openLayerSheet,
+                  onToggleUnits: _toggleUnits,
+                  onTapDistance: _showDistanceBreakdown,
+                  onTapTime: _showTimeBreakdown,
+                ),
+                DraggableScrollableSheet(
+                  controller: _sheetCtl,
+                  initialChildSize: _sheetMin,
+                  minChildSize: _sheetMin,
+                  maxChildSize: _sheetMax,
+                  snap: true,
+                  snapSizes: const [_sheetMin, _sheetMid, _sheetMax],
+                  builder: (_, scrollCtl) => _RecordingPanel(
+                    entryCtl: _entryCtl,
+                    scrollCtl: scrollCtl,
+                    useMiles: _useMiles,
+                    formatDistValueOnly: _formatDistValueOnly,
+                    formatSpeed: _formatSpeed,
+                    onStart: _startRecording,
+                    onHandleTap: _toggleSheet,
+                  ),
                 ),
               ],
             ),
@@ -213,24 +562,38 @@ class _TTMapScreenState extends State<TTMapScreen>
 class _MapView extends StatelessWidget {
   final MapController mapCtrl;
   final int tileStyleIndex;
+  final bool nightMap;
   final LatLng? currentLatLng;
   final double? currentHeading;
   final AnimationController entryCtl;
+  final bool useMiles;
+  final String Function(double km) formatDistValueOnly;
+  final String unitLabel;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onRecenter;
   final VoidCallback onOpenLayers;
+  final VoidCallback onToggleUnits;
+  final VoidCallback onTapDistance;
+  final VoidCallback onTapTime;
 
   const _MapView({
     required this.mapCtrl,
     required this.tileStyleIndex,
+    required this.nightMap,
     required this.currentLatLng,
     required this.currentHeading,
     required this.entryCtl,
+    required this.useMiles,
+    required this.formatDistValueOnly,
+    required this.unitLabel,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onRecenter,
     required this.onOpenLayers,
+    required this.onToggleUnits,
+    required this.onTapDistance,
+    required this.onTapTime,
   });
 
   @override
@@ -239,6 +602,8 @@ class _MapView extends StatelessWidget {
     final recording = context.watch<RecordingProvider>();
 
     final style = kMapTileStyles[tileStyleIndex.clamp(0, kMapTileStyles.length - 1)];
+    final tileUrl = nightMap ? kNightTileUrl : style.url;
+    final tileMaxZoom = nightMap ? 20.0 : style.maxZoom;
 
     // ── Polylines ──
     final polylines = <Polyline>[];
@@ -295,109 +660,128 @@ class _MapView extends StatelessWidget {
         point: currentLatLng!,
         width: 56,
         height: 56,
-        child: const _YouMarker(),
+        child: _YouMarker(heading: currentHeading),
       ));
     }
 
-    return ClipRect(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Real map underlay.
-          AnimatedBuilder(
-            animation: entryCtl,
-            builder: (_, child) {
-              final t = TT.easeOut.transform(entryCtl.value);
-              return Opacity(opacity: 0.4 + 0.6 * t, child: child);
-            },
-            child: FlutterMap(
-              mapController: mapCtrl,
-              options: MapOptions(
-                initialCenter: currentLatLng ??
-                    LatLng(kWorldMapCenter.lat, kWorldMapCenter.lon),
-                initialZoom: kWorldMapZoomInit,
-                minZoom: 2,
-                maxZoom: 20,
-                backgroundColor: const Color(0xFF06080B),
-                interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.all,
-                  enableMultiFingerGestureRace: true,
+    final mapStack = Stack(
+      fit: StackFit.expand,
+      children: [
+        // Real map underlay.
+        AnimatedBuilder(
+          animation: entryCtl,
+          builder: (_, child) {
+            final t = TT.easeOut.transform(entryCtl.value);
+            return Opacity(opacity: 0.4 + 0.6 * t, child: child);
+          },
+          child: FlutterMap(
+            mapController: mapCtrl,
+            options: MapOptions(
+              initialCenter: currentLatLng ??
+                  LatLng(kWorldMapCenter.lat, kWorldMapCenter.lon),
+              initialZoom: kWorldMapZoomInit,
+              minZoom: 2,
+              maxZoom: 20,
+              backgroundColor: const Color(0xFF06080B),
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all,
+                enableMultiFingerGestureRace: true,
+              ),
+            ),
+            children: [
+              TileLayer(
+                key: ValueKey('tile_${nightMap ? 'night' : tileStyleIndex}'),
+                urlTemplate: tileUrl,
+                tileProvider: OfflineMapService.tileProvider(),
+                userAgentPackageName: 'com.trailtether.app',
+                maxZoom: tileMaxZoom,
+              ),
+              PolylineLayer(polylines: polylines),
+              MarkerLayer(markers: markers),
+            ],
+          ),
+        ),
+
+        // Floating top stat cards.
+        Positioned(
+          top: 12,
+          left: 14,
+          right: 14,
+          child: Row(
+            children: [
+              Expanded(
+                child: _AnimUp(
+                  delay: const Duration(milliseconds: 120),
+                  child: _FloatingStat(
+                    icon: Icons.navigation,
+                    label: 'Distance',
+                    value: formatDistValueOnly(recording.distanceKm),
+                    unit: unitLabel,
+                    sublabel: recording.isRecording
+                        ? 'Recording'
+                        : (recording.points.isEmpty ? 'No data' : 'Last hike'),
+                    onTap: onTapDistance,
+                  ),
                 ),
               ),
-              children: [
-                TileLayer(
-                  key: ValueKey('tile_$tileStyleIndex'),
-                  urlTemplate: style.url,
-                  tileProvider: OfflineMapService.tileProvider(),
-                  userAgentPackageName: 'com.trailtether.app',
-                  maxZoom: style.maxZoom,
-                ),
-                PolylineLayer(polylines: polylines),
-                MarkerLayer(markers: markers),
-              ],
-            ),
-          ),
-
-          // Floating top stat cards.
-          Positioned(
-            top: 12,
-            left: 14,
-            right: 14,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _AnimUp(
-                    delay: const Duration(milliseconds: 120),
-                    child: _FloatingStat(
-                      icon: Icons.navigation,
-                      label: 'Distance',
-                      value: _formatMiles(recording.distanceKm),
-                      unit: 'mi',
-                      sublabel: recording.isRecording
-                          ? 'Recording'
-                          : (recording.points.isEmpty ? 'No data' : 'Last hike'),
-                    ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _AnimUp(
+                  delay: const Duration(milliseconds: 220),
+                  child: _FloatingStat(
+                    icon: Icons.schedule,
+                    label: 'Time',
+                    value: _formatDurationShort(recording.duration),
+                    sublabel: 'Duration',
+                    onTap: onTapTime,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _AnimUp(
-                    delay: const Duration(milliseconds: 220),
-                    child: _FloatingStat(
-                      icon: Icons.schedule,
-                      label: 'Time',
-                      value: _formatDurationShort(recording.duration),
-                      sublabel: 'Duration',
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
 
-          // Right-side controls.
-          Positioned(
-            top: 152,
-            right: 14,
-            child: _MapControls(
-              onZoomIn: onZoomIn,
-              onZoomOut: onZoomOut,
-              onRecenter: onRecenter,
-              onOpenLayers: onOpenLayers,
-            ),
+        // Right-side controls.
+        Positioned(
+          top: 152,
+          right: 14,
+          child: _MapControls(
+            onZoomIn: onZoomIn,
+            onZoomOut: onZoomOut,
+            onRecenter: onRecenter,
+            onOpenLayers: onOpenLayers,
           ),
+        ),
 
-          // Tile attribution / style label.
-          Positioned(
-            bottom: 14,
-            left: 14,
-            child: _AnimUp(
-              delay: const Duration(milliseconds: 900),
-              child: _ScaleBar(label: style.iconLabel),
+        // Tile attribution / style label.
+        Positioned(
+          bottom: 14,
+          left: 14,
+          child: _AnimUp(
+            delay: const Duration(milliseconds: 900),
+            child: _ScaleBar(
+              styleLabel: style.iconLabel,
+              unitLabel: unitLabel,
+              onTap: onToggleUnits,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+
+    final clipped = ClipRect(child: mapStack);
+    if (!nightMap) return clipped;
+
+    // Night-vision overlay: red ColorFiltered + dimmer underneath, applied to
+    // the basemap rendering for a true preserve-night-vision look.
+    return ColorFiltered(
+      colorFilter: const ColorFilter.matrix(<double>[
+        1, 0, 0, 0, 0,
+        0, 0.35, 0, 0, 0,
+        0, 0, 0.25, 0, 0,
+        0, 0, 0, 1, 0,
+      ]),
+      child: clipped,
     );
   }
 }
@@ -405,7 +789,8 @@ class _MapView extends StatelessWidget {
 // ──────────────────────────── MARKERS ──────────────────────────────────────
 
 class _YouMarker extends StatefulWidget {
-  const _YouMarker();
+  final double? heading;
+  const _YouMarker({this.heading});
   @override
   State<_YouMarker> createState() => _YouMarkerState();
 }
@@ -473,11 +858,48 @@ class _YouMarkerState extends State<_YouMarker>
                 ],
               ),
             ),
+            // Heading arrow — only when the device reports a valid heading.
+            if (widget.heading != null && widget.heading! >= 0)
+              Transform.rotate(
+                angle: (widget.heading! * math.pi / 180),
+                child: const _HeadingArrow(),
+              ),
           ],
         );
       },
     );
   }
+}
+
+class _HeadingArrow extends StatelessWidget {
+  const _HeadingArrow();
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: CustomPaint(painter: _HeadingArrowPainter()),
+    );
+  }
+}
+
+class _HeadingArrowPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final paint = Paint()
+      ..color = TT.ember
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(cx, 2)
+      ..lineTo(cx - 5, 12)
+      ..lineTo(cx + 5, 12)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
 class _StartDot extends StatelessWidget {
@@ -504,6 +926,7 @@ class _FloatingStat extends StatelessWidget {
   final String value;
   final String? unit;
   final String? sublabel;
+  final VoidCallback? onTap;
 
   const _FloatingStat({
     required this.icon,
@@ -511,11 +934,13 @@ class _FloatingStat extends StatelessWidget {
     required this.value,
     this.unit,
     this.sublabel,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return TTGlass(
+      onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
@@ -688,36 +1113,53 @@ class _CircleBtn extends StatelessWidget {
 // ─────────────────────────────── SCALE BAR ──────────────────────────────────
 
 class _ScaleBar extends StatelessWidget {
-  final String label;
-  const _ScaleBar({required this.label});
+  final String styleLabel;
+  final String unitLabel;
+  final VoidCallback onTap;
+  const _ScaleBar({
+    required this.styleLabel,
+    required this.unitLabel,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xC70A0C0F),
-        border: Border.all(color: TT.line2, width: 1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 22, height: 4, color: TT.text),
-          Container(
-            width: 22,
-            height: 4,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0A0C0F),
-              border: Border.all(color: TT.text, width: 1),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xC70A0C0F),
+          border: Border.all(color: TT.line2, width: 1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 22, height: 4, color: TT.text),
+            Container(
+              width: 22,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A0C0F),
+                border: Border.all(color: TT.text, width: 1),
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TT.mono(size: 9.5, color: TT.text, w: FontWeight.w600),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              styleLabel,
+              style: TT.mono(size: 9.5, color: TT.text, w: FontWeight.w600),
+            ),
+            const SizedBox(width: 6),
+            Container(width: 1, height: 10, color: TT.line2),
+            const SizedBox(width: 6),
+            Text(
+              unitLabel.toUpperCase(),
+              style: TT.mono(size: 9.5, color: TT.ember, w: FontWeight.w800),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -781,12 +1223,101 @@ class _LayerOption extends StatelessWidget {
   }
 }
 
+// ───────────────────────── MENU SHEET ROW ────────────────────────────────────
+
+class _MenuRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? trailing;
+  final bool ember;
+  final VoidCallback onTap;
+  const _MenuRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.trailing,
+    this.ember = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: TT.surf,
+          border: Border.all(color: TT.line, width: 1),
+          borderRadius: BorderRadius.circular(TT.rMd),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: ember ? TT.ember : TT.text2),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label,
+                  style: TT.body(size: 14, w: FontWeight.w700)),
+            ),
+            if (trailing != null)
+              Text(trailing!,
+                  style: TT.mono(size: 10, color: TT.text3, w: FontWeight.w700))
+            else
+              const Icon(Icons.chevron_right, size: 18, color: TT.text3),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ───────────────────────── SHEET HANDLE ─────────────────────────────────────
+
+class _SheetHandle extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _SheetHandle({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: 42,
+          height: 4,
+          margin: const EdgeInsets.only(bottom: 14, top: 2),
+          decoration: BoxDecoration(
+            color: TT.line3,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ───────────────────────── RECORDING PANEL ───────────────────────────────────
 
 class _RecordingPanel extends StatelessWidget {
   final AnimationController entryCtl;
+  final ScrollController scrollCtl;
+  final bool useMiles;
+  final String Function(double km) formatDistValueOnly;
+  final String Function(double? kmh) formatSpeed;
   final Future<void> Function() onStart;
-  const _RecordingPanel({required this.entryCtl, required this.onStart});
+  final VoidCallback onHandleTap;
+
+  const _RecordingPanel({
+    required this.entryCtl,
+    required this.scrollCtl,
+    required this.useMiles,
+    required this.formatDistValueOnly,
+    required this.formatSpeed,
+    required this.onStart,
+    required this.onHandleTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -798,27 +1329,17 @@ class _RecordingPanel extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0x000F1318), Color(0xF20B0E12), TT.bg2],
+              colors: [Color(0xCC0F1318), Color(0xF20B0E12), TT.bg2],
               stops: [0.0, 0.3, 1.0],
             ),
             border: Border(top: BorderSide(color: TT.line, width: 1)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rLg)),
           ),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: ListView(
+            controller: scrollCtl,
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
             children: [
-              // Grab handle.
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: TT.line3,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              _SheetHandle(onTap: onHandleTap),
               // Title row.
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -862,13 +1383,28 @@ class _RecordingPanel extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               // 3-stat row.
-              _StatRow(recording: recording),
+              _StatRow(
+                recording: recording,
+                useMiles: useMiles,
+                formatDistValueOnly: formatDistValueOnly,
+              ),
               const SizedBox(height: 12),
               // Mini elevation chart card (only when we have data).
               if (recording.points.length >= 2)
-                _MiniElevCard(points: recording.points)
+                _MiniElevCard(
+                  points: recording.points,
+                  useMiles: useMiles,
+                )
               else
                 _EmptyChartCard(isRecording: recording.isRecording),
+              const SizedBox(height: 14),
+              // Expanded section — only shown when the user drags the sheet up,
+              // but always present in the scrollable so the DraggableScrollable
+              // can reveal it without rebuilding.
+              _ExpandedDetails(
+                recording: recording,
+                formatSpeed: formatSpeed,
+              ),
             ],
           ),
         ),
@@ -883,6 +1419,117 @@ class _RecordingPanel extends StatelessWidget {
           'Free-form recording';
     }
     return 'Tap PLAY to start recording';
+  }
+}
+
+class _ExpandedDetails extends StatelessWidget {
+  final RecordingProvider recording;
+  final String Function(double? kmh) formatSpeed;
+  const _ExpandedDetails({
+    required this.recording,
+    required this.formatSpeed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pts = recording.points;
+    final gpsLabel = recording.gpsHealthLabel;
+    final accuracy = recording.lastAccuracy;
+    final activity = recording.activityType.toUpperCase();
+
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('SESSION DETAILS',
+                  style: TT.label(
+                      size: 10.5, color: TT.text2, letterSpacing: 0.14 * 10.5)),
+              TTPill(
+                label: 'GPS $gpsLabel',
+                variant: gpsLabel == 'EXCELLENT' || gpsLabel == 'GOOD'
+                    ? TTPillVariant.live
+                    : TTPillVariant.neutral,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _DetailRow(
+              label: 'Activity',
+              value: activity,
+              icon: Icons.directions_walk),
+          _DetailRow(
+              label: 'Points captured',
+              value: pts.length.toString(),
+              icon: Icons.timeline),
+          _DetailRow(
+              label: 'Accepted fixes',
+              value: recording.acceptedFixes.toString(),
+              icon: Icons.check_circle_outline),
+          _DetailRow(
+              label: 'Rejected fixes',
+              value: recording.rejectedFixes.toString(),
+              icon: Icons.do_disturb_alt_outlined),
+          _DetailRow(
+              label: 'Last accuracy',
+              value: accuracy == null
+                  ? '—'
+                  : '${accuracy.toStringAsFixed(1)} m',
+              icon: Icons.center_focus_strong),
+          _DetailRow(
+              label: 'Avg speed',
+              value: formatSpeed(recording.averageSpeedKmh),
+              icon: Icons.speed),
+          if (recording.targetTrail != null)
+            _DetailRow(
+                label: 'Target trail',
+                value: recording.targetTrail!.name,
+                icon: Icons.flag_outlined),
+          if (recording.isOffTrail)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: TTPill(
+                label: 'OFF-TRAIL ${recording.offTrailDist.round()}M',
+                variant: TTPillVariant.danger,
+                leadingIcon: Icons.warning_amber_outlined,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: TT.text3),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                style: TT.body(size: 12, color: TT.text2, w: FontWeight.w600)),
+          ),
+          Text(value,
+              style: TT.mono(size: 11, color: TT.text, w: FontWeight.w700)),
+        ],
+      ),
+    );
   }
 }
 
@@ -1013,12 +1660,21 @@ class _StopButton extends StatelessWidget {
 
 class _StatRow extends StatelessWidget {
   final RecordingProvider recording;
-  const _StatRow({required this.recording});
+  final bool useMiles;
+  final String Function(double km) formatDistValueOnly;
+  const _StatRow({
+    required this.recording,
+    required this.useMiles,
+    required this.formatDistValueOnly,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Pace in km/h — derived from RecordingProvider.averageSpeedKmh.
-    final pace = recording.averageSpeedKmh;
+    final speedKmh = recording.averageSpeedKmh;
+    final speedValue = useMiles
+        ? (speedKmh * 0.621371).toStringAsFixed(1)
+        : speedKmh.toStringAsFixed(1);
+    final speedUnit = useMiles ? 'mph' : 'km/h';
     final elev = recording.totalGainM;
     final time = recording.duration;
 
@@ -1040,15 +1696,15 @@ class _StatRow extends StatelessWidget {
                 ember: true,
               ),
             ),
-            _StatDivider(),
+            const _StatDivider(),
             Expanded(
               child: _MiniStat(
                 label: 'Pace',
-                value: pace.toStringAsFixed(1),
-                unit: 'km/h',
+                value: speedValue,
+                unit: speedUnit,
               ),
             ),
-            _StatDivider(),
+            const _StatDivider(),
             Expanded(
               child: _MiniStat(
                 label: 'Time',
@@ -1063,6 +1719,7 @@ class _StatRow extends StatelessWidget {
 }
 
 class _StatDivider extends StatelessWidget {
+  const _StatDivider();
   @override
   Widget build(BuildContext context) =>
       Container(width: 1, height: 48, color: TT.line);
@@ -1122,8 +1779,9 @@ class _MiniStat extends StatelessWidget {
 }
 
 class _MiniElevCard extends StatelessWidget {
-  final List<dynamic> points;
-  const _MiniElevCard({required this.points});
+  final List<RecordingPoint> points;
+  final bool useMiles;
+  const _MiniElevCard({required this.points, required this.useMiles});
 
   @override
   Widget build(BuildContext context) {
@@ -1137,20 +1795,23 @@ class _MiniElevCard extends StatelessWidget {
     final distSamples = <double>[]; // cumulative km
     for (var i = 0; i < n; i += stride) {
       final p = points[i];
-      samples.add((p.altitude as double));
+      samples.add(p.altitude);
       if (i > 0) {
         final prev = points[i - stride < 0 ? 0 : i - stride];
         totalDistKm += Geolocator.distanceBetween(
-              prev.latitude as double,
-              prev.longitude as double,
-              p.latitude as double,
-              p.longitude as double,
+              prev.latitude,
+              prev.longitude,
+              p.latitude,
+              p.longitude,
             ) /
             1000.0;
       }
       distSamples.add(totalDistKm);
     }
     final lastKm = distSamples.isEmpty ? 0.0 : distSamples.last;
+    final distLabel = useMiles
+        ? '0 → ${(lastKm * 0.621371).toStringAsFixed(1)} mi'
+        : '0 → ${lastKm.toStringAsFixed(1)} km';
 
     return TTCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -1165,14 +1826,14 @@ class _MiniElevCard extends StatelessWidget {
                 style: TT.label(size: 10.5, color: TT.text2, letterSpacing: 0.14 * 10.5),
               ),
               Text(
-                '0 → ${lastKm.toStringAsFixed(1)} km',
+                distLabel,
                 style: TT.mono(size: 10, color: TT.text3, w: FontWeight.w600),
               ),
             ],
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: 56,
+            height: 96,
             child: CustomPaint(
               painter: _MiniElevPainter(samples: samples),
               size: Size.infinite,
@@ -1304,13 +1965,138 @@ class _MiniElevPainter extends CustomPainter {
   bool shouldRepaint(_MiniElevPainter old) => old.samples != samples;
 }
 
-// ──────────────────────── FORMATTING HELPERS ─────────────────────────────────
+// ──────────────────────── SEARCH DELEGATE ────────────────────────────────────
 
-String _formatMiles(double km) {
-  final mi = km * 0.621371;
-  if (mi < 10) return mi.toStringAsFixed(2);
-  return mi.toStringAsFixed(1);
+class _TrailSearchDelegate extends SearchDelegate<Trail?> {
+  final List<Trail> trails;
+  _TrailSearchDelegate(this.trails) : super(searchFieldLabel: 'Search trails');
+
+  @override
+  ThemeData appBarTheme(BuildContext context) {
+    final base = Theme.of(context);
+    return base.copyWith(
+      scaffoldBackgroundColor: TT.bg,
+      appBarTheme: AppBarTheme(
+        backgroundColor: TT.bg2,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: TT.text),
+        titleTextStyle: TT.title(18),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        hintStyle: TT.body(size: 14, color: TT.text3),
+        border: InputBorder.none,
+      ),
+      textTheme: base.textTheme.copyWith(
+        titleLarge: TT.body(size: 14, color: TT.text),
+      ),
+    );
+  }
+
+  List<Trail> _matches(String q) {
+    final query = q.trim().toLowerCase();
+    if (query.isEmpty) {
+      final sorted = List<Trail>.of(trails)
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      return sorted.take(40).toList();
+    }
+    final filtered = trails
+        .where((t) => t.name.toLowerCase().contains(query))
+        .toList();
+    filtered.sort((a, b) {
+      final ai = a.name.toLowerCase().indexOf(query);
+      final bi = b.name.toLowerCase().indexOf(query);
+      if (ai != bi) return ai.compareTo(bi);
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return filtered;
+  }
+
+  Widget _resultList(BuildContext context) {
+    final results = _matches(query);
+    if (results.isEmpty) {
+      return Container(
+        color: TT.bg,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'No trails match "${query.trim()}".',
+          style: TT.body(size: 14, color: TT.text2),
+        ),
+      );
+    }
+    return Container(
+      color: TT.bg,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        itemCount: results.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (_, i) {
+          final t = results[i];
+          return TTCard(
+            tight: true,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            onTap: () => close(context, t),
+            child: Row(
+              children: [
+                Icon(t.isCave ? Icons.terrain : Icons.landscape,
+                    size: 18, color: TT.ember),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        t.name,
+                        style: TT.body(size: 14, w: FontWeight.w800),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${t.difficulty} · ${t.distanceKm.toStringAsFixed(1)} km · '
+                        '${t.elevationGainM}m gain',
+                        style: TT.mono(
+                            size: 10.5, color: TT.text3, w: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, size: 18, color: TT.text3),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      if (query.isNotEmpty)
+        IconButton(
+          icon: const Icon(Icons.close, color: TT.text2),
+          onPressed: () => query = '',
+        ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back, color: TT.text),
+      onPressed: () => close(context, null),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) => _resultList(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _resultList(context);
 }
+
+// ──────────────────────── FORMATTING HELPERS ─────────────────────────────────
 
 String _formatDurationShort(Duration d) {
   if (d == Duration.zero) return '0m';
@@ -1328,6 +2114,46 @@ String _formatDurationLong(Duration d) {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
   return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+}
+
+// ──────────────────────── BREAKDOWN MODELS ───────────────────────────────────
+
+class _HikeSnapshot {
+  final int movingSeconds;
+  final double movingDistanceKm;
+  final double maxSpeedKmh;
+  const _HikeSnapshot({
+    required this.movingSeconds,
+    required this.movingDistanceKm,
+    required this.maxSpeedKmh,
+  });
+}
+
+class _BreakRow {
+  final String label;
+  final String value;
+  const _BreakRow({required this.label, required this.value});
+}
+
+class _BreakRowView extends StatelessWidget {
+  final _BreakRow row;
+  const _BreakRowView({required this.row});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(row.label,
+                style: TT.body(size: 13, color: TT.text2, w: FontWeight.w600)),
+          ),
+          Text(row.value,
+              style: TT.numStyle(size: 14, color: TT.text)),
+        ],
+      ),
+    );
+  }
 }
 
 // ──────────────────────── ANIMATION PRIMITIVES ───────────────────────────────

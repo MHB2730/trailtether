@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../core/constants.dart';
+import '../core/design_tokens.dart';
 import '../models/accommodation.dart';
+import '../widgets/design/tt_pill.dart';
 
+/// Bottom sheet that surfaces an [Accommodation] entry tapped on the map.
+/// Lets the hiker call the listed phone number (if any), copy the
+/// coordinates, and dismiss.
 class AccommodationDetailSheet extends StatelessWidget {
   final Accommodation acc;
 
@@ -14,7 +17,10 @@ class AccommodationDetailSheet extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: TT.bg2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rLg)),
+      ),
       builder: (_) => AccommodationDetailSheet(acc: acc),
     );
   }
@@ -26,202 +32,238 @@ class AccommodationDetailSheet extends StatelessWidget {
     }
   }
 
+  String get _emoji => switch (acc.type) {
+        'hotel' => '🏨',
+        'resort' => '🏖️',
+        'lodge' => '🏡',
+        'backpacker' => '🎒',
+        'self_catering' => '🍳',
+        'guesthouse' => '🛌',
+        _ => '🏠',
+      };
+
   @override
   Widget build(BuildContext context) {
-    final emoji = switch (acc.type) {
-      'hotel' => '🏨',
-      'resort' => '🏖️',
-      'lodge' => '🏡',
-      'backpacker' => '🎒',
-      'self_catering' => '🍳',
-      'guesthouse' => '🛌',
-      _ => '🏠',
-    };
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SheetHandle(),
 
-    return Container(
-      margin: const EdgeInsets.only(top: 120),
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-      decoration: const BoxDecoration(
-        color: Color(0xFF111111),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 14),
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                color: kColorCream.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                      color: Colors.blueAccent.withOpacity(0.3), width: 1.5),
+            // ── Header ─────────────────────────────────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: TT.emberDim,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: TT.line3, width: 1.2),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(_emoji, style: const TextStyle(fontSize: 24)),
                 ),
-                child: Center(
-                    child: Text(emoji, style: const TextStyle(fontSize: 28))),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(acc.name,
-                        style: GoogleFonts.outfit(
-                            color: kColorCream,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            height: 1.2)),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: kColorPanel,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: kColorBorder),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(acc.name, style: TT.title(18)),
+                      const SizedBox(height: 4),
+                      Text('${acc.region} Drakensberg',
+                          style: TT.body(size: 13, color: TT.text2)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          TTPill(
+                              label: acc.type
+                                  .replaceAll('_', ' ')
+                                  .toUpperCase()),
+                          if (acc.phone != null)
+                            const TTPill(
+                              label: 'CALL AVAILABLE',
+                              leadingIcon: Icons.phone_outlined,
+                            ),
+                        ],
                       ),
-                      child: Text('${acc.region} Drakensberg',
-                          style: GoogleFonts.outfit(
-                              color: kColorCream.withOpacity(0.5),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.3)),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+              ],
+            ),
+
+            const SizedBox(height: 18),
+            const _TTDivider(),
+            const SizedBox(height: 14),
+
+            // ── Phone (tap to call) ───────────────────────────────────────
+            if (acc.phone != null) ...[
+              _MetaRow(
+                icon: Icons.phone_outlined,
+                label: 'PHONE',
+                value: acc.phone!,
+                actionIcon: Icons.call,
+                onTap: () => _call(acc.phone!),
               ),
+              const SizedBox(height: 10),
             ],
-          ),
-          const SizedBox(height: 28),
-          _StatRow(
-            icon: Icons.category_outlined,
-            label: 'Type',
-            value: acc.type.replaceAll('_', ' ').toUpperCase(),
-          ),
-          const SizedBox(height: 12),
-          if (acc.phone != null) ...[
-            _StatRow(
-              icon: Icons.phone_outlined,
-              label: 'Phone',
-              value: acc.phone!,
-              onTap: () => _call(acc.phone!),
-              actionIcon: Icons.call,
+
+            // ── Coordinates (tap to copy) ─────────────────────────────────
+            _MetaRow(
+              icon: Icons.location_on_outlined,
+              label: 'COORDINATES',
+              value:
+                  '${acc.lat.toStringAsFixed(5)}, ${acc.lon.toStringAsFixed(5)}',
+              mono: true,
+              actionIcon: Icons.copy,
+              onTap: () {
+                Clipboard.setData(
+                    ClipboardData(text: '${acc.lat}, ${acc.lon}'));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: TT.surf,
+                    content: Text('Coordinates copied',
+                        style: TT.body(size: 13)),
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 12),
+
+            const SizedBox(height: 20),
+
+            // ── Primary CTA: dismiss (outline) ────────────────────────────
+            _OutlineButton(
+              label: 'Dismiss',
+              icon: Icons.close,
+              onTap: () => Navigator.pop(context),
+            ),
           ],
-          _StatRow(
-            icon: Icons.location_on_outlined,
-            label: 'Coordinates',
-            value:
-                '${acc.lat.toStringAsFixed(5)}, ${acc.lon.toStringAsFixed(5)}',
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: '${acc.lat}, ${acc.lon}'));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Coordinates copied')),
-              );
-            },
-            actionIcon: Icons.copy,
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close),
-              label: const Text('DISMISS'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kColorPanel,
-                foregroundColor: kColorCream,
-                elevation: 0,
-                side: const BorderSide(color: kColorBorder),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _StatRow extends StatelessWidget {
+// ── Shared primitives ──────────────────────────────────────────────────────
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Container(
+          width: 42,
+          height: 4,
+          margin: const EdgeInsets.only(top: 6, bottom: 14),
+          decoration: BoxDecoration(
+            color: TT.line3,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      );
+}
+
+class _TTDivider extends StatelessWidget {
+  const _TTDivider();
+  @override
+  Widget build(BuildContext context) => Container(height: 1, color: TT.line);
+}
+
+class _MetaRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final VoidCallback? onTap;
+  final bool mono;
   final IconData? actionIcon;
-
-  const _StatRow({
+  final VoidCallback? onTap;
+  const _MetaRow({
     required this.icon,
     required this.label,
     required this.value,
-    this.onTap,
+    this.mono = false,
     this.actionIcon,
+    this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: kColorPanel,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kColorBorder),
-        ),
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon,
-                  color: Colors.blueAccent.withOpacity(0.8), size: 18),
-            ),
-            const SizedBox(width: 14),
+            Icon(icon, color: TT.ember, size: 15),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(label,
-                      style: GoogleFonts.outfit(
-                          color: kColorCream.withOpacity(0.3),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8)),
-                  const SizedBox(height: 2),
-                  Text(value,
-                      style: GoogleFonts.outfit(
-                          color: kColorCream,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600)),
+                      style: TT.label(
+                          size: 10, color: TT.text3, letterSpacing: 1.4)),
+                  const SizedBox(height: 3),
+                  Text(
+                    value,
+                    style: mono
+                        ? TT.mono(size: 12.5, color: TT.text)
+                        : TT.body(size: 13, color: TT.text),
+                  ),
                 ],
               ),
             ),
             if (actionIcon != null)
-              Icon(actionIcon, color: kColorCream.withOpacity(0.15), size: 18),
+              Icon(actionIcon, color: TT.text3, size: 14),
           ],
+        ),
+      );
+}
+
+class _OutlineButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _OutlineButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0x07FFFFFF),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: TT.line2, width: 1),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: TT.text, size: 15),
+              const SizedBox(width: 8),
+              Text(label,
+                  style: TT
+                      .body(size: 14, color: TT.text, w: FontWeight.w800)
+                      .copyWith(letterSpacing: 0.04 * 14)),
+            ],
+          ),
         ),
       ),
     );

@@ -1,51 +1,94 @@
+// Trailtether 3.0 — Hike history & detail screens, reskinned to TT tokens.
+//
+// HikeHistoryScreen is the legacy list of every locally-recorded hike. It is
+// still pushed from a couple of TT screens, so we keep the public API intact
+// (constructor, route push behaviour) and only update its visuals.
+//
+// HikeDetailScreen renders one SavedHike with a real flutter_map polyline
+// preview, an animated elevation profile, a stat breakdown, plus share /
+// delete actions. Both screens consume HikeHistoryProvider and run on the
+// same data model as before — nothing about persistence or Supabase sync is
+// touched here.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+
 import '../core/constants.dart';
+import '../core/design_tokens.dart';
 import '../models/saved_hike.dart';
 import '../providers/hike_history_provider.dart';
 import '../services/health_connect_service.dart';
 import '../services/offline_map_service.dart';
+import '../widgets/design/tt_ambient.dart';
+import '../widgets/design/tt_app_bar.dart';
+import '../widgets/design/tt_elev_chart.dart';
+import '../widgets/design/tt_glass_card.dart';
+import '../widgets/design/tt_topo.dart';
 import '../widgets/map/speed_path_layer.dart';
 
+// ───────────────────────────── HISTORY LIST ────────────────────────────────
+
 class HikeHistoryScreen extends StatelessWidget {
+  /// When true the screen renders without its own Scaffold / SafeArea — the
+  /// surrounding shell (e.g. AppShell) is expected to provide both.
   final bool embedded;
   const HikeHistoryScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
-    final body = Consumer<HikeHistoryProvider>(
+    final stack = Stack(
+      children: [
+        const Positioned.fill(child: TTAmbient()),
+        const Positioned.fill(child: TTTopoBackdrop()),
+        SafeArea(
+          top: !embedded,
+          bottom: false,
+          child: const Column(
+            children: [
+              TTPageAppBar(title: 'Hike History'),
+              Expanded(child: _HistoryBody()),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (embedded) return Material(color: TT.bg, child: stack);
+    return Scaffold(backgroundColor: TT.bg, body: stack);
+  }
+}
+
+class _HistoryBody extends StatelessWidget {
+  const _HistoryBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<HikeHistoryProvider>(
       builder: (_, history, __) {
         if (!history.loaded) {
           return const Center(
-            child: CircularProgressIndicator(color: kColorOrange),
+            child: SizedBox(
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(
+                color: TT.ember,
+                strokeWidth: 2.4,
+              ),
+            ),
           );
         }
-
         if (history.hikes.isEmpty) return const _EmptyHistory();
-
         return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
           itemCount: history.hikes.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (_, i) => _HikeCard(hike: history.hikes[i]),
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (_, i) => _HistoryRow(hike: history.hikes[i]),
         );
       },
-    );
-
-    if (embedded) return body;
-
-    return Scaffold(
-      backgroundColor: kColorBg,
-      appBar: AppBar(
-        backgroundColor: kColorBg,
-        foregroundColor: kColorCream,
-        title: Text('Activities', style: GoogleFonts.outfit()),
-      ),
-      body: body,
     );
   }
 }
@@ -54,239 +97,450 @@ class _EmptyHistory extends StatelessWidget {
   const _EmptyHistory();
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 0, 28, 48),
+        child: TTCard(
+          padding: const EdgeInsets.fromLTRB(22, 26, 22, 26),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 76,
-                height: 76,
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
-                  color: kColorPanel,
+                  color: TT.emberDim,
                   shape: BoxShape.circle,
-                  border: Border.all(color: kColorBorder),
+                  border: Border.all(color: const Color(0x52FF6A2C), width: 1),
                 ),
-                child: const Icon(Icons.directions_walk_rounded,
-                    color: kColorOrange, size: 36),
+                alignment: Alignment.center,
+                child: const Icon(Icons.landscape_outlined,
+                    color: TT.ember, size: 30),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               Text(
-                'No saved hikes yet',
-                style: GoogleFonts.outfit(
-                  color: kColorCream,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Completed recordings saved locally will appear here with their full activity stats.',
+                'No recorded hikes yet',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
-                  color: kColorCream.withOpacity(0.45),
-                  fontSize: 13,
-                  height: 1.4,
-                ),
+                style: TT.title(17, letterSpacing: -0.01 * 17),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tap Start Hike on the Map to begin a recording — '
+                'it will land here when you finish.',
+                textAlign: TextAlign.center,
+                style: TT.body(size: 12.5, color: TT.text3),
               ),
             ],
           ),
-        ),
-      );
-}
-
-class _HikeCard extends StatelessWidget {
-  final SavedHike hike;
-  const _HikeCard({required this.hike});
-
-  @override
-  Widget build(BuildContext context) {
-    final date = DateFormat('EEE, d MMM yyyy').format(hike.startedAt);
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => HikeDetailScreen(hike: hike)),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: kColorPanel,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: kColorBorder),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-                height: 132, child: _RouteMap(hike: hike, interactive: false)),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          hike.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.outfit(
-                            color: kColorCream,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      Icon(Icons.chevron_right,
-                          color: kColorCream.withOpacity(0.25)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    date,
-                    style: GoogleFonts.outfit(
-                      color: kColorCream.withOpacity(0.38),
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      _MiniMetric(
-                          'DIST', '${hike.distanceKm.toStringAsFixed(2)} km'),
-                      _MiniMetric(
-                          'TIME', _formatDuration(hike.durationSeconds)),
-                      _MiniMetric('ASC', '${hike.ascentM} m'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 }
 
+class _HistoryRow extends StatelessWidget {
+  final SavedHike hike;
+  const _HistoryRow({required this.hike});
+
+  @override
+  Widget build(BuildContext context) {
+    final date = DateFormat('EEE, d MMM yyyy').format(hike.startedAt);
+    final distance = '${hike.distanceKm.toStringAsFixed(2)} km';
+    final ascent = '${hike.ascentM} m';
+    final duration = _formatDuration(hike.durationSeconds);
+
+    return TTCard(
+      padding: EdgeInsets.zero,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => HikeDetailScreen(hike: hike)),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 14,
+            bottom: 14,
+            child: Container(
+              width: 3,
+              decoration: const BoxDecoration(
+                color: TT.ember,
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(2),
+                  bottomRight: Radius.circular(2),
+                ),
+                boxShadow: [BoxShadow(color: Color(0x66FF6A2C), blurRadius: 8)],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            hike.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TT.body(size: 14.5, w: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(date,
+                              style: TT.mono(size: 10.5, color: TT.text3)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: TT.text3, size: 22),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _RowStat(label: 'DIST', value: distance),
+                    _RowStat(label: 'TIME', value: duration),
+                    _RowStat(label: 'ASC', value: ascent, ember: true),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RowStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool ember;
+  const _RowStat({required this.label, required this.value, this.ember = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TT.label(size: 9.5, color: TT.text3, letterSpacing: 0.16 * 9.5)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TT.numStyle(
+              size: 14,
+              color: ember ? TT.ember : TT.text,
+              w: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ───────────────────────────── DETAIL SCREEN ───────────────────────────────
+
 class HikeDetailScreen extends StatelessWidget {
   final SavedHike hike;
   const HikeDetailScreen({super.key, required this.hike});
 
-  @override
-  Widget build(BuildContext context) {
-    final history = context.read<HikeHistoryProvider>();
-    return Scaffold(
-      backgroundColor: kColorBg,
-      appBar: AppBar(
-        backgroundColor: kColorBg,
-        foregroundColor: kColorCream,
-        title: Text('Activity Detail', style: GoogleFonts.outfit()),
+  Future<void> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Text('Delete this hike?', style: TT.title(16)),
+        content: Text(
+          'This permanently removes "${hike.name}" from your device. '
+          'Cannot be undone.',
+          style: TT.body(size: 13, color: TT.text2),
+        ),
         actions: [
-          IconButton(
-            tooltip: 'Sync to Health Connect',
-            icon: const Icon(Icons.health_and_safety_outlined),
-            onPressed: () async {
-              final result = await HealthConnectService.writeHike(hike);
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(result.userMessage)),
-              );
-            },
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel',
+                style: TT.body(size: 13, color: TT.text2)),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () async {
-              await history.remove(hike.id);
-              if (context.mounted) Navigator.pop(context);
-            },
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Delete',
+                style: TT.body(size: 13, color: TT.red, w: FontWeight.w800)),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+    );
+    if (ok != true || !context.mounted) return;
+    final history = context.read<HikeHistoryProvider>();
+    await history.remove(hike.id);
+    if (context.mounted) Navigator.pop(context);
+  }
+
+  Future<void> _share() async {
+    final dist = hike.distanceKm.toStringAsFixed(2);
+    final asc = hike.ascentM;
+    final dur = _formatDuration(hike.durationSeconds);
+    final date = DateFormat('d MMM yyyy').format(hike.startedAt);
+    await Share.share(
+      '${hike.name} — $date\n'
+      '$dist km · ↑ $asc m · $dur\n'
+      'Recorded with Trailtether.',
+      subject: hike.name,
+    );
+  }
+
+  Future<void> _syncToHealthConnect(BuildContext context) async {
+    final result = await HealthConnectService.writeHike(hike);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.userMessage,
+            style: TT.body(size: 13, color: TT.text)),
+        backgroundColor: TT.surf,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final date =
+        DateFormat('EEEE, d MMMM yyyy · HH:mm').format(hike.startedAt);
+
+    return Scaffold(
+      backgroundColor: TT.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: TTAmbient()),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _DetailAppBar(
+                  title: hike.name,
+                  onBack: () => Navigator.of(context).pop(),
+                  onShare: _share,
+                  onDelete: () => _confirmDelete(context),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+                    children: [
+                      _HeroCard(hike: hike, date: date),
+                      const SizedBox(height: 14),
+                      _MapPreview(hike: hike),
+                      const SizedBox(height: 14),
+                      _ElevationCard(hike: hike),
+                      const SizedBox(height: 14),
+                      _StatGridCard(hike: hike),
+                      const SizedBox(height: 14),
+                      _GpsQualityCard(hike: hike),
+                      const SizedBox(height: 14),
+                      _HealthConnectButton(
+                        onTap: () => _syncToHealthConnect(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailAppBar extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+  final VoidCallback onShare;
+  final VoidCallback onDelete;
+
+  const _DetailAppBar({
+    required this.title,
+    required this.onBack,
+    required this.onShare,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+      child: Row(
+        children: [
+          TTIconBtn(icon: Icons.chevron_left, size: 38, onTap: onBack),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TT.title(19, letterSpacing: -0.01 * 19),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TTIconBtn(icon: Icons.ios_share, size: 38, onTap: onShare),
+          const SizedBox(width: 6),
+          TTIconBtn(
+            icon: Icons.delete_outline,
+            size: 38,
+            onTap: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  final SavedHike hike;
+  final String date;
+  const _HeroCard({required this.hike, required this.date});
+
+  @override
+  Widget build(BuildContext context) {
+    final distance = '${hike.distanceKm.toStringAsFixed(2)} km';
+    final ascent = '${hike.ascentM} m';
+    final maxSpeed = '${hike.maxSpeedKmh.toStringAsFixed(1)} km/h';
+    final duration = _formatDuration(hike.durationSeconds);
+
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             hike.name,
-            style: GoogleFonts.outfit(
-              color: kColorCream,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-            ),
+            style: TT.title(22, letterSpacing: -0.01 * 22),
           ),
           const SizedBox(height: 6),
+          Text(date, style: TT.mono(size: 10.5, color: TT.text3)),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _HeroMetric(label: 'DURATION', value: duration),
+              _HeroDivider(),
+              _HeroMetric(label: 'POINTS', value: '${hike.pointCount}'),
+              _HeroDivider(),
+              _HeroMetric(label: 'ACTIVITY', value: hike.activityType.toUpperCase()),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(height: 1, color: TT.line),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _HeroMetric(label: 'DISTANCE', value: distance, ember: true),
+              _HeroDivider(),
+              _HeroMetric(label: 'ASCENT', value: ascent, ember: true),
+              _HeroDivider(),
+              _HeroMetric(label: 'MAX SPD', value: maxSpeed),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool ember;
+  const _HeroMetric({
+    required this.label,
+    required this.value,
+    this.ember = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TT.label(size: 9.5, color: TT.text3, letterSpacing: 0.16 * 9.5)),
+          const SizedBox(height: 5),
           Text(
-            DateFormat('EEEE, d MMMM yyyy  HH:mm').format(hike.startedAt),
-            style: GoogleFonts.outfit(
-              color: kColorCream.withOpacity(0.45),
-              fontSize: 13,
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TT.numStyle(
+              size: 16,
+              color: ember ? TT.ember : TT.text,
+              w: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 16),
-          Container(
-            height: 220,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kColorBorder),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: _RouteMap(hike: hike),
-          ),
-          const SizedBox(height: 16),
-          _Section(
-            title: 'Performance',
-            children: [
-              _MetricTile(
-                  'Distance', '${hike.distanceKm.toStringAsFixed(2)} km'),
-              _MetricTile(
-                  'Elapsed time', _formatDuration(hike.durationSeconds)),
-              _MetricTile('Moving time', _formatDuration(hike.movingSeconds)),
-              _MetricTile('Stopped time', _formatDuration(hike.stoppedSeconds)),
-              _MetricTile('Average speed',
-                  '${hike.averageSpeedKmh.toStringAsFixed(1)} km/h'),
-              _MetricTile('Moving speed',
-                  '${hike.movingSpeedKmh.toStringAsFixed(1)} km/h'),
-              _MetricTile(
-                  'Max speed', '${hike.maxSpeedKmh.toStringAsFixed(1)} km/h'),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _Section(
-            title: 'Elevation',
-            children: [
-              _MetricTile('Ascent', '${hike.ascentM} m'),
-              _MetricTile('Descent', '${hike.descentM} m'),
-              _MetricTile(
-                  'Lowest', '${hike.minElevationM.toStringAsFixed(0)} m'),
-              _MetricTile(
-                  'Highest', '${hike.maxElevationM.toStringAsFixed(0)} m'),
-              _MetricTile(
-                  'Range', '${hike.elevationRangeM.toStringAsFixed(0)} m'),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _Section(
-            title: 'GPS Quality',
-            children: [
-              _MetricTile('Captured points', '${hike.pointCount}'),
-              _MetricTile('Accepted fixes', '${hike.acceptedFixes}'),
-              _MetricTile('Rejected fixes', '${hike.rejectedFixes}'),
-              _MetricTile('Poor accuracy', '${hike.poorAccuracyRejects}'),
-              _MetricTile('Jump rejects', '${hike.jumpRejects}'),
-              _MetricTile('Stale rejects', '${hike.staleRejects}'),
-              _MetricTile('Gap warnings', '${hike.gapWarnings}'),
-              _MetricTile('Average accuracy',
-                  '${hike.averageAccuracyM.toStringAsFixed(1)} m'),
-              _MetricTile('Best accuracy',
-                  '${hike.bestAccuracyM.toStringAsFixed(1)} m'),
-              _MetricTile('Worst accuracy',
-                  '${hike.worstAccuracyM.toStringAsFixed(1)} m'),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _CapturedPoints(hike: hike),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 30,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      color: TT.line,
+    );
+  }
+}
+
+class _MapPreview extends StatelessWidget {
+  final SavedHike hike;
+  const _MapPreview({required this.hike});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(TT.rLg),
+      child: Container(
+        height: 240,
+        decoration: BoxDecoration(
+          color: TT.surf,
+          borderRadius: BorderRadius.circular(TT.rLg),
+          border: Border.all(color: TT.line, width: 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: hike.points.isEmpty
+            ? _MapEmpty()
+            : _RouteMap(hike: hike, interactive: false),
+      ),
+    );
+  }
+}
+
+class _MapEmpty extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: TT.bg2,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.map_outlined, color: TT.text3, size: 30),
+          const SizedBox(height: 10),
+          Text('No GPS points captured',
+              style: TT.body(size: 12, color: TT.text3)),
         ],
       ),
     );
@@ -306,6 +560,7 @@ class _RouteMap extends StatelessWidget {
         ? LatLng(kWorldMapCenter.lat, kWorldMapCenter.lon)
         : route.first;
     final bounds = route.length < 2 ? null : _boundsFor(route);
+
     return FlutterMap(
       options: MapOptions(
         initialCenter: center,
@@ -336,13 +591,13 @@ class _RouteMap extends StatelessWidget {
                 width: 18,
                 height: 18,
                 child: const Icon(Icons.trip_origin,
-                    color: Color(0xFF81C784), size: 16),
+                    color: TT.green, size: 16),
               ),
               Marker(
                 point: route.last,
                 width: 18,
                 height: 18,
-                child: const Icon(Icons.flag, color: kColorOrange, size: 18),
+                child: const Icon(Icons.flag, color: TT.ember, size: 18),
               ),
             ],
           ),
@@ -360,214 +615,283 @@ class _RouteMap extends StatelessWidget {
   }
 }
 
-class _Section extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-  const _Section({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: kColorPanel,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: kColorBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title.toUpperCase(),
-              style: GoogleFonts.outfit(
-                color: kColorOrange,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.1,
-              ),
-            ),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (_, constraints) {
-                final itemWidth = (constraints.maxWidth - 10) / 2;
-                return Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: children
-                      .map((child) => SizedBox(width: itemWidth, child: child))
-                      .toList(),
-                );
-              },
-            ),
-          ],
-        ),
-      );
-}
-
-class _MetricTile extends StatelessWidget {
-  final String label;
-  final String value;
-  const _MetricTile(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.035),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: kColorBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.outfit(
-                color: kColorCream.withOpacity(0.42),
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.outfit(
-                color: kColorCream,
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _CapturedPoints extends StatelessWidget {
+class _ElevationCard extends StatelessWidget {
   final SavedHike hike;
-  const _CapturedPoints({required this.hike});
+  const _ElevationCard({required this.hike});
 
   @override
-  Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: kColorPanel,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: kColorBorder),
-        ),
-        child: Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            iconColor: kColorOrange,
-            collapsedIconColor: kColorCream.withOpacity(0.4),
-            title: Text(
-              'Captured Points',
-              style: GoogleFonts.outfit(
-                color: kColorCream,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            subtitle: Text(
-              '${hike.pointCount} fixes stored locally',
-              style: GoogleFonts.outfit(
-                color: kColorCream.withOpacity(0.4),
-                fontSize: 11,
-              ),
-            ),
+  Widget build(BuildContext context) {
+    final altitudes =
+        hike.points.length >= 4 ? hike.points.map((p) => p.altitude).toList() : null;
+    final ascentLabel = '${hike.ascentM} m ascent';
+    final peakLabel =
+        '${hike.distanceKm.toStringAsFixed(1)} km · $ascentLabel';
+
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: hike.points.length,
-                separatorBuilder: (_, __) => const Divider(
-                  color: kColorBorder,
-                  height: 1,
-                ),
-                itemBuilder: (_, i) {
-                  final point = hike.points[i];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 36,
-                          child: Text(
-                            '#${i + 1}',
-                            style: GoogleFonts.outfit(
-                              color: kColorOrange,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            '${point.latitude.toStringAsFixed(6)}, '
-                            '${point.longitude.toStringAsFixed(6)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.outfit(
-                              color: kColorCream,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${point.altitude.toStringAsFixed(0)}m  '
-                          '${point.accuracy.toStringAsFixed(0)}m',
-                          style: GoogleFonts.outfit(
-                            color: kColorCream.withOpacity(0.45),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+              Text(
+                'ELEVATION PROFILE',
+                style: TT.label(
+                    size: 11, color: TT.ember, letterSpacing: 0.16 * 11),
+              ),
+              Text(
+                'RANGE ${hike.elevationRangeM.toStringAsFixed(0)} M',
+                style: TT.mono(size: 10, color: TT.text3),
               ),
             ],
           ),
-        ),
-      );
+          const SizedBox(height: 6),
+          if (altitudes == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Text(
+                  'Not enough GPS points for an elevation curve',
+                  style: TT.body(size: 12, color: TT.text3),
+                ),
+              ),
+            )
+          else
+            TTBigElevChart(samples: altitudes, peakLabel: peakLabel),
+        ],
+      ),
+    );
+  }
 }
 
-class _MiniMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  const _MiniMetric(this.label, this.value);
+class _StatGridCard extends StatelessWidget {
+  final SavedHike hike;
+  const _StatGridCard({required this.hike});
 
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                color: kColorCream.withOpacity(0.32),
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.outfit(
-                color: kColorCream,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final paceKm = hike.distanceKm > 0
+        ? _formatPaceMinPerKm(hike.durationSeconds, hike.distanceKm)
+        : '--';
+    final avgSpd = '${hike.averageSpeedKmh.toStringAsFixed(1)} km/h';
+    final movSpd = '${hike.movingSpeedKmh.toStringAsFixed(1)} km/h';
+    final moving = _formatDuration(hike.movingSeconds);
+    final stopped = _formatDuration(hike.stoppedSeconds);
+    final descent = '${hike.descentM} m';
+    final low = '${hike.minElevationM.toStringAsFixed(0)} m';
+    final high = '${hike.maxElevationM.toStringAsFixed(0)} m';
+    final peaks = '${hike.peaksClimbed}';
+
+    final tiles = <_StatTile>[
+      _StatTile(label: 'AVG PACE', value: paceKm, unit: '/km'),
+      _StatTile(label: 'AVG SPD', value: avgSpd),
+      _StatTile(label: 'MOVING', value: movSpd),
+      _StatTile(label: 'MOVING T', value: moving),
+      _StatTile(label: 'STOPPED', value: stopped),
+      _StatTile(label: 'DESCENT', value: descent, ember: true),
+      _StatTile(label: 'LOWEST', value: low),
+      _StatTile(label: 'HIGHEST', value: high),
+      _StatTile(label: 'PEAKS', value: peaks, ember: true),
+    ];
+
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PACE & ELEVATION',
+            style:
+                TT.label(size: 11, color: TT.ember, letterSpacing: 0.16 * 11),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(builder: (_, cs) {
+            const spacing = 10.0;
+            final w = (cs.maxWidth - spacing * 2) / 3;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: tiles
+                  .map((t) => SizedBox(width: w, child: t))
+                  .toList(),
+            );
+          }),
+        ],
+      ),
+    );
+  }
 }
+
+class _StatTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? unit;
+  final bool ember;
+  const _StatTile({
+    required this.label,
+    required this.value,
+    this.unit,
+    this.ember = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: ember ? TT.emberSoft : const Color(0x08FFFFFF),
+        borderRadius: BorderRadius.circular(TT.rSm),
+        border: Border.all(
+          color: ember ? const Color(0x52FF6A2C) : TT.line,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TT.label(size: 9, color: TT.text3, letterSpacing: 0.16 * 9),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TT.numStyle(
+                    size: 13,
+                    color: ember ? TT.ember : TT.text,
+                    w: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (unit != null) ...[
+                const SizedBox(width: 3),
+                Text(unit!, style: TT.mono(size: 9.5, color: TT.text3)),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GpsQualityCard extends StatelessWidget {
+  final SavedHike hike;
+  const _GpsQualityCard({required this.hike});
+
+  @override
+  Widget build(BuildContext context) {
+    final acc = hike.averageAccuracyM.toStringAsFixed(1);
+    final best = hike.bestAccuracyM.toStringAsFixed(1);
+    final worst = hike.worstAccuracyM.toStringAsFixed(1);
+
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'GPS QUALITY',
+            style:
+                TT.label(size: 11, color: TT.ember, letterSpacing: 0.16 * 11),
+          ),
+          const SizedBox(height: 12),
+          _GpsRow(label: 'Accepted fixes', value: '${hike.acceptedFixes}'),
+          _GpsRow(label: 'Rejected fixes', value: '${hike.rejectedFixes}'),
+          _GpsRow(label: 'Poor accuracy',  value: '${hike.poorAccuracyRejects}'),
+          _GpsRow(label: 'Jump rejects',   value: '${hike.jumpRejects}'),
+          _GpsRow(label: 'Stale rejects',  value: '${hike.staleRejects}'),
+          _GpsRow(label: 'Gap warnings',   value: '${hike.gapWarnings}'),
+          const SizedBox(height: 10),
+          Container(height: 1, color: TT.line),
+          const SizedBox(height: 10),
+          _GpsRow(label: 'Average accuracy', value: '$acc m'),
+          _GpsRow(label: 'Best accuracy',    value: '$best m'),
+          _GpsRow(label: 'Worst accuracy',   value: '$worst m', last: true),
+        ],
+      ),
+    );
+  }
+}
+
+class _GpsRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool last;
+  const _GpsRow({
+    required this.label,
+    required this.value,
+    this.last = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: last ? 0 : 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TT.body(size: 12.5, color: TT.text2)),
+          Text(value,
+              style: TT.numStyle(size: 12.5, color: TT.text, w: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+}
+
+class _HealthConnectButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _HealthConnectButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: TT.emberDim,
+              border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+              borderRadius: BorderRadius.circular(TT.rMd),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.favorite_outline,
+                size: 18, color: TT.ember),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Sync to Health Connect',
+                    style: TT.body(size: 13.5, w: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text('Writes this hike to your phone\'s health store',
+                    style: TT.mono(size: 10.5, color: TT.text3)),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: TT.text3, size: 22),
+        ],
+      ),
+    );
+  }
+}
+
+// ───────────────────────────── HELPERS ─────────────────────────────────────
 
 String _formatDuration(int seconds) {
   final duration = Duration(seconds: seconds < 0 ? 0 : seconds);
@@ -578,4 +902,12 @@ String _formatDuration(int seconds) {
     return '${hours}h ${minutes.toString().padLeft(2, '0')}m';
   }
   return '${minutes}m ${secs.toString().padLeft(2, '0')}s';
+}
+
+String _formatPaceMinPerKm(int totalSeconds, double km) {
+  if (km <= 0 || totalSeconds <= 0) return '--';
+  final secPerKm = totalSeconds / km;
+  final m = secPerKm ~/ 60;
+  final s = (secPerKm % 60).round().toString().padLeft(2, '0');
+  return '$m:$s';
 }

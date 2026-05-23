@@ -1,34 +1,45 @@
+// Trailtether 3.0 — Live tracking screen, reskinned to TT tokens.
+//
+// Full-screen flutter_map (or 3D widget) with an ember-stroked recorded
+// polyline, glass overlays for the situation bar, stat tiles, off-trail
+// and incident alerts, plus a ember finish button. Logic for passive
+// tracking, broadcasting, weather poll, safety proximity, ghost mode,
+// battery saver, finish / save flow is preserved one-to-one.
+
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:io' show Platform;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
+
 import '../core/constants.dart';
+import '../core/design_tokens.dart';
 import '../core/sun_utils.dart';
-import '../models/weather.dart';
 import '../models/incident.dart';
 import '../models/saved_hike.dart';
+import '../models/weather.dart';
+import '../providers/app_state_provider.dart';
+import '../providers/auth_provider.dart' as ap;
 import '../providers/hike_history_provider.dart';
 import '../providers/recording_provider.dart';
+import '../providers/safety_provider.dart';
+import '../providers/static_data_provider.dart';
 import '../providers/team_provider.dart';
 import '../providers/team_tracking_provider.dart';
-import '../providers/auth_provider.dart' as ap;
-import '../services/weather_service.dart';
 import '../services/offline_map_service.dart';
-import '../widgets/common/glass_panel.dart';
-import '../widgets/map/trail_map_3d_selector.dart';
-import '../providers/static_data_provider.dart';
-import '../providers/safety_provider.dart';
-import '../providers/app_state_provider.dart';
+import '../services/weather_service.dart';
+import '../widgets/design/tt_app_bar.dart';
+import '../widgets/design/tt_count_up.dart';
+import '../widgets/design/tt_glass_card.dart';
+import '../widgets/design/tt_pill.dart';
 import '../widgets/map/speed_path_layer.dart';
+import '../widgets/map/trail_map_3d_selector.dart';
 
 class LiveTrackingScreen extends StatefulWidget {
   const LiveTrackingScreen({super.key});
@@ -49,7 +60,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   SafetyProvider? _safetyProvider;
 
   // 0 = Outdoor (2D), 1 = Satellite (2D), 2 = 3D
-  // 0 = Outdoor (2D), 1 = Satellite (2D), 2 = 3D
   int _mapMode = 1;
 
   @override
@@ -58,15 +68,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     _initCompass();
     _fetchWeather();
     _initSafetyListener();
-    // Refresh weather every 30 mins
     _weatherTimer =
         Timer.periodic(const Duration(minutes: 30), (_) => _fetchWeather());
-
-    // Start passive tracking to show signal health before recording, and
-    // tell TeamTrackingProvider to broadcast position while this screen is
-    // open. Without setLiveSharing(true), tapping LIVE TRACK on the home
-    // tab silently does nothing on the wire — no broadcasts unless the
-    // user also taps START TRACKING or has a selected team.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _recordingProvider ??= context.read<RecordingProvider>();
@@ -81,8 +84,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     _weatherTimer?.cancel();
     _recordingProvider?.removeListener(_onRecordingChanged);
     _recordingProvider?.stopPassiveTracking();
-    // Stop broadcasting once the screen is gone (recording, if active,
-    // keeps the broadcast loop alive via its own trigger).
     try {
       // ignore: use_build_context_synchronously
       context.read<TeamTrackingProvider>().setLiveSharing(false);
@@ -156,53 +157,54 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
         TextEditingController(text: rec.customName ?? rec.targetTrail?.name);
     int peaks = 0;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: kColorBg,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl))),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocalState) => Padding(
+        builder: (ctx, setLocalState) => Container(
+          decoration: const BoxDecoration(
+            color: TT.bg2,
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+            border: Border(top: BorderSide(color: TT.line2)),
+          ),
           padding: EdgeInsets.fromLTRB(
-              24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+              22, 22, 22, MediaQuery.of(ctx).viewInsets.bottom + 22),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('FINISH & SAVE',
-                  style: GoogleFonts.outfit(
-                      color: kColorOrange,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18)),
-              const SizedBox(height: 8),
-              Text(
-                  'Great work! Classify and name this activity to sync with your dashboard.',
-                  style:
-                      GoogleFonts.outfit(color: Colors.white60, fontSize: 13)),
-              const SizedBox(height: 20),
-              TextField(
-                controller: nameCtrl,
-                style: GoogleFonts.outfit(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'ACTIVITY NAME',
-                  labelStyle: GoogleFonts.outfit(
-                      color: kColorOrange,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.05),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: TT.line3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
+              Text('FINISH & SAVE',
+                  style: TT.label(
+                      size: 12, color: TT.ember, letterSpacing: 1.4)),
+              const SizedBox(height: 6),
+              Text('Great work — name this activity and pick its type.',
+                  style: TT.body(size: 12.5, color: TT.text2)),
+              const SizedBox(height: 18),
+              _SheetField(
+                controller: nameCtrl,
+                label: 'ACTIVITY NAME',
+              ),
+              const SizedBox(height: 18),
               Text('ACTIVITY TYPE',
-                  style: GoogleFonts.outfit(
-                      color: Colors.white60,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold)),
+                  style: TT.label(
+                      size: 10.5,
+                      color: TT.text3,
+                      letterSpacing: 1.4)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -225,12 +227,12 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       onTap: () => setLocalState(() => type = 'run')),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               Text('CONTEXT',
-                  style: GoogleFonts.outfit(
-                      color: Colors.white60,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold)),
+                  style: TT.label(
+                      size: 10.5,
+                      color: TT.text3,
+                      letterSpacing: 1.4)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -245,7 +247,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       label: 'TEAM',
                       icon: Icons.groups,
                       active: contextStr == 'team',
-                      onTap: () => setLocalState(() => contextStr = 'team')),
+                      onTap: () =>
+                          setLocalState(() => contextStr = 'team')),
                   const SizedBox(width: 8),
                   _TypeButton(
                       label: 'TRAINING',
@@ -256,42 +259,22 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                 ],
               ),
               if (contextStr == 'team') ...[
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 Text('SELECT TEAM',
-                    style: GoogleFonts.outfit(
-                        color: Colors.white60,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold)),
+                    style: TT.label(
+                        size: 10.5,
+                        color: TT.text3,
+                        letterSpacing: 1.4)),
                 const SizedBox(height: 8),
                 Consumer<TeamProvider>(
-                  builder: (_, tp, __) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12)),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: teamId,
-                        dropdownColor: kColorBg,
-                        isExpanded: true,
-                        hint: Text('Choose a team',
-                            style: GoogleFonts.outfit(
-                                color: Colors.white24, fontSize: 14)),
-                        items: tp.teams
-                            .map((t) => DropdownMenuItem(
-                                  value: t.id,
-                                  child: Text(t.name,
-                                      style: GoogleFonts.outfit(
-                                          color: Colors.white, fontSize: 14)),
-                                ))
-                            .toList(),
-                        onChanged: (v) => setLocalState(() => teamId = v),
-                      ),
-                    ),
+                  builder: (_, tp, __) => _TeamDropdown(
+                    value: teamId,
+                    teams: tp.teams,
+                    onChanged: (v) => setLocalState(() => teamId = v),
                   ),
                 ),
               ],
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               Row(
                 children: [
                   Expanded(
@@ -299,28 +282,30 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('PEAKS RECORDED',
-                            style: GoogleFonts.outfit(
-                                color: Colors.white60,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold)),
+                            style: TT.label(
+                                size: 10.5,
+                                color: TT.text3,
+                                letterSpacing: 1.4)),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            IconButton(
-                                icon: const Icon(Icons.remove_circle_outline,
-                                    color: kColorOrange),
-                                onPressed: () => setLocalState(
-                                    () => peaks = (peaks - 1).clamp(0, 10))),
-                            Text('$peaks',
-                                style: GoogleFonts.outfit(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold)),
-                            IconButton(
-                                icon: const Icon(Icons.add_circle_outline,
-                                    color: kColorOrange),
-                                onPressed: () =>
-                                    setLocalState(() => peaks = peaks + 1)),
+                            _StepperButton(
+                              icon: Icons.remove,
+                              onTap: () => setLocalState(
+                                  () => peaks = (peaks - 1).clamp(0, 10)),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16),
+                              child: Text('$peaks',
+                                  style: TT.numStyle(
+                                      size: 20, color: TT.text)),
+                            ),
+                            _StepperButton(
+                              icon: Icons.add,
+                              onTap: () =>
+                                  setLocalState(() => peaks = peaks + 1),
+                            ),
                           ],
                         ),
                       ],
@@ -328,53 +313,41 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 22),
               Row(
                 children: [
                   Expanded(
-                    child: TextButton(
-                      onPressed: () {
+                    child: _SecondaryButton(
+                      label: 'DISCARD',
+                      onTap: () {
                         rec.clear();
                         Navigator.pop(ctx);
                         Navigator.of(context).pop();
                       },
-                      child: Text('DISCARD',
-                          style: GoogleFonts.outfit(
-                              color: Colors.white30,
-                              fontWeight: FontWeight.bold)),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     flex: 2,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: kColorOrange,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                          padding: const EdgeInsets.symmetric(vertical: 16)),
-                      onPressed: () async {
+                    child: _PrimaryButton(
+                      label: 'SAVE ACTIVITY',
+                      onTap: () async {
                         rec.setActivityMetadata(
                             type: type,
                             context: contextStr,
                             name: nameCtrl.text);
-                        // Hacky way to inject peaks and teamId into the saved hike
-                        // In a real refactor, these would be part of RecordingProvider state
-                        await _saveActivity(rec, peaks: peaks, teamId: teamId);
+                        await _saveActivity(rec,
+                            peaks: peaks, teamId: teamId);
                         rec.clear();
                         if (!mounted) return;
                         if (ctx.mounted) Navigator.pop(ctx);
                         Navigator.of(context).pop();
                       },
-                      child: Text('SAVE ACTIVITY',
-                          style: GoogleFonts.outfit(
-                              color: Colors.black,
-                              fontWeight: FontWeight.w900)),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -387,30 +360,45 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     String contextStr = 'personal';
     String? teamId;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      backgroundColor: kColorBg,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl))),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocalState) => Padding(
-          padding: const EdgeInsets.all(24),
+        builder: (ctx, setLocalState) => Container(
+          decoration: const BoxDecoration(
+            color: TT.bg2,
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+            border: Border(top: BorderSide(color: TT.line2)),
+          ),
+          padding: const EdgeInsets.all(22),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: TT.line3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Text('START ACTIVITY',
-                  style: GoogleFonts.outfit(
-                      color: kColorOrange,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18)),
-              const SizedBox(height: 20),
+                  style: TT.label(
+                      size: 12, color: TT.ember, letterSpacing: 1.4)),
+              const SizedBox(height: 18),
               Text('ACTIVITY TYPE',
-                  style: GoogleFonts.outfit(
-                      color: Colors.white60,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
+                  style: TT.label(
+                      size: 10.5,
+                      color: TT.text3,
+                      letterSpacing: 1.4)),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   _TypeButton(
@@ -432,13 +420,13 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       onTap: () => setLocalState(() => type = 'run')),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
               Text('CONTEXT',
-                  style: GoogleFonts.outfit(
-                      color: Colors.white60,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
+                  style: TT.label(
+                      size: 10.5,
+                      color: TT.text3,
+                      letterSpacing: 1.4)),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   _TypeButton(
@@ -452,7 +440,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       label: 'TEAM',
                       icon: Icons.groups,
                       active: contextStr == 'team',
-                      onTap: () => setLocalState(() => contextStr = 'team')),
+                      onTap: () =>
+                          setLocalState(() => contextStr = 'team')),
                   const SizedBox(width: 8),
                   _TypeButton(
                       label: 'TRAINING',
@@ -463,62 +452,31 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                 ],
               ),
               if (contextStr == 'team') ...[
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 Text('SELECT TEAM',
-                    style: GoogleFonts.outfit(
-                        color: Colors.white60,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
+                    style: TT.label(
+                        size: 10.5,
+                        color: TT.text3,
+                        letterSpacing: 1.4)),
+                const SizedBox(height: 10),
                 Consumer<TeamProvider>(
-                  builder: (_, tp, __) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12)),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: teamId,
-                        dropdownColor: kColorBg,
-                        isExpanded: true,
-                        hint: Text('Choose a team',
-                            style: GoogleFonts.outfit(
-                                color: Colors.white24, fontSize: 14)),
-                        items: tp.teams
-                            .map((t) => DropdownMenuItem(
-                                  value: t.id,
-                                  child: Text(t.name,
-                                      style: GoogleFonts.outfit(
-                                          color: Colors.white, fontSize: 14)),
-                                ))
-                            .toList(),
-                        onChanged: (v) => setLocalState(() => teamId = v),
-                      ),
-                    ),
+                  builder: (_, tp, __) => _TeamDropdown(
+                    value: teamId,
+                    teams: tp.teams,
+                    onChanged: (v) => setLocalState(() => teamId = v),
                   ),
                 ),
               ],
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: kColorOrange,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16))),
-                  onPressed: () async {
-                    rec.setActivityMetadata(type: type, context: contextStr);
-                    // Pass teamId to rec if possible, or just keep it for save
-                    final ok = await rec.start();
-                    if (ok && ctx.mounted) Navigator.pop(ctx);
-                  },
-                  child: Text('BEGIN RECORDING',
-                      style: GoogleFonts.outfit(
-                          color: Colors.black, fontWeight: FontWeight.w900)),
-                ),
+              const SizedBox(height: 28),
+              _PrimaryButton(
+                label: 'BEGIN RECORDING',
+                onTap: () async {
+                  rec.setActivityMetadata(type: type, context: contextStr);
+                  final ok = await rec.start();
+                  if (ok && ctx.mounted) Navigator.pop(ctx);
+                },
               ),
-              SizedBox(height: MediaQuery.of(ctx).padding.bottom),
+              SizedBox(height: MediaQuery.of(ctx).padding.bottom + 8),
             ],
           ),
         ),
@@ -531,7 +489,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     if (rec.points.isEmpty) return;
     final auth = context.read<ap.AuthProvider>();
 
-    // Create the SavedHike object with injected peaks/teamId
     final baseHike = rec.toSavedHike();
     final finalHike = SavedHike(
       id: baseHike.id,
@@ -567,7 +524,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
 
     await context.read<HikeHistoryProvider>().add(finalHike, userId: auth.uid);
 
-    // Mark as completed in My Trails if linked to a benchmark trail
     if (finalHike.benchmarkRouteId != null &&
         finalHike.benchmarkRouteId!.isNotEmpty) {
       if (mounted) {
@@ -606,10 +562,10 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: TT.bg,
       body: Stack(
         children: [
-          // ── Full Screen Map ────────────────────────────────────────────────
+          // ── Full screen map ────────────────────────────────────────────
           Positioned.fill(
             child: _LiveMap(
               rec: rec,
@@ -622,108 +578,53 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
             ),
           ),
 
-          // ── Bottom Gradient Fade ──────────────────────────────────────────
+          // ── Bottom gradient fade ───────────────────────────────────────
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
-            height: 300,
+            height: 320,
             child: IgnorePointer(
               child: Container(
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.8),
-                    ],
+                    colors: [Color(0x00000000), Color(0xCC000000)],
                   ),
                 ),
               ),
             ),
           ),
 
-          // ── Header / Situation Bar (Floating) ──────────────────────────────
+          // ── Situation bar (top) ────────────────────────────────────────
           Positioned(
             top: topPad + 10,
-            left: 16,
-            right: 16,
-            child: GlassPanel(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              opacity: 0.9,
-              borderRadius: BorderRadius.circular(20),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          shape: BoxShape.circle),
-                      child:
-                          const Icon(Icons.close, color: kColorCream, size: 20),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text('TRAIL NAVIGATION',
-                                style: GoogleFonts.outfit(
-                                    color: kColorOrange,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2)),
-                            const Spacer(),
-                            Text('SUNSET IN $sunsetCountdown',
-                                style: GoogleFonts.outfit(
-                                    color: Colors.white30,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(width: 8),
-                            _GpsHealthBadge(
-                              label: rec.gpsHealthLabel,
-                              color: rec.gpsHealthColor,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                            rec.targetTrail?.name ??
-                                (rec.points.isEmpty
-                                    ? 'Waiting for GPS...'
-                                    : 'Custom Route'),
-                            style: GoogleFonts.outfit(
-                                color: kColorCream,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  _SituationBadge(isOk: !rec.isOffTrail),
-                ],
-              ),
+            left: 14,
+            right: 14,
+            child: _SituationBar(
+              onBack: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(context);
+              },
+              trailName: rec.targetTrail?.name ??
+                  (rec.points.isEmpty
+                      ? 'Waiting for GPS…'
+                      : 'Custom Route'),
+              sunsetLabel: sunsetCountdown,
+              gpsLabel: rec.gpsHealthLabel,
+              gpsColor: rec.gpsHealthColor,
+              isOk: !rec.isOffTrail,
             ),
           ),
 
-          // ── Off-Trail Warning ──────────────────────────────────────────────
+          // ── Off-trail warning ──────────────────────────────────────────
           if (rec.isOffTrail)
             Positioned(
-              top: topPad + 75,
-              left: 16,
-              right: 16,
-              child: _OffTrailWarning(
+              top: topPad + 86,
+              left: 14,
+              right: 14,
+              child: _OffTrailBanner(
                 dist: rec.offTrailDist,
                 bearing: rec.bearingToTrail,
                 direction: rec.returnDirection,
@@ -731,25 +632,25 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
               ),
             ),
 
-          // ── Incident Proximity Alert ───────────────────────────────────────
+          // ── Incident alert ─────────────────────────────────────────────
           if (rec.nearbyIncident != null)
             Positioned(
-              top: topPad + 75,
-              left: 16,
-              right: 16,
-              child: _IncidentAlert(
+              top: topPad + 86,
+              left: 14,
+              right: 14,
+              child: _IncidentBanner(
                 incident: rec.nearbyIncident!,
                 onDismiss: () => rec.clearNearbyIncident(),
               ),
             ),
 
-          // ── Floating Action Column (Map Tools) ────────────────────────────
+          // ── Map tool column (right) ────────────────────────────────────
           Positioned(
-            right: 16,
-            top: topPad + 85,
+            right: 14,
+            top: topPad + 96,
             child: Column(
               children: [
-                _MapOverlayButton(
+                _MapButton(
                   icon: _following ? Icons.gps_fixed : Icons.gps_not_fixed,
                   active: _following,
                   onTap: () {
@@ -770,15 +671,16 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                 if (_heading != null)
                   Transform.rotate(
                     angle: (_heading! * math.pi / 180),
-                    child: _MapOverlayButton(
+                    child: _MapButton(
                       icon: Icons.navigation,
                       onTap: () => setState(() => _following = true),
                     ),
                   ),
                 const SizedBox(height: 10),
-                _MapOverlayButton(
-                  icon:
-                      _mapMode == 2 ? Icons.view_in_ar : Icons.layers_outlined,
+                _MapButton(
+                  icon: _mapMode == 2
+                      ? Icons.view_in_ar
+                      : Icons.layers_outlined,
                   active: _mapMode != 0,
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -788,14 +690,15 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                   },
                 ),
                 const SizedBox(height: 10),
-                _MapOverlayButton(
-                  icon:
-                      rec.isGhostMode ? Icons.visibility_off : Icons.visibility,
+                _MapButton(
+                  icon: rec.isGhostMode
+                      ? Icons.visibility_off
+                      : Icons.visibility,
                   active: rec.isGhostMode,
                   onTap: () => rec.toggleGhostMode(),
                 ),
                 const SizedBox(height: 10),
-                _MapOverlayButton(
+                _MapButton(
                   icon: rec.isBatterySaver
                       ? Icons.battery_saver
                       : Icons.battery_std,
@@ -806,100 +709,99 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
             ),
           ),
 
-          // ── Stats Overlay (Bottom) ─────────────────────────────────────────
+          // ── Stat overlays (bottom) ─────────────────────────────────────
           Positioned(
-            bottom: botPad + 90,
-            left: 16,
-            right: 16,
+            bottom: botPad + 96,
+            left: 14,
+            right: 14,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Primary Stats Row
                 Row(
                   children: [
                     Expanded(
-                        child: _CompactStat(
-                      label: 'ALTITUDE',
-                      value:
-                          '${rec.points.isNotEmpty ? rec.points.last.altitude.toInt() : 0}',
-                      unit: 'm',
-                      icon: Icons.terrain,
-                      color: const Color(0xFF4FC3F7),
-                    )),
+                      child: _LiveStat(
+                        label: 'ALTITUDE',
+                        value: rec.points.isNotEmpty
+                            ? rec.points.last.altitude.toInt().toString()
+                            : '0',
+                        unit: 'm',
+                        icon: Icons.terrain,
+                        accent: TT.blue,
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
-                        child: _CompactStat(
-                      label: 'PACE',
-                      value: rec.points.isNotEmpty
-                          ? (rec.points.last.speed * 3.6).toStringAsFixed(1)
-                          : '0.0',
-                      unit: 'km/h',
-                      icon: Icons.speed,
-                      color: const Color(0xFFFFD54F),
-                    )),
+                      child: _LiveStat(
+                        label: 'PACE',
+                        value: rec.points.isNotEmpty
+                            ? (rec.points.last.speed * 3.6).toStringAsFixed(1)
+                            : '0.0',
+                        unit: 'km/h',
+                        icon: Icons.speed,
+                        accent: TT.amber,
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
-                        child: _CompactStat(
-                      label: 'PROGRESS',
-                      value: rec.distanceKm.toStringAsFixed(2),
-                      unit: 'km',
-                      icon: Icons.straighten,
-                      color: const Color(0xFF81C784),
-                    )),
+                      child: _LiveStat(
+                        label: 'DISTANCE',
+                        value: rec.distanceKm.toStringAsFixed(2),
+                        unit: 'km',
+                        icon: Icons.straighten,
+                        accent: TT.green,
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                // Target Progress Card (if following a trail)
-                if (rec.remainingDist > 0) _FloatingTargetCard(rec: rec),
-                const SizedBox(height: 12),
-                // GPS health card hidden as per user request
+                if (rec.remainingDist > 0) ...[
+                  const SizedBox(height: 10),
+                  _TargetCard(rec: rec),
+                ],
               ],
             ),
           ),
 
-          // ── Bottom Control Bar ─────────────────────────────────────────────
+          // ── Control bar ────────────────────────────────────────────────
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: Container(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, botPad + 20),
+              padding: EdgeInsets.fromLTRB(16, 18, 16, botPad + 18),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [kColorPanel.withOpacity(0.98), kColorBg],
+                  colors: [Color(0xE6131820), Color(0xFF07090C)],
                 ),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(32)),
-                border: Border(
-                    top: BorderSide(
-                        color: Colors.white.withOpacity(0.1), width: 1)),
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(TT.rXl)),
+                border: const Border(top: BorderSide(color: TT.line2)),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.6), blurRadius: 30)
+                      color: Colors.black.withOpacity(0.6),
+                      blurRadius: 30),
                 ],
               ),
               child: Row(
                 children: [
                   if (rec.status == RecordingStatus.idle && rec.points.isEmpty)
                     Expanded(
-                      child: _ActionButton(
+                      child: _PrimaryButton(
                         label: 'START TRACKING',
                         icon: Icons.play_arrow_rounded,
-                        color: kColorOrange,
                         onTap: () => _showStartDialog(rec),
                       ),
                     )
                   else if (rec.status != RecordingStatus.idle ||
                       rec.points.isNotEmpty) ...[
                     Expanded(
-                      child: _ActionButton(
+                      child: _PrimaryButton(
                         label: rec.isRecording ? 'PAUSE' : 'RESUME',
                         icon: rec.isRecording
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded,
-                        color: kColorOrange,
                         onTap: () async {
                           final messenger = ScaffoldMessenger.of(context);
                           await HapticFeedback.mediumImpact();
@@ -909,9 +811,12 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                             final ok = await rec.start();
                             if (!mounted || ok) return;
                             messenger.showSnackBar(
-                              const SnackBar(
+                              SnackBar(
+                                backgroundColor: TT.surf,
+                                behavior: SnackBarBehavior.floating,
                                 content: Text(
                                   'Background location permission is required for reliable tracking.',
+                                  style: TT.body(size: 13, color: TT.text),
                                 ),
                               ),
                             );
@@ -919,12 +824,11 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: _ActionButton(
+                      child: _DangerButton(
                         label: 'FINISH',
                         icon: Icons.stop_rounded,
-                        color: Colors.redAccent,
                         onTap: () => _showFinishDialog(rec),
                       ),
                     ),
@@ -939,99 +843,165 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   }
 }
 
-// ── Supporting Widgets ──────────────────────────────────────────────────────
+// ── Situation bar ─────────────────────────────────────────────────────────
 
-class _SituationBadge extends StatelessWidget {
+class _SituationBar extends StatelessWidget {
+  final VoidCallback onBack;
+  final String trailName;
+  final String sunsetLabel;
+  final String gpsLabel;
+  final Color gpsColor;
   final bool isOk;
-  const _SituationBadge({required this.isOk});
+  const _SituationBar({
+    required this.onBack,
+    required this.trailName,
+    required this.sunsetLabel,
+    required this.gpsLabel,
+    required this.gpsColor,
+    required this.isOk,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isOk
-              ? Colors.green.withOpacity(0.15)
-              : Colors.red.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isOk ? Colors.green : Colors.red, width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(isOk ? Icons.check_circle : Icons.warning,
-                color: isOk ? Colors.green : Colors.red, size: 12),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(isOk ? 'OK' : 'OFF-TRAIL',
-                  style: GoogleFonts.outfit(
-                      color: isOk ? Colors.green : Colors.red,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5)),
+  Widget build(BuildContext context) {
+    return TTGlass(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      radius: TT.rLg,
+      child: Row(
+        children: [
+          TTIconBtn(
+              icon: Icons.chevron_left, size: 36, onTap: onBack),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('TRAIL NAVIGATION',
+                        style: TT.label(
+                            size: 10,
+                            color: TT.ember,
+                            letterSpacing: 1.4)),
+                    const Spacer(),
+                    Text('SUNSET $sunsetLabel',
+                        style: TT.mono(size: 9.5, color: TT.text3)),
+                    const SizedBox(width: 8),
+                    _GpsBadge(label: gpsLabel, color: gpsColor),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  trailName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TT.body(
+                      size: 14.5, w: FontWeight.w800, color: TT.text),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+          const SizedBox(width: 10),
+          TTPill(
+            label: isOk ? 'ON TRAIL' : 'OFF TRAIL',
+            variant: isOk ? TTPillVariant.neutral : TTPillVariant.danger,
+            leadingIcon: isOk ? Icons.check_circle : Icons.warning,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _CompactStat extends StatelessWidget {
-  final String label, value, unit;
-  final IconData icon;
+class _GpsBadge extends StatelessWidget {
+  final String label;
   final Color color;
-  const _CompactStat(
-      {required this.label,
-      required this.value,
-      required this.unit,
-      required this.icon,
-      required this.color});
+  const _GpsBadge({required this.label, required this.color});
 
   @override
-  Widget build(BuildContext context) => GlassPanel(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        opacity: 0.1,
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 14),
-                const SizedBox(width: 6),
-                Text(label,
-                    style: GoogleFonts.outfit(
-                        color: Colors.white30,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(value,
-                    style: GoogleFonts.outfit(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        height: 1)),
-                const SizedBox(width: 4),
-                Text(unit,
-                    style: GoogleFonts.outfit(
-                        color: Colors.white24,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.35), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TT.mono(size: 9, color: color, letterSpacing: 1.0),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _FloatingTargetCard extends StatelessWidget {
+// ── Live stat tile (glass) ────────────────────────────────────────────────
+
+class _LiveStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final String unit;
+  final IconData icon;
+  final Color accent;
+  const _LiveStat({
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.icon,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TTGlass(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      radius: TT.rLg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: accent),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TT.label(
+                      size: 9.5, color: TT.text3, letterSpacing: 1.4)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(value,
+                  style: TT.numStyle(
+                      size: 22, color: TT.text, w: FontWeight.w800)),
+              const SizedBox(width: 4),
+              Text(unit,
+                  style: TT.mono(size: 11, color: TT.text3)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Target progress card ──────────────────────────────────────────────────
+
+class _TargetCard extends StatelessWidget {
   final RecordingProvider rec;
-  const _FloatingTargetCard({required this.rec});
+  const _TargetCard({required this.rec});
 
   @override
   Widget build(BuildContext context) {
@@ -1040,39 +1010,33 @@ class _FloatingTargetCard extends StatelessWidget {
         ? (rec.distanceKm / (rec.distanceKm + rec.remainingDist))
             .clamp(0.0, 1.0)
         : 0.0;
-
-    return GlassPanel(
-      padding: const EdgeInsets.all(16),
-      opacity: 0.9,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: kColorOrange.withOpacity(0.3)),
+    return TTGlass(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      radius: TT.rLg,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              const Icon(Icons.flag_rounded, color: kColorOrange, size: 16),
+              const Icon(Icons.flag_rounded, color: TT.ember, size: 14),
               const SizedBox(width: 6),
-              Text('REMAINING: ${rec.remainingDist.toStringAsFixed(1)}km',
-                  style: GoogleFonts.outfit(
-                      color: kColorCream,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800)),
+              Text(
+                  'REMAINING ${rec.remainingDist.toStringAsFixed(1)} KM',
+                  style: TT.label(
+                      size: 10, color: TT.text, letterSpacing: 1.4)),
               const Spacer(),
-              Text('ETA: ${eta != null ? SunUtils.formatDuration(eta) : '--'}',
-                  style: GoogleFonts.outfit(
-                      color: kColorOrange,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800)),
+              Text(
+                  'ETA ${eta != null ? SunUtils.formatDuration(eta) : '--'}',
+                  style: TT.mono(size: 10.5, color: TT.ember)),
             ],
           ),
           const SizedBox(height: 10),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: kColorOrange.withOpacity(0.1),
-              color: kColorOrange,
+              backgroundColor: TT.emberSoft,
+              color: TT.ember,
               minHeight: 6,
             ),
           ),
@@ -1081,6 +1045,168 @@ class _FloatingTargetCard extends StatelessWidget {
     );
   }
 }
+
+// ── Map button (right column) ─────────────────────────────────────────────
+
+class _MapButton extends StatelessWidget {
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+  const _MapButton({
+    required this.icon,
+    this.active = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? TT.ember : const Color(0xB80D1116),
+          shape: BoxShape.circle,
+          border: Border.all(
+              color: active ? TT.ember : TT.line2, width: 1),
+          boxShadow: active ? TT.shadowEmber : null,
+        ),
+        child: Icon(icon,
+            color: active ? TT.emberInk : TT.text, size: 18),
+      ),
+    );
+  }
+}
+
+// ── Off-trail banner ──────────────────────────────────────────────────────
+
+class _OffTrailBanner extends StatelessWidget {
+  final double dist;
+  final double? bearing;
+  final String direction;
+  final Duration? duration;
+
+  const _OffTrailBanner({
+    required this.dist,
+    this.bearing,
+    this.direction = '',
+    this.duration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final durStr = duration == null
+        ? ''
+        : duration!.inMinutes >= 1
+            ? '${duration!.inMinutes}m off-trail'
+            : '${duration!.inSeconds}s off-trail';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0x33E63D2E),
+        borderRadius: BorderRadius.circular(TT.rMd),
+        border: Border.all(color: TT.red, width: 1),
+        boxShadow: [
+          BoxShadow(
+              color: TT.red.withOpacity(0.30),
+              blurRadius: 18,
+              spreadRadius: -4),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (bearing != null)
+            Transform.rotate(
+              angle: bearing! * math.pi / 180,
+              child: const Icon(Icons.arrow_upward_rounded,
+                  color: TT.red, size: 26),
+            )
+          else
+            const Icon(Icons.warning_amber_rounded,
+                color: TT.red, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('OFF TRAIL',
+                    style: TT.label(
+                        size: 11, color: TT.red, letterSpacing: 1.4)),
+                const SizedBox(height: 2),
+                Text(
+                  bearing != null
+                      ? 'Trail ${dist.toInt()}m $direction · turn around'
+                      : '${dist.toInt()}m away from path',
+                  style: TT.body(
+                      size: 13, w: FontWeight.w700, color: TT.text),
+                ),
+                if (durStr.isNotEmpty)
+                  Text(durStr,
+                      style: TT.mono(size: 10.5, color: TT.text2)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Incident banner ───────────────────────────────────────────────────────
+
+class _IncidentBanner extends StatelessWidget {
+  final Incident incident;
+  final VoidCallback onDismiss;
+  const _IncidentBanner({required this.incident, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0x33F2A93B),
+        borderRadius: BorderRadius.circular(TT.rMd),
+        border: Border.all(color: TT.amber, width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.report_problem,
+              color: TT.amber, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('NEARBY INCIDENT',
+                    style: TT.label(
+                        size: 11, color: TT.amber, letterSpacing: 1.4)),
+                const SizedBox(height: 2),
+                Text(
+                  incident.type.label.toUpperCase(),
+                  style: TT.body(
+                      size: 13, w: FontWeight.w700, color: TT.text),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: onDismiss,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.close, color: TT.text2, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Map widget ────────────────────────────────────────────────────────────
 
 class _LiveMap extends StatelessWidget {
   final RecordingProvider rec;
@@ -1105,10 +1231,10 @@ class _LiveMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final points = rec.points;
     final currentPos = rec.currentPosition != null
-        ? LatLng(rec.currentPosition!.latitude, rec.currentPosition!.longitude)
+        ? LatLng(rec.currentPosition!.latitude,
+            rec.currentPosition!.longitude)
         : (points.isNotEmpty ? points.last.toLatLng : null);
 
-    // Auto-follow logic
     if (following && currentPos != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         mapCtrl.move(currentPos, mapCtrl.camera.zoom);
@@ -1133,8 +1259,7 @@ class _LiveMap extends StatelessWidget {
       );
     }
 
-    final tileStyleIndex = mapMode == 1 ? 3 : 0; // 3 is Satellite, 0 is Outdoor
-
+    final tileStyleIndex = mapMode == 1 ? 3 : 0; // 3=Satellite, 0=Outdoor
     final style = kMapTileStyles[tileStyleIndex];
     return FlutterMap(
       mapController: mapCtrl,
@@ -1153,12 +1278,19 @@ class _LiveMap extends StatelessWidget {
           tileProvider: OfflineMapService.tileProvider(),
           maxZoom: style.maxZoom,
         ),
-        // Target Trail (The "Trail Ahead")
-        if (rec.targetTrail != null) _TargetTrailLayer(trail: rec.targetTrail!),
-
-        // Recorded Path with Speed-based Coloring
+        if (rec.targetTrail != null)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: rec.targetTrail!.coords
+                    .map((c) => LatLng(c.lat, c.lon))
+                    .toList(),
+                color: TT.ember.withOpacity(0.55),
+                strokeWidth: 2.5,
+              ),
+            ],
+          ),
         SpeedPathLayer(points: rec.points),
-        // User Marker
         MarkerLayer(
           markers: [
             if (currentPos != null)
@@ -1178,72 +1310,6 @@ class _LiveMap extends StatelessWidget {
   }
 }
 
-class _TargetTrailLayer extends StatelessWidget {
-  final dynamic trail; // Using dynamic here to avoid any type poisoning for now
-  const _TargetTrailLayer({required this.trail});
-
-  @override
-  Widget build(BuildContext context) {
-    return MarkerLayer(
-      markers: trail.coords
-          .map((c) => Marker(
-                point: LatLng(c.lat, c.lon),
-                width: 4,
-                height: 4,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.5),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ))
-          .toList(),
-    );
-  }
-}
-
-class _TypeButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _TypeButton(
-      {required this.label,
-      required this.icon,
-      required this.active,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: active
-                  ? kColorOrange.withOpacity(0.15)
-                  : Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: active ? kColorOrange : Colors.white10),
-            ),
-            child: Column(
-              children: [
-                Icon(icon,
-                    color: active ? kColorOrange : Colors.white30, size: 20),
-                const SizedBox(height: 6),
-                Text(label,
-                    style: GoogleFonts.outfit(
-                        color: active ? kColorOrange : Colors.white30,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ),
-      );
-}
-
 class _UserMarker extends StatefulWidget {
   final double? heading;
   final bool isStale;
@@ -1255,23 +1321,21 @@ class _UserMarker extends StatefulWidget {
 
 class _UserMarkerState extends State<_UserMarker>
     with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  late final AnimationController _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2000),
+  );
+  late final Animation<double> _pulseAnimation = Tween<double>(
+    begin: 1.0,
+    end: 3.5,
+  ).animate(
+    CurvedAnimation(parent: _pulseController, curve: Curves.easeOut),
+  );
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 3.5).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeOut),
-    );
-
-    if (widget.isStale) {
-      _pulseController.repeat();
-    }
+    if (widget.isStale) _pulseController.repeat();
   }
 
   @override
@@ -1292,260 +1356,331 @@ class _UserMarkerState extends State<_UserMarker>
   }
 
   @override
-  Widget build(BuildContext context) => Stack(
-        alignment: Alignment.center,
-        children: [
-          if (widget.isStale)
-            AnimatedBuilder(
-              animation: _pulseAnimation,
-              builder: (context, child) => Container(
-                width: 14 * _pulseAnimation.value,
-                height: 14 * _pulseAnimation.value,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withOpacity(
-                        (1.0 - (_pulseController.value)).clamp(0, 1.0)),
-                    width: 1,
-                  ),
+  Widget build(BuildContext context) {
+    final base = widget.isStale ? TT.text3 : TT.ember;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        if (widget.isStale)
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) => Container(
+              width: 14 * _pulseAnimation.value,
+              height: 14 * _pulseAnimation.value,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: TT.text.withOpacity(
+                      (1.0 - (_pulseController.value)).clamp(0, 1.0)),
+                  width: 1,
                 ),
               ),
             ),
-          Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(
-              color: widget.isStale ? Colors.grey : kColorOrange,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [
-                BoxShadow(
-                    color: (widget.isStale ? Colors.grey : kColorOrange)
-                        .withOpacity(0.5),
-                    blurRadius: 10,
-                    spreadRadius: 2)
-              ],
-            ),
           ),
-          if (widget.heading != null)
-            Transform.rotate(
-              angle: (widget.heading! * math.pi / 180),
-              child: Column(
-                children: [
-                  Icon(Icons.navigation,
-                      color: widget.isStale ? Colors.grey : kColorOrange,
-                      size: 24),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-        ],
-      );
-}
-
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionButton(
-      {required this.label,
-      required this.icon,
-      required this.color,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 54,
+        Container(
+          width: 14,
+          height: 14,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.5)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 10),
-              Text(label,
-                  style: GoogleFonts.outfit(
-                      color: color,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                      letterSpacing: 1)),
+            color: base,
+            shape: BoxShape.circle,
+            border: Border.all(color: TT.text, width: 2),
+            boxShadow: [
+              BoxShadow(
+                  color: base.withOpacity(0.6),
+                  blurRadius: 10,
+                  spreadRadius: 2),
             ],
           ),
         ),
-      );
-}
-
-class _MapOverlayButton extends StatelessWidget {
-  final IconData icon;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _MapOverlayButton(
-      {required this.icon, this.active = false, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: active ? kColorOrange : Colors.black.withOpacity(0.7),
-            shape: BoxShape.circle,
-            border: Border.all(color: active ? Colors.white : Colors.white10),
+        if (widget.heading != null)
+          Transform.rotate(
+            angle: (widget.heading! * math.pi / 180),
+            child: Column(
+              children: [
+                Icon(Icons.navigation, color: base, size: 22),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
-          child:
-              Icon(icon, color: active ? Colors.black : Colors.white, size: 20),
-        ),
-      );
+      ],
+    );
+  }
 }
 
-class _OffTrailWarning extends StatelessWidget {
-  final double dist;
-  final double? bearing;
-  final String direction;
-  final Duration? duration;
+// ── Buttons / fields used by the sheets ───────────────────────────────────
 
-  const _OffTrailWarning({
-    required this.dist,
-    this.bearing,
-    this.direction = '',
-    this.duration,
+class _PrimaryButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final VoidCallback onTap;
+  const _PrimaryButton({
+    required this.label,
+    this.icon,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final durStr = duration == null
-        ? ''
-        : duration!.inMinutes >= 1
-            ? '${duration!.inMinutes}m off-trail'
-            : '${duration!.inSeconds}s off-trail';
-
-    return GlassPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: Colors.red,
-      opacity: 0.2,
-      borderRadius: BorderRadius.circular(12),
-      child: Row(
-        children: [
-          // Directional arrow points back to the nearest trail point.
-          if (bearing != null)
-            Transform.rotate(
-              angle: bearing! * math.pi / 180,
-              child: const Icon(Icons.arrow_upward_rounded,
-                  color: Colors.redAccent, size: 28),
-            )
-          else
-            const Icon(Icons.warning_amber_rounded,
-                color: Colors.redAccent, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('OFF TRAIL',
-                    style: GoogleFonts.outfit(
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 11)),
-                Text(
-                  bearing != null
-                      ? 'Trail ${dist.toInt()}m $direction · turn around'
-                      : '${dist.toInt()}m away from path',
-                  style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600),
-                ),
-                if (durStr.isNotEmpty)
-                  Text(durStr,
-                      style: GoogleFonts.outfit(
-                          color: Colors.white70, fontSize: 11)),
-              ],
-            ),
-          ),
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 54,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: TT.ember,
+          borderRadius: BorderRadius.circular(TT.rMd),
+          boxShadow: TT.shadowEmber,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: TT.emberInk, size: 20),
+              const SizedBox(width: 10),
+            ],
+            Text(label,
+                style: TT.body(
+                  size: 13,
+                  w: FontWeight.w900,
+                  color: TT.emberInk,
+                ).copyWith(letterSpacing: 0.16 * 13)),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _IncidentAlert extends StatelessWidget {
-  final Incident incident;
-  final VoidCallback onDismiss;
-  const _IncidentAlert({required this.incident, required this.onDismiss});
+class _SecondaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _SecondaryButton({required this.label, required this.onTap});
 
   @override
-  Widget build(BuildContext context) => GlassPanel(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: Colors.orange,
-        opacity: 0.2,
-        borderRadius: BorderRadius.circular(12),
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 54,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0x08FFFFFF),
+          borderRadius: BorderRadius.circular(TT.rMd),
+          border: Border.all(color: TT.line2),
+        ),
+        child: Text(
+          label,
+          style: TT.body(
+            size: 12.5,
+            w: FontWeight.w800,
+            color: TT.text2,
+          ).copyWith(letterSpacing: 0.16 * 12.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _DangerButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  const _DangerButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 54,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0x1AE63D2E),
+          borderRadius: BorderRadius.circular(TT.rMd),
+          border: Border.all(color: TT.red, width: 1),
+        ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.report_problem,
-                color: Colors.orangeAccent, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('NEARBY INCIDENT',
-                      style: GoogleFonts.outfit(
-                          color: Colors.orangeAccent,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 11)),
-                  Text(incident.type.label.toUpperCase(),
-                      style: GoogleFonts.outfit(
-                          color: Colors.white, fontSize: 13)),
-                ],
-              ),
-            ),
-            IconButton(
-                icon: const Icon(Icons.close, color: Colors.white54, size: 18),
-                onPressed: onDismiss),
+            Icon(icon, color: TT.red, size: 18),
+            const SizedBox(width: 8),
+            Text(label,
+                style: TT.body(
+                  size: 13,
+                  w: FontWeight.w900,
+                  color: TT.red,
+                ).copyWith(letterSpacing: 0.16 * 13)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TypeButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+  const _TypeButton({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: active ? TT.emberDim : const Color(0x08FFFFFF),
+              borderRadius: BorderRadius.circular(TT.rMd),
+              border: Border.all(
+                  color: active ? const Color(0x52FF6A2C) : TT.line2),
+            ),
+            child: Column(
+              children: [
+                Icon(icon,
+                    color: active ? TT.ember : TT.text3, size: 18),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: TT.body(
+                      size: 10.5,
+                      w: FontWeight.w800,
+                      color: active ? TT.ember : TT.text3),
+                ),
+              ],
+            ),
+          ),
         ),
       );
 }
 
-class _GpsHealthBadge extends StatelessWidget {
+class _SheetField extends StatelessWidget {
+  final TextEditingController controller;
   final String label;
-  final Color color;
-  const _GpsHealthBadge({required this.label, required this.color});
+  const _SheetField({required this.controller, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TT.label(
+                size: 10.5, color: TT.ember, letterSpacing: 1.4)),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: TT.surf,
+            borderRadius: BorderRadius.circular(TT.rMd),
+            border: Border.all(color: TT.line2),
+          ),
+          child: TextField(
+            controller: controller,
+            cursorColor: TT.ember,
+            style: TT.body(size: 14, color: TT.text),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 12),
+              hintText: 'Untitled activity',
+              hintStyle: TT.body(size: 14, color: TT.text3),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TeamDropdown extends StatelessWidget {
+  final String? value;
+  final List teams;
+  final ValueChanged<String?> onChanged;
+  const _TeamDropdown({
+    required this.value,
+    required this.teams,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.3), width: 0.5),
+        color: TT.surf,
+        borderRadius: BorderRadius.circular(TT.rMd),
+        border: Border.all(color: TT.line2),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          dropdownColor: TT.bg2,
+          borderRadius: BorderRadius.circular(TT.rMd),
+          hint: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Text('Choose a team',
+                style: TT.body(size: 14, color: TT.text3)),
           ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-                color: color, fontSize: 8, fontWeight: FontWeight.w900),
+          icon: const Padding(
+            padding: EdgeInsets.only(right: 10),
+            child: Icon(Icons.expand_more, color: TT.text2),
           ),
-        ],
+          items: teams
+              .map<DropdownMenuItem<String>>(
+                (t) => DropdownMenuItem<String>(
+                  value: t.id as String,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Text(
+                      t.name as String,
+                      style: TT.body(size: 14, color: TT.text),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: onChanged,
+        ),
       ),
     );
   }
 }
+
+class _StepperButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _StepperButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: TT.emberDim,
+          borderRadius: BorderRadius.circular(TT.rSm),
+          border: Border.all(color: const Color(0x52FF6A2C)),
+        ),
+        child: Icon(icon, size: 16, color: TT.ember),
+      ),
+    );
+  }
+}
+
+// Keep TTCountUp imported so future stat additions can use it without
+// re-adding the import.
+// ignore: unused_element
+typedef _KeepCountUpImport = TTCountUp;

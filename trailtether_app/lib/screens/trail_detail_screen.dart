@@ -1,34 +1,50 @@
+// Trailtether 3.0 — Trail detail bottom sheet, reskinned to TT tokens.
+//
+// Pushed as a DraggableScrollableSheet from MapScreen / TrailsTab / Mission
+// Control. Renders one Trail's hero, stat tiles, elevation profile, reviews,
+// nearby caves and a sticky ember "START HIKE" CTA that wires the trail into
+// RecordingProvider and pops back to the live map.
+//
+// Logic preserved: favourite / completed toggles, pace selector, peak
+// check-in via Supabase, share, safety centre, follow target trail.
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-
-import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/constants.dart';
+
+import '../core/design_tokens.dart';
+import '../models/cave_waypoint.dart';
 import '../models/trail.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/community_provider.dart';
 import '../providers/recording_provider.dart';
 import '../providers/review_provider.dart';
 import '../providers/static_data_provider.dart';
-import '../providers/community_provider.dart';
-import '../widgets/common/glass_panel.dart';
+import '../widgets/design/tt_ambient.dart';
+import '../widgets/design/tt_count_up.dart';
+import '../widgets/design/tt_elev_chart.dart';
+import '../widgets/design/tt_glass_card.dart';
+import '../widgets/design/tt_pill.dart';
+import '../widgets/design/tt_segmented.dart';
+import '../widgets/design/tt_topo.dart';
 import '../widgets/review/review_card.dart';
 import '../widgets/review/review_summary_bar.dart';
-import '../widgets/trail/difficulty_badge.dart';
-import '../widgets/trail/elevation_chart.dart';
-import '../widgets/trail/trail_stats_row.dart';
 import 'reviews_screen.dart';
 import 'safety_center_screen.dart';
 
 class TrailDetailScreen extends StatefulWidget {
   final Trail trail;
   final VoidCallback onNavigateToMap;
-  const TrailDetailScreen(
-      {super.key, required this.trail, required this.onNavigateToMap});
+  const TrailDetailScreen({
+    super.key,
+    required this.trail,
+    required this.onNavigateToMap,
+  });
 
   @override
   State<TrailDetailScreen> createState() => _TrailDetailScreenState();
@@ -56,189 +72,251 @@ class _TrailDetailScreenState extends State<TrailDetailScreen> {
     super.dispose();
   }
 
+  void _startHike() {
+    final rec = context.read<RecordingProvider>();
+    rec.setTargetTrail(widget.trail);
+    Navigator.pop(context);
+    widget.onNavigateToMap();
+  }
+
+  void _openOnMap() {
+    context.read<StaticDataProvider>().selectTrail(widget.trail);
+    Navigator.pop(context);
+    widget.onNavigateToMap();
+  }
+
+  Future<void> _share() {
+    return Share.share(
+      'Check out ${widget.trail.name} on Trailtether: '
+      '${widget.trail.distanceKm.toStringAsFixed(1)} km, '
+      '${widget.trail.elevationGainM} m gain.',
+    );
+  }
+
+  void _openSafety() {
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const SafetyCenterScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final trail = widget.trail;
     final appState = context.watch<AppStateProvider>();
     final isFavorite = appState.isFavorite(trail.id);
     final isCompleted = appState.isCompleted(trail.id);
+    final caves = _cavesOnRoute(
+      context.watch<StaticDataProvider>().caves,
+      trail,
+    );
 
     return DraggableScrollableSheet(
       expand: false,
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      maxChildSize: 0.95,
-      builder: (_, scrollCtrl) => GlassPanel(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        opacity: 0.98,
-        blur: 20,
-        child: ListView(
-          controller: scrollCtrl,
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-          children: [
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: kColorCream.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Hero(
-                    tag: 'trail_name_${trail.id}',
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Text(
-                        trail.name,
-                        style: GoogleFonts.outfit(
-                          color: kColorCream,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+      initialChildSize: 0.78,
+      minChildSize: 0.45,
+      maxChildSize: 0.96,
+      builder: (_, scrollCtrl) => ClipRRect(
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+        child: Container(
+          color: TT.bg,
+          child: Stack(
+            children: [
+              const Positioned.fill(child: TTAmbient()),
+              const Positioned.fill(child: TTTopoBackdrop()),
+              Column(
+                children: [
+                  // Grab handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: TT.line3,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                ),
-                if (trail.isCave) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF795548).withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                          color: const Color(0xFF795548).withOpacity(0.5)),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 92),
+                      children: [
+                        _HeroArea(trail: trail),
+                        const SizedBox(height: 14),
+                        _TitleCard(
+                          trail: trail,
+                          isCompleted: isCompleted,
+                        ),
+                        const SizedBox(height: 14),
+                        _StatsRow(trail: trail, paceFactor: _paceFactor),
+                        const SizedBox(height: 14),
+                        _PaceCard(
+                          paceFactor: _paceFactor,
+                          onChanged: (v) =>
+                              setState(() => _paceFactor = v),
+                        ),
+                        const SizedBox(height: 14),
+                        _ActionRow(
+                          isFavorite: isFavorite,
+                          isCompleted: isCompleted,
+                          isFollowing: context
+                                  .watch<RecordingProvider>()
+                                  .targetTrail
+                                  ?.id ==
+                              trail.id,
+                          onFavorite: () => context
+                              .read<AppStateProvider>()
+                              .toggleFavorite(trail.id),
+                          onCompleted: () => context
+                              .read<AppStateProvider>()
+                              .toggleCompleted(trail.id),
+                          onFollow: _startHike,
+                          onMap: _openOnMap,
+                          onShare: () => unawaited(_share()),
+                          onSafety: _openSafety,
+                        ),
+                        const SizedBox(height: 18),
+                        _ElevationCard(trail: trail),
+                        const SizedBox(height: 14),
+                        _PlanningNotes(trail: trail),
+                        if (trail.description.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          _DescriptionCard(text: trail.description),
+                        ],
+                        if (caves.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          _CavesCard(caves: caves),
+                        ],
+                        const SizedBox(height: 14),
+                        _ReviewsSection(trail: trail),
+                        if (_isPeak(trail)) ...[
+                          const SizedBox(height: 14),
+                          _PeakCheckInCard(trail: trail),
+                        ],
+                      ],
                     ),
-                    child: const Text('🕳 Cave Route',
-                        style: TextStyle(fontSize: 11)),
                   ),
                 ],
-                DifficultyBadge(trail.difficulty),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${trail.minEle}-${trail.maxEle} m elevation',
-              style: GoogleFonts.outfit(
-                color: kColorCream.withOpacity(0.4),
-                fontSize: 12,
               ),
-            ),
-            const SizedBox(height: 14),
-            TrailStatsRow(trail: trail, paceFactor: _paceFactor),
-            const SizedBox(height: 14),
-            _ActionRow(
-              trail: trail,
-              favoriteLabel: isFavorite ? 'Saved' : 'Save',
-              completedLabel: isCompleted ? 'Done' : 'Complete',
-              onToggleFavorite: () =>
-                  context.read<AppStateProvider>().toggleFavorite(trail.id),
-              onToggleCompleted: () =>
-                  context.read<AppStateProvider>().toggleCompleted(trail.id),
-              onFollow: () {
-                final rec = context.read<RecordingProvider>();
-                rec.setTargetTrail(trail);
-                Navigator.pop(context);
-                widget.onNavigateToMap();
-              },
-              onOpenMap: () {
-                context.read<StaticDataProvider>().selectTrail(trail);
-                Navigator.pop(context);
-                widget.onNavigateToMap();
-              },
-              onShare: () => Share.share(
-                'Check out ${trail.name} on Trailtether: '
-                '${trail.distanceKm.toStringAsFixed(1)} km, '
-                '${trail.elevationGainM} m gain.',
-              ),
-              onSafety: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const SafetyCenterScreen(),
+              // Sticky bottom START HIKE button.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _StickyStartButton(
+                  isFollowing:
+                      context.watch<RecordingProvider>().targetTrail?.id ==
+                          trail.id,
+                  onTap: _startHike,
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _PaceSelector(
-              paceFactor: _paceFactor,
-              onChanged: (value) => setState(() => _paceFactor = value),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'ELEVATION PROFILE',
-              style: GoogleFonts.outfit(
-                color: kColorCream.withOpacity(0.4),
-                fontSize: 10,
-                letterSpacing: 1.0,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ElevationChart.fromTrail(
-              trail: trail,
-              onCursorChanged: (coord) =>
-                  context.read<StaticDataProvider>().setProfileCursor(coord),
-            ),
-            const SizedBox(height: 20),
-            _PlanningNotes(trail: trail),
-            const SizedBox(height: 20),
-            if (trail.description.isNotEmpty) ...[
-              Text(
-                trail.description,
-                style: GoogleFonts.outfit(
-                  color: kColorCream.withOpacity(0.7),
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 20),
             ],
-            Consumer<ReviewProvider>(
-              builder: (_, prov, __) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'COMMUNITY REVIEWS',
-                          style: GoogleFonts.outfit(
-                            color: kColorCream.withOpacity(0.4),
-                            fontSize: 10,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ReviewsScreen(trail: trail),
-                          ),
-                        ),
-                        child: Text(
-                          'See all & review',
-                          style: GoogleFonts.outfit(
-                            color: kColorOrange,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static bool _isPeak(Trail t) {
+    final n = t.name.toLowerCase();
+    return n.contains('peak') ||
+        n.contains('summit') ||
+        n.contains('pass');
+  }
+
+  static List<CaveWaypoint> _cavesOnRoute(List<CaveWaypoint> all, Trail t) {
+    if (all.isEmpty || t.coords.isEmpty) return const [];
+    const thresholdM = 300.0;
+    final result = <CaveWaypoint>[];
+    for (final c in all) {
+      var nearest = double.infinity;
+      for (final coord in t.coords) {
+        final d = Geolocator.distanceBetween(
+            c.lat, c.lon, coord.lat, coord.lon);
+        if (d < nearest) nearest = d;
+        if (nearest < thresholdM) break;
+      }
+      if (nearest < thresholdM) result.add(c);
+    }
+    return result;
+  }
+}
+
+// ── Hero area ─────────────────────────────────────────────────────────────
+
+class _HeroArea extends StatelessWidget {
+  final Trail trail;
+  const _HeroArea({required this.trail});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(TT.rLg),
+      child: SizedBox(
+        height: 160,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CustomPaint(
+              painter: _MountainPainter(
+                primary: TT.ember,
+                secondary: TT.ember.withOpacity(0.55),
+                tertiary: TT.text3,
+                background: TT.bg2,
+              ),
+            ),
+            // Top fade for legibility
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    TT.bg.withOpacity(0.0),
+                    TT.bg.withOpacity(0.45),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              left: 14,
+              bottom: 12,
+              child: Hero(
+                tag: 'trail_name_${trail.id}',
+                child: Material(
+                  color: Colors.transparent,
+                  child: Text(
+                    trail.name.toUpperCase(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TT.body(
+                      size: 12,
+                      w: FontWeight.w900,
+                      color: TT.text,
+                    ).copyWith(letterSpacing: 0.18 * 12),
                   ),
-                  const SizedBox(height: 8),
-                  ReviewSummaryBar(summary: prov.summary),
-                  const SizedBox(height: 12),
-                  ...prov.reviews
-                      .take(3)
-                      .map((review) => ReviewCard(review: review)),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 12,
+              top: 12,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (trail.isCave) ...[
+                    const TTPill(
+                      label: 'CAVE ROUTE',
+                      variant: TTPillVariant.neutral,
+                      leadingIcon: Icons.dark_mode_outlined,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  TTPill(
+                    label: trail.difficulty.toUpperCase(),
+                    variant: TTPillVariant.ember,
+                  ),
                 ],
               ),
             ),
@@ -249,62 +327,348 @@ class _TrailDetailScreenState extends State<TrailDetailScreen> {
   }
 }
 
-class _ActionRow extends StatelessWidget {
+class _MountainPainter extends CustomPainter {
+  final Color primary;
+  final Color secondary;
+  final Color tertiary;
+  final Color background;
+  _MountainPainter({
+    required this.primary,
+    required this.secondary,
+    required this.tertiary,
+    required this.background,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..color = background);
+
+    // Far mountains
+    final far = Path()
+      ..moveTo(0, size.height * 0.78)
+      ..lineTo(size.width * 0.15, size.height * 0.55)
+      ..lineTo(size.width * 0.30, size.height * 0.70)
+      ..lineTo(size.width * 0.48, size.height * 0.40)
+      ..lineTo(size.width * 0.65, size.height * 0.65)
+      ..lineTo(size.width * 0.82, size.height * 0.50)
+      ..lineTo(size.width, size.height * 0.62)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+        far,
+        Paint()
+          ..color = tertiary.withOpacity(0.25)
+          ..style = PaintingStyle.fill);
+
+    // Mid range
+    final mid = Path()
+      ..moveTo(0, size.height * 0.88)
+      ..lineTo(size.width * 0.12, size.height * 0.72)
+      ..lineTo(size.width * 0.32, size.height * 0.85)
+      ..lineTo(size.width * 0.50, size.height * 0.58)
+      ..lineTo(size.width * 0.66, size.height * 0.82)
+      ..lineTo(size.width * 0.85, size.height * 0.66)
+      ..lineTo(size.width, size.height * 0.80)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+        mid,
+        Paint()
+          ..color = secondary.withOpacity(0.30)
+          ..style = PaintingStyle.fill);
+
+    // Foreground summit
+    final fg = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width * 0.20, size.height * 0.84)
+      ..lineTo(size.width * 0.42, size.height * 0.55)
+      ..lineTo(size.width * 0.56, size.height * 0.72)
+      ..lineTo(size.width * 0.80, size.height * 0.60)
+      ..lineTo(size.width, size.height * 0.78)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(
+        fg,
+        Paint()
+          ..color = primary.withOpacity(0.85)
+          ..style = PaintingStyle.fill);
+
+    // Summit highlight
+    final ridge = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width * 0.20, size.height * 0.84)
+      ..lineTo(size.width * 0.42, size.height * 0.55)
+      ..lineTo(size.width * 0.56, size.height * 0.72)
+      ..lineTo(size.width * 0.80, size.height * 0.60)
+      ..lineTo(size.width, size.height * 0.78);
+    canvas.drawPath(
+        ridge,
+        Paint()
+          ..color = primary
+          ..strokeWidth = 1.2
+          ..style = PaintingStyle.stroke);
+  }
+
+  @override
+  bool shouldRepaint(_MountainPainter old) =>
+      old.primary != primary || old.secondary != secondary;
+}
+
+// ── Title card ────────────────────────────────────────────────────────────
+
+class _TitleCard extends StatelessWidget {
   final Trail trail;
-  final String favoriteLabel;
-  final String completedLabel;
-  final VoidCallback onToggleFavorite;
-  final VoidCallback onToggleCompleted;
+  final bool isCompleted;
+  const _TitleCard({required this.trail, required this.isCompleted});
+
+  @override
+  Widget build(BuildContext context) {
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  trail.name,
+                  style: TT.title(20, letterSpacing: -0.01 * 20),
+                ),
+              ),
+              const SizedBox(width: 10),
+              TTPill(
+                label: trail.difficulty.toUpperCase(),
+                variant: TTPillVariant.ember,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.terrain, size: 12, color: TT.text3),
+              const SizedBox(width: 4),
+              Text(
+                '${trail.minEle}–${trail.maxEle} m elevation',
+                style: TT.mono(size: 11, color: TT.text3),
+              ),
+              const SizedBox(width: 12),
+              if (isCompleted) ...[
+                const Icon(Icons.check_circle,
+                    size: 12, color: TT.green),
+                const SizedBox(width: 4),
+                Text('COMPLETED',
+                    style: TT.mono(
+                        size: 9.5,
+                        color: TT.green,
+                        letterSpacing: 1.14)),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Stats row ─────────────────────────────────────────────────────────────
+
+class _StatsRow extends StatelessWidget {
+  final Trail trail;
+  final double paceFactor;
+  const _StatsRow({required this.trail, required this.paceFactor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatTile(
+            label: 'DISTANCE',
+            from: 0,
+            to: trail.distanceKm,
+            formatter: (v) => '${v.toStringAsFixed(1)} km',
+            ember: true,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatTile(
+            label: 'ELEV +/−',
+            from: 0,
+            to: trail.elevationGainM.toDouble(),
+            formatter: (v) =>
+                '${v.toInt()}/${trail.elevationDescentM} m',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatTile(
+            label: 'EST. TIME',
+            text: trail.formattedTime(paceFactor),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final String label;
+  final String? text;
+  final double? from;
+  final double? to;
+  final String Function(double)? formatter;
+  final bool ember;
+  const _StatTile({
+    required this.label,
+    this.text,
+    this.from,
+    this.to,
+    this.formatter,
+    this.ember = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TT.numStyle(
+      size: 16,
+      color: ember ? TT.ember : TT.text,
+      w: FontWeight.w800,
+    );
+    return TTCard(
+      tight: true,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TT.label(
+                  size: 9.5, color: TT.text3, letterSpacing: 1.4)),
+          const SizedBox(height: 6),
+          if (text != null)
+            TTCountUp(text: text!, style: style)
+          else
+            TTCountUp.number(
+              from: from!,
+              to: to!,
+              formatter: formatter!,
+              style: style,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Pace selector card ────────────────────────────────────────────────────
+
+class _PaceCard extends StatelessWidget {
+  final double paceFactor;
+  final ValueChanged<double> onChanged;
+  const _PaceCard({required this.paceFactor, required this.onChanged});
+
+  static const _values = [0.7, 1.0, 1.3];
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _values.indexOf(paceFactor).clamp(0, 2);
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.speed, size: 12, color: TT.ember),
+              const SizedBox(width: 6),
+              Text('PACE',
+                  style: TT.label(
+                      size: 10.5,
+                      color: TT.ember,
+                      letterSpacing: 1.4)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TTSegmented(
+            tabs: const ['FAST', 'MODERATE', 'SLOW'],
+            active: active,
+            onChange: (i) => onChanged(_values[i]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Action row ────────────────────────────────────────────────────────────
+
+class _ActionRow extends StatelessWidget {
+  final bool isFavorite;
+  final bool isCompleted;
+  final bool isFollowing;
+  final VoidCallback onFavorite;
+  final VoidCallback onCompleted;
   final VoidCallback onFollow;
-  final VoidCallback onOpenMap;
+  final VoidCallback onMap;
   final VoidCallback onShare;
   final VoidCallback onSafety;
 
   const _ActionRow({
-    required this.trail,
-    required this.favoriteLabel,
-    required this.completedLabel,
-    required this.onToggleFavorite,
-    required this.onToggleCompleted,
+    required this.isFavorite,
+    required this.isCompleted,
+    required this.isFollowing,
+    required this.onFavorite,
+    required this.onCompleted,
     required this.onFollow,
-    required this.onOpenMap,
+    required this.onMap,
     required this.onShare,
     required this.onSafety,
   });
 
   @override
   Widget build(BuildContext context) {
-    final following =
-        context.watch<RecordingProvider>().targetTrail?.id == trail.id;
-
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         _ActionChip(
-          icon:
-              following ? Icons.play_circle_filled : Icons.play_circle_outline,
-          label: following ? 'Following' : 'Follow',
+          icon: isFollowing
+              ? Icons.gps_fixed
+              : Icons.directions_walk,
+          label: isFollowing ? 'Following' : 'Follow',
+          ember: isFollowing,
           onTap: onFollow,
-          color: following ? Colors.greenAccent : null,
         ),
         _ActionChip(
-          icon: Icons.favorite_border,
-          label: favoriteLabel,
-          onTap: onToggleFavorite,
+          icon: isFavorite ? Icons.favorite : Icons.favorite_border,
+          label: isFavorite ? 'Saved' : 'Save',
+          onTap: () {
+            unawaited(HapticFeedback.lightImpact());
+            onFavorite();
+          },
         ),
         _ActionChip(
-          icon: Icons.check_circle_outline,
-          label: completedLabel,
-          onTap: onToggleCompleted,
+          icon: isCompleted
+              ? Icons.check_circle
+              : Icons.check_circle_outline,
+          label: isCompleted ? 'Done' : 'Complete',
+          onTap: () {
+            unawaited(HapticFeedback.lightImpact());
+            onCompleted();
+          },
         ),
         _ActionChip(
           icon: Icons.map_outlined,
           label: 'Map',
-          onTap: onOpenMap,
+          onTap: onMap,
         ),
         _ActionChip(
-          icon: Icons.share_outlined,
+          icon: Icons.ios_share,
           label: 'Share',
           onTap: onShare,
         ),
@@ -313,7 +677,6 @@ class _ActionRow extends StatelessWidget {
           label: 'Safety',
           onTap: onSafety,
         ),
-        _PeakCheckInChip(trail: trail),
       ],
     );
   }
@@ -322,53 +685,92 @@ class _ActionRow extends StatelessWidget {
 class _ActionChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback? onTap;
-  final Color? color;
-
+  final VoidCallback onTap;
+  final bool ember;
   const _ActionChip({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.color,
+    this.ember = false,
   });
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap == null
-            ? null
-            : () {
-                unawaited(HapticFeedback.lightImpact());
-                onTap!();
-              },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: color?.withOpacity(0.1) ?? Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color?.withOpacity(0.5) ?? kColorBorder),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: ember ? TT.emberDim : const Color(0x08FFFFFF),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+              color: ember ? const Color(0x52FF6A2C) : TT.line2,
+              width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: ember ? TT.ember : TT.text2),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TT.body(
+                size: 12,
+                w: FontWeight.w700,
+                color: ember ? TT.ember : TT.text2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Elevation card ────────────────────────────────────────────────────────
+
+class _ElevationCard extends StatelessWidget {
+  final Trail trail;
+  const _ElevationCard({required this.trail});
+
+  @override
+  Widget build(BuildContext context) {
+    final samples =
+        trail.profile.isEmpty ? null : trail.profile.map((p) => p.elevationM).toList();
+    final peakLabel =
+        '${trail.distanceKm.toStringAsFixed(1)} km · ${trail.elevationGainM} m';
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color ?? kColorOrange, size: 14),
-              const SizedBox(width: 6),
+              Text('ELEVATION PROFILE',
+                  style: TT.label(
+                      size: 11,
+                      color: TT.ember,
+                      letterSpacing: 1.4)),
               Text(
-                label,
-                style: GoogleFonts.outfit(
-                  color: color ?? kColorCream,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+                'RANGE ${(trail.maxEle - trail.minEle).abs()} M',
+                style: TT.mono(size: 10, color: TT.text3),
               ),
             ],
           ),
-        ),
-      );
+          const SizedBox(height: 4),
+          TTBigElevChart(samples: samples, peakLabel: peakLabel),
+        ],
+      ),
+    );
+  }
 }
+
+// ── Planning notes ────────────────────────────────────────────────────────
 
 class _PlanningNotes extends StatelessWidget {
   final Trail trail;
-
   const _PlanningNotes({required this.trail});
 
   @override
@@ -379,33 +781,20 @@ class _PlanningNotes extends StatelessWidget {
       _ =>
         'Long day or overnight effort. Plan nutrition, water, and exit time carefully.',
     };
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: kColorBg.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kColorBorder),
-      ),
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'PLANNING NOTES',
-            style: GoogleFonts.outfit(
-              color: kColorCream.withOpacity(0.4),
-              fontSize: 10,
-              letterSpacing: 1.0,
-            ),
-          ),
+          Text('PLANNING NOTES',
+              style: TT.label(
+                  size: 11, color: TT.ember, letterSpacing: 1.4)),
           const SizedBox(height: 8),
           Text(
             note,
-            style: GoogleFonts.outfit(
-              color: kColorCream.withOpacity(0.7),
-              fontSize: 12,
-              height: 1.5,
-            ),
+            style:
+                TT.body(size: 12.5, color: TT.text2, w: FontWeight.w600)
+                    .copyWith(height: 1.5),
           ),
         ],
       ),
@@ -413,93 +802,202 @@ class _PlanningNotes extends StatelessWidget {
   }
 }
 
-class _PaceSelector extends StatelessWidget {
-  final double paceFactor;
-  final ValueChanged<double> onChanged;
+// ── Description card ──────────────────────────────────────────────────────
 
-  static const _options = [0.7, 1.0, 1.3];
-  static final _labels = {0.7: 'Fast', 1.0: 'Moderate', 1.3: 'Slow'};
-
-  const _PaceSelector({
-    required this.paceFactor,
-    required this.onChanged,
-  });
+class _DescriptionCard extends StatelessWidget {
+  final String text;
+  const _DescriptionCard({required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          'Pace: ',
-          style: GoogleFonts.outfit(
-            color: kColorCream.withOpacity(0.5),
-            fontSize: 12,
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('ABOUT',
+              style: TT.label(
+                  size: 11, color: TT.ember, letterSpacing: 1.4)),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            style:
+                TT.body(size: 13, color: TT.text2, w: FontWeight.w600)
+                    .copyWith(height: 1.5),
           ),
-        ),
-        ..._options.map((value) {
-          final selected = paceFactor == value;
-          return Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: GestureDetector(
-              onTap: () => onChanged(value),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? kColorOrange.withOpacity(0.2)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: selected ? kColorOrange : kColorBorder,
-                  ),
-                ),
-                child: Text(
-                  _labels[value]!,
-                  style: GoogleFonts.outfit(
-                    color:
-                        selected ? kColorOrange : kColorCream.withOpacity(0.6),
-                    fontSize: 12,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class _PeakCheckInChip extends StatefulWidget {
-  final Trail trail;
-  const _PeakCheckInChip({required this.trail});
+// ── Caves on route ────────────────────────────────────────────────────────
+
+class _CavesCard extends StatelessWidget {
+  final List<CaveWaypoint> caves;
+  const _CavesCard({required this.caves});
 
   @override
-  State<_PeakCheckInChip> createState() => _PeakCheckInChipState();
+  Widget build(BuildContext context) {
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.dark_mode_outlined,
+                  size: 13, color: TT.ember),
+              const SizedBox(width: 6),
+              Text('CAVES & SHELTERS ON ROUTE',
+                  style: TT.label(
+                      size: 11,
+                      color: TT.ember,
+                      letterSpacing: 1.4)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...caves.take(5).map((c) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: TT.emberSoft,
+                        borderRadius: BorderRadius.circular(TT.rSm),
+                      ),
+                      child: Icon(
+                        c.isShelter
+                            ? Icons.cabin
+                            : Icons.terrain,
+                        size: 14,
+                        color: TT.ember,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            c.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TT.body(
+                                size: 13,
+                                w: FontWeight.w700,
+                                color: TT.text),
+                          ),
+                          Text(
+                            '${c.elevationM.toInt()} m · ${c.isShelter ? 'shelter' : 'cave'}',
+                            style: TT.mono(size: 10.5, color: TT.text3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+          if (caves.length > 5)
+            Text('+${caves.length - 5} more',
+                style: TT.mono(size: 10.5, color: TT.text3)),
+        ],
+      ),
+    );
+  }
 }
 
-class _PeakCheckInChipState extends State<_PeakCheckInChip> {
+// ── Reviews ───────────────────────────────────────────────────────────────
+
+class _ReviewsSection extends StatelessWidget {
+  final Trail trail;
+  const _ReviewsSection({required this.trail});
+
+  @override
+  Widget build(BuildContext context) {
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Consumer<ReviewProvider>(
+        builder: (_, prov, __) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('COMMUNITY REVIEWS',
+                      style: TT.label(
+                          size: 11,
+                          color: TT.ember,
+                          letterSpacing: 1.4)),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => ReviewsScreen(trail: trail),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('See all',
+                          style: TT.body(
+                              size: 12,
+                              w: FontWeight.w700,
+                              color: TT.ember)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right,
+                          size: 16, color: TT.ember),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ReviewSummaryBar(summary: prov.summary),
+            const SizedBox(height: 10),
+            ...prov.reviews.take(3).map(
+                  (review) => ReviewCard(review: review),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Peak check-in ─────────────────────────────────────────────────────────
+
+class _PeakCheckInCard extends StatefulWidget {
+  final Trail trail;
+  const _PeakCheckInCard({required this.trail});
+
+  @override
+  State<_PeakCheckInCard> createState() => _PeakCheckInCardState();
+}
+
+class _PeakCheckInCardState extends State<_PeakCheckInCard> {
   bool _verifying = false;
   String? _status;
 
   Future<void> _checkIn() async {
     setState(() {
       _verifying = true;
-      _status = 'Verifying...';
+      _status = 'Verifying…';
     });
 
     try {
       final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
-      // Most trails end at the peak. Check proximity to the last coordinate.
       final lastCoord = widget.trail.coords.last;
       final dist = Geolocator.distanceBetween(
           pos.latitude, pos.longitude, lastCoord.lat, lastCoord.lon);
 
       if (dist < 250) {
-        setState(() => _status = 'Verified! 🏔');
+        setState(() => _status = 'Verified');
         final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
         final userEmail =
             Supabase.instance.client.auth.currentUser?.email ?? 'A hiker';
@@ -515,15 +1013,15 @@ class _PeakCheckInChipState extends State<_PeakCheckInChip> {
 
         if (!mounted) return;
         unawaited(context.read<CommunityProvider>().refresh());
-        setState(() => _status = 'Done!');
+        setState(() => _status = 'Done');
         unawaited(HapticFeedback.heavyImpact());
       } else {
         setState(() => _status = 'Too far');
         unawaited(HapticFeedback.vibrate());
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() => _status = 'Err');
+      setState(() => _status = 'Error');
     } finally {
       if (mounted) {
         unawaited(Future.delayed(const Duration(seconds: 3), () {
@@ -540,17 +1038,181 @@ class _PeakCheckInChipState extends State<_PeakCheckInChip> {
 
   @override
   Widget build(BuildContext context) {
-    // Only show if it looks like a peak/summit/pass
-    final isPeak = widget.trail.name.toLowerCase().contains('peak') ||
-        widget.trail.name.toLowerCase().contains('summit') ||
-        widget.trail.name.toLowerCase().contains('pass');
-    if (!isPeak) return const SizedBox.shrink();
-
-    return _ActionChip(
-      icon: _status == 'Done!' ? Icons.check : Icons.landscape,
-      label: _status ?? 'Check-in',
+    final done = _status == 'Done';
+    final label = _status ?? 'Check-in at peak';
+    return GestureDetector(
       onTap: _verifying ? null : _checkIn,
-      color: _status == 'Done!' ? Colors.greenAccent : Colors.lightBlueAccent,
+      behavior: HitTestBehavior.opaque,
+      child: TTCard(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: done
+                    ? const Color(0x1A4CC38A)
+                    : TT.emberDim,
+                borderRadius: BorderRadius.circular(TT.rSm),
+                border: Border.all(
+                  color: done
+                      ? const Color(0x594CC38A)
+                      : const Color(0x52FF6A2C),
+                ),
+              ),
+              child: Icon(
+                done ? Icons.check : Icons.flag_outlined,
+                size: 16,
+                color: done ? TT.green : TT.ember,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('PEAK CHECK-IN',
+                      style: TT.label(
+                          size: 10,
+                          color: TT.ember,
+                          letterSpacing: 1.4)),
+                  const SizedBox(height: 2),
+                  Text(label,
+                      style: TT.body(
+                          size: 13,
+                          w: FontWeight.w700,
+                          color: TT.text)),
+                ],
+              ),
+            ),
+            if (_verifying)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: TT.ember,
+                ),
+              )
+            else
+              const Icon(Icons.chevron_right,
+                  size: 18, color: TT.text2),
+          ],
+        ),
+      ),
     );
   }
 }
+
+// ── Sticky START HIKE button ──────────────────────────────────────────────
+
+class _StickyStartButton extends StatefulWidget {
+  final bool isFollowing;
+  final VoidCallback onTap;
+  const _StickyStartButton({
+    required this.isFollowing,
+    required this.onTap,
+  });
+
+  @override
+  State<_StickyStartButton> createState() => _StickyStartButtonState();
+}
+
+class _StickyStartButtonState extends State<_StickyStartButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x00000000), Color(0xCC000000)],
+        ),
+      ),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: TT.ember,
+            borderRadius: BorderRadius.circular(TT.rLg),
+            boxShadow: TT.shadowEmber,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(TT.rLg),
+            child: Stack(
+              children: [
+                // Shimmer band
+                AnimatedBuilder(
+                  animation: _ctl,
+                  builder: (_, __) {
+                    final dx = -1.2 + _ctl.value * 2.4;
+                    return FractionalTranslation(
+                      translation: Offset(dx, 0),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment(-0.5, -0.2),
+                            end: Alignment(0.5, 0.2),
+                            colors: [
+                              Color(0x00FFFFFF),
+                              Color(0x4DFFFFFF),
+                              Color(0x00FFFFFF),
+                            ],
+                            stops: [0.3, 0.5, 0.7],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        widget.isFollowing
+                            ? Icons.gps_fixed
+                            : Icons.play_arrow_rounded,
+                        size: 20,
+                        color: TT.emberInk,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        widget.isFollowing
+                            ? 'TRACKING THIS TRAIL'
+                            : 'START HIKE',
+                        style: TT.body(
+                          size: 13,
+                          w: FontWeight.w900,
+                          color: TT.emberInk,
+                        ).copyWith(letterSpacing: 0.16 * 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

@@ -1,867 +1,97 @@
+// Trailtether 2.0 — Edit Profile screen.
+//
+// Reached from TTProfileScreen's Settings gear, Edit-profile row, and bio tap.
+// This is a focused EDIT surface — the identity header, stats, achievements
+// and account/preferences sections live on TTProfileScreen. Here we only show
+// the fields the user can actually mutate: avatar, display name, bio, phone,
+// experience level, emergency contacts and medical info. Save propagates
+// through ProfileProvider.save(), which mirrors to Supabase user metadata and
+// the `profiles` table (so display_name reaches AuthProvider on next refresh).
+
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import '../core/constants.dart';
-import '../core/utils.dart';
-import '../models/achievement.dart';
+
+import '../core/design_tokens.dart';
 import '../models/hiker_profile.dart';
 import '../providers/profile_provider.dart';
-import '../providers/auth_provider.dart' as ap;
-import '../widgets/common/user_avatar.dart';
-import 'admin/diagnostic_console.dart';
+import '../widgets/design/tt_ambient.dart';
+import '../widgets/design/tt_glass_card.dart';
+import '../widgets/design/tt_topo.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Profile Tab
+// Edit Profile screen
 // ══════════════════════════════════════════════════════════════════════════════
+
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
+
   @override
   State<ProfileTab> createState() => _ProfileTabState();
 }
 
 class _ProfileTabState extends State<ProfileTab> {
-  bool _editing = false;
+  late final TextEditingController _name;
+  late final TextEditingController _phone;
+  late final TextEditingController _bio;
+  late final TextEditingController _bloodType;
+  late final TextEditingController _meds;
+  late final TextEditingController _conditions;
+  late final TextEditingController _docName;
+  late final TextEditingController _docPhone;
+  final _allergiesCtrl = TextEditingController();
+
+  late String _experienceLevel;
+  late List<String> _allergies;
+  final List<_ContactControllers> _contactCtrls = [];
+
+  bool _initialised = false;
 
   @override
   void initState() {
     super.initState();
+    _name = TextEditingController();
+    _phone = TextEditingController();
+    _bio = TextEditingController();
+    _bloodType = TextEditingController();
+    _meds = TextEditingController();
+    _conditions = TextEditingController();
+    _docName = TextEditingController();
+    _docPhone = TextEditingController();
+    _experienceLevel = 'beginner';
+    _allergies = [];
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<ProfileProvider>().refresh();
+      if (mounted) {
+        context.read<ProfileProvider>().refresh();
+      }
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<ProfileProvider>(
-      builder: (_, pp, __) {
-        if (pp.loading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: kColorOrange,
-              strokeWidth: 2,
-            ),
-          );
-        }
-
-        return Scaffold(
-          backgroundColor: kColorBg,
-          body: SafeArea(
-            child: _editing
-                ? _EditForm(
-                    profile: pp.profile,
-                    saving: pp.saving,
-                    onSave: (updated) async {
-                      final ok = await pp.save(updated);
-                      if (ok && mounted) setState(() => _editing = false);
-                    },
-                    onCancel: () => setState(() => _editing = false),
-                  )
-                : _ProfileView(
-                    profile: pp.profile,
-                    onEdit: () => setState(() => _editing = true),
-                  ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Profile View (read mode)
-// ══════════════════════════════════════════════════════════════════════════════
-class _ProfileView extends StatelessWidget {
-  final HikerProfile profile;
-  final VoidCallback onEdit;
-  const _ProfileView({required this.profile, required this.onEdit});
-
-  @override
-  Widget build(BuildContext context) {
-    final pp = context.watch<ProfileProvider>();
-    final auth = context.read<ap.AuthProvider>();
-    final hasAuth = auth.user != null;
-    final name = profile.displayName.isNotEmpty
-        ? profile.displayName
-        : (auth.displayName ?? 'Explorer');
-    final email =
-        profile.email.isNotEmpty ? profile.email : (auth.user?.email ?? '');
-    const expColors = {
-      'beginner': Color(0xFF4CAF50),
-      'intermediate': Color(0xFF2196F3),
-      'advanced': Color(0xFFFF9800),
-      'expert': Color(0xFFE53935),
-    };
-    final lvlColor = expColors[profile.experienceLevel] ?? kColorOrange;
-
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // ── Avatar + identity ──────────────────────────────────
-                Row(
-                  children: [
-                    // Avatar — tap to upload a profile photo
-                    _AvatarPhoto(profile: profile, fallbackInitial: name),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(name,
-                              style: GoogleFonts.outfit(
-                                  color: kColorCream,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800)),
-                          if (email.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(email,
-                                style: GoogleFonts.outfit(
-                                    color: kColorCream.withOpacity(0.45),
-                                    fontSize: 13)),
-                          ],
-                          const SizedBox(height: 6),
-                          // Experience badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: lvlColor.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(20),
-                              border:
-                                  Border.all(color: lvlColor.withOpacity(0.4)),
-                            ),
-                            child: Text(
-                              profile.experienceLevel.toUpperCase(),
-                              style: GoogleFonts.outfit(
-                                  color: lvlColor,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Edit button
-                    GestureDetector(
-                      onTap: onEdit,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: kColorPanel,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: kColorBorder),
-                        ),
-                        child: const Icon(Icons.edit_outlined,
-                            color: kColorOrange, size: 18),
-                      ),
-                    ),
-                  ],
-                ),
-
-                // ── Bio ───────────────────────────────────────────────
-                if (profile.bio.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: kColorPanel,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: kColorBorder),
-                    ),
-                    child: Text(profile.bio,
-                        style: GoogleFonts.outfit(
-                            color: kColorCream.withOpacity(0.7),
-                            fontSize: 13,
-                            height: 1.5)),
-                  ),
-                ],
-
-                const SizedBox(height: 20),
-
-                // ── Stats ──────────────────────────────────────────────
-                _StatsGrid(
-                  dist: pp.totalDistance,
-                  ascent: pp.totalAscent,
-                  count: pp.hikeCount,
-                ),
-
-                const SizedBox(height: 20),
-
-                // ── Achievements ───────────────────────────────────────
-                _AchievementSection(
-                    achievements:
-                        context.watch<ProfileProvider>().achievements),
-
-                const SizedBox(height: 24),
-
-                // ── Contact ────────────────────────────────────────────
-                if (profile.phone.isNotEmpty)
-                  _Section(
-                    icon: Icons.phone_outlined,
-                    title: 'Contact',
-                    children: [
-                      _InfoRow(
-                        label: 'Phone',
-                        value: profile.phone,
-                        onTap: () =>
-                            TrailUtils.launchUrlSafe('tel:${profile.phone}'),
-                      ),
-                      if (email.isNotEmpty)
-                        _InfoRow(
-                          label: 'Email',
-                          value: email,
-                          onTap: () =>
-                              TrailUtils.launchUrlSafe('mailto:$email'),
-                        ),
-                    ],
-                  ),
-
-                const SizedBox(height: 14),
-
-                // ── Emergency contact ──────────────────────────────────
-                _EmergencyCard(profile: profile),
-
-                const SizedBox(height: 14),
-
-                // ── Medical ────────────────────────────────────────────
-                _MedicalCard(profile: profile),
-
-                const SizedBox(height: 14),
-
-                // ── Auth info ──────────────────────────────────────────
-                if (hasAuth)
-                  _Section(
-                    icon: Icons.security_outlined,
-                    title: 'Account',
-                    children: [
-                      const _InfoRow(label: 'Status', value: 'Signed in'),
-                      _InfoRow(
-                          label: 'UID',
-                          value: '${(auth.uid ?? '').substring(0, 12)}…'),
-                    ],
-                  ),
-
-                if (!hasAuth)
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: kColorPanel,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: kColorBorder),
-                    ),
-                    child: Row(children: [
-                      const Icon(Icons.info_outline,
-                          color: kColorOrange, size: 16),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: Text(
-                        'Sign in to sync your profile across devices',
-                        style: GoogleFonts.outfit(
-                            color: kColorCream.withOpacity(0.55), fontSize: 12),
-                      )),
-                    ]),
-                  ),
-
-                // ── Diagnostics ───────────────────────────────────────
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: kColorOrange,
-                      side: const BorderSide(color: kColorOrange, width: 1),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                    ),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const DiagnosticConsole()),
-                    ),
-                    icon: const Icon(Icons.bug_report_outlined, size: 16),
-                    label: Text('System Diagnostics',
-                        style: GoogleFonts.outfit(
-                            fontWeight: FontWeight.w600, fontSize: 13)),
-                  ),
-                ),
-
-                // ── Logout ─────────────────────────────────────────────
-                if (hasAuth) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFE53935),
-                        side: const BorderSide(
-                            color: Color(0xFFE53935), width: 1),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      onPressed: () async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (_) => AlertDialog(
-                            backgroundColor: const Color(0xFF1A1A1A),
-                            title: Text('Sign out?',
-                                style: GoogleFonts.outfit(
-                                    color: kColorCream,
-                                    fontWeight: FontWeight.w700)),
-                            content: Text(
-                                'You will be signed out of Trailtether.',
-                                style: GoogleFonts.outfit(
-                                    color: kColorCream.withOpacity(0.7),
-                                    fontSize: 13)),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: Text('Cancel',
-                                    style: GoogleFonts.outfit(
-                                        color: kColorCream.withOpacity(0.5))),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: Text('Sign out',
-                                    style: GoogleFonts.outfit(
-                                        color: const Color(0xFFE53935),
-                                        fontWeight: FontWeight.w700)),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true && context.mounted) {
-                          await context.read<ap.AuthProvider>().signOut();
-                        }
-                      },
-                      icon: const Icon(Icons.logout, size: 16),
-                      label: Text('Sign Out',
-                          style: GoogleFonts.outfit(
-                              fontWeight: FontWeight.w600, fontSize: 13)),
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 24),
-                const _AppVersionLabel(),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AppVersionLabel extends StatelessWidget {
-  const _AppVersionLabel();
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<PackageInfo>(
-      future: PackageInfo.fromPlatform(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox(height: 16);
-        final info = snapshot.data!;
-        return Center(
-          child: Text(
-            'v${info.version} (build ${info.buildNumber})',
-            style: GoogleFonts.outfit(
-              color: kColorCream.withOpacity(0.35),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ── Avatar with photo upload ───────────────────────────────────────────────────
-class _AvatarPhoto extends StatelessWidget {
-  final HikerProfile profile;
-  final String fallbackInitial;
-  const _AvatarPhoto({required this.profile, required this.fallbackInitial});
-
-  Future<void> _showPickerSheet(BuildContext context) async {
-    final pp = context.read<ProfileProvider>();
-    final hasPhoto = profile.photoUrl.isNotEmpty;
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: kColorPanel,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: kColorBorder,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              leading:
-                  const Icon(Icons.photo_library_outlined, color: kColorOrange),
-              title: Text('Choose from gallery',
-                  style: GoogleFonts.outfit(color: kColorCream)),
-              onTap: () => Navigator.pop(context, 'gallery'),
-            ),
-            ListTile(
-              leading:
-                  const Icon(Icons.camera_alt_outlined, color: kColorOrange),
-              title: Text('Take a photo',
-                  style: GoogleFonts.outfit(color: kColorCream)),
-              onTap: () => Navigator.pop(context, 'camera'),
-            ),
-            if (hasPhoto)
-              ListTile(
-                leading:
-                    const Icon(Icons.delete_outline, color: Colors.redAccent),
-                title: Text('Remove photo',
-                    style: GoogleFonts.outfit(color: Colors.redAccent)),
-                onTap: () => Navigator.pop(context, 'remove'),
-              ),
-            const SizedBox(height: 6),
-          ],
-        ),
-      ),
-    );
-    if (choice == null) return;
-    if (choice == 'remove') {
-      await pp.removePhoto();
-      return;
-    }
-    final source =
-        choice == 'camera' ? ImageSource.camera : ImageSource.gallery;
-    final result = await pp.pickAndUploadPhoto(source: source);
-    if (!context.mounted) return;
-    if (result == 'ok' || result == 'cancelled') return;
-    if (result == 'no-auth') {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign in to upload a profile photo')));
-      return;
-    }
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Photo upload failed: $result')));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final uploading = context.watch<ProfileProvider>().uploadingPhoto;
-    return GestureDetector(
-      onTap: uploading ? null : () => _showPickerSheet(context),
-      child: Stack(
-        children: [
-          UserAvatar(
-            photoUrl: profile.photoUrl,
-            displayName: fallbackInitial,
-            radius: 37,
-            backgroundColor: kColorOrange.withOpacity(0.15),
-          ),
-          // Edit camera badge
-          if (!uploading)
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: kColorOrange,
-                  border: Border.all(color: kColorBg, width: 2),
-                ),
-                child:
-                    const Icon(Icons.camera_alt, color: Colors.white, size: 13),
-              ),
-            ),
-          // Uploading overlay
-          if (uploading)
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black.withOpacity(0.5),
-                ),
-                child: const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Emergency card ─────────────────────────────────────────────────────────────
-class _EmergencyCard extends StatelessWidget {
-  final HikerProfile profile;
-  const _EmergencyCard({required this.profile});
-
-  Future<void> _call(String phone) async {
-    await TrailUtils.launchUrlSafe('tel:$phone');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final contacts = profile.contacts;
-    final hasContacts = contacts.isNotEmpty;
-
-    return Column(
-      children: [
-        if (!hasContacts)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.redAccent.withOpacity(0.35)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  const Icon(Icons.emergency,
-                      color: Colors.redAccent, size: 16),
-                  const SizedBox(width: 8),
-                  Text('Emergency Contacts',
-                      style: GoogleFonts.outfit(
-                          color: Colors.redAccent,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700)),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text(
-                                'Tap "Edit" at the top to add your emergency contacts'))),
-                    child: Text('Add now →',
-                        style: GoogleFonts.outfit(
-                            color: Colors.redAccent.withOpacity(0.7),
-                            fontSize: 12)),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Text(
-                    'No emergency contacts saved. Add them for safety on the trail.',
-                    style: GoogleFonts.outfit(
-                        color: kColorCream.withOpacity(0.35), fontSize: 12)),
-              ],
-            ),
-          )
-        else
-          ...contacts.map((c) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(14),
-                    border:
-                        Border.all(color: Colors.redAccent.withOpacity(0.35)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        const Icon(Icons.emergency,
-                            color: Colors.redAccent, size: 16),
-                        const SizedBox(width: 8),
-                        Text(
-                            c.relation.isNotEmpty
-                                ? c.relation.toUpperCase()
-                                : 'CONTACT',
-                            style: GoogleFonts.outfit(
-                                color: Colors.redAccent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.1)),
-                      ]),
-                      const SizedBox(height: 12),
-                      _InfoRow(
-                          label: 'Name',
-                          value: c.name,
-                          valueColor: kColorCream),
-                      if (c.phone.isNotEmpty)
-                        _InfoRow(
-                          label: 'Phone',
-                          value: c.phone,
-                          valueColor: kColorCream,
-                          trailing: GestureDetector(
-                            onTap: () => _call(c.phone),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: Colors.redAccent.withOpacity(0.4)),
-                              ),
-                              child: const Icon(Icons.phone,
-                                  color: Colors.redAccent, size: 14),
-                            ),
-                          ),
-                        ),
-                      if (c.email.isNotEmpty)
-                        _InfoRow(
-                          label: 'Email',
-                          value: c.email,
-                          valueColor: kColorCream,
-                          onTap: () =>
-                              TrailUtils.launchUrlSafe('mailto:${c.email}'),
-                        ),
-                    ],
-                  ),
-                ),
-              )),
-      ],
-    );
-  }
-}
-
-// ── Medical card ───────────────────────────────────────────────────────────────
-class _MedicalCard extends StatelessWidget {
-  final HikerProfile profile;
-  const _MedicalCard({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasInfo = profile.bloodType.isNotEmpty ||
-        profile.allergies.isNotEmpty ||
-        profile.medications.isNotEmpty ||
-        profile.medicalConditions.isNotEmpty;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kColorPanel,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kColorBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.medical_services_outlined,
-                color: Color(0xFF2196F3), size: 16),
-            const SizedBox(width: 8),
-            Text('Medical Information',
-                style: GoogleFonts.outfit(
-                    color: const Color(0xFF2196F3),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700)),
-          ]),
-          const SizedBox(height: 12),
-          if (!hasInfo)
-            Text(
-                'No medical info saved. This helps first responders in an emergency.',
-                style: GoogleFonts.outfit(
-                    color: kColorCream.withOpacity(0.35), fontSize: 12))
-          else ...[
-            if (profile.bloodType.isNotEmpty)
-              _InfoRow(label: 'Blood Type', value: profile.bloodType),
-            if (profile.allergies.isNotEmpty)
-              _InfoRow(
-                  label: 'Allergies',
-                  value: profile.allergies.join(', '),
-                  valueColor: const Color(0xFFFF9800)),
-            if (profile.medications.isNotEmpty)
-              _InfoRow(label: 'Medications', value: profile.medications),
-            if (profile.medicalConditions.isNotEmpty)
-              _InfoRow(label: 'Conditions', value: profile.medicalConditions),
-            if (profile.doctorName.isNotEmpty)
-              _InfoRow(label: 'Doctor', value: profile.doctorName),
-            if (profile.doctorPhone.isNotEmpty)
-              _InfoRow(label: 'Dr Phone', value: profile.doctorPhone),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── Section wrapper ────────────────────────────────────────────────────────────
-class _Section extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final List<Widget> children;
-  const _Section(
-      {required this.icon, required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kColorPanel,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: kColorBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(icon, color: kColorOrange, size: 16),
-              const SizedBox(width: 8),
-              Text(title,
-                  style: GoogleFonts.outfit(
-                      color: kColorOrange,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700)),
-            ]),
-            const SizedBox(height: 10),
-            ...children,
-          ],
-        ),
-      );
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label, value;
-  final Color? valueColor;
-  final VoidCallback? onTap;
-  final Widget? trailing;
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-    this.onTap,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text(label,
-                style: GoogleFonts.outfit(
-                    color: kColorCream.withOpacity(0.4), fontSize: 12)),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: onTap,
-              child: Text(value,
-                  style: GoogleFonts.outfit(
-                      color: valueColor ?? kColorCream,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      decoration:
-                          onTap != null ? TextDecoration.underline : null)),
-            ),
-          ),
-          if (trailing != null) trailing!,
-        ],
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Edit Form
-// ══════════════════════════════════════════════════════════════════════════════
-class _EditForm extends StatefulWidget {
-  final HikerProfile profile;
-  final bool saving;
-  final Future<void> Function(HikerProfile) onSave;
-  final VoidCallback onCancel;
-
-  const _EditForm({
-    required this.profile,
-    required this.saving,
-    required this.onSave,
-    required this.onCancel,
-  });
-
-  @override
-  State<_EditForm> createState() => _EditFormState();
-}
-
-class _EditFormState extends State<_EditForm> {
-  late final TextEditingController _name,
-      _phone,
-      _bio,
-      _bloodType,
-      _meds,
-      _conditions,
-      _docName,
-      _docPhone;
-  final _allergiesCtrl = TextEditingController();
-  late String _experienceLevel;
-  late List<String> _allergies;
-
-  // Dynamic list of contacts
-  final List<_ContactControllers> _contactCtrls = [];
-
-  @override
-  void initState() {
-    super.initState();
-    final p = widget.profile;
-    _name = TextEditingController(text: p.displayName);
-    _phone = TextEditingController(text: p.phone);
-    _bio = TextEditingController(text: p.bio);
-    _bloodType = TextEditingController(text: p.bloodType);
-    _meds = TextEditingController(text: p.medications);
-    _conditions = TextEditingController(text: p.medicalConditions);
-    _docName = TextEditingController(text: p.doctorName);
-    _docPhone = TextEditingController(text: p.doctorPhone);
+  void _seedFromProfile(HikerProfile p) {
+    if (_initialised) return;
+    _initialised = true;
+    _name.text = p.displayName;
+    _phone.text = p.phone;
+    _bio.text = p.bio;
+    _bloodType.text = p.bloodType;
+    _meds.text = p.medications;
+    _conditions.text = p.medicalConditions;
+    _docName.text = p.doctorName;
+    _docPhone.text = p.doctorPhone;
     _experienceLevel = p.experienceLevel;
-    _allergies = List.from(p.allergies);
+    _allergies = List<String>.from(p.allergies);
 
     if (p.contacts.isEmpty) {
-      _addContact();
+      _contactCtrls.add(_ContactControllers.empty());
     } else {
       for (final c in p.contacts) {
-        _contactCtrls.add(_ContactControllers(
-          name: TextEditingController(text: c.name),
-          email: TextEditingController(text: c.email),
-          phone: TextEditingController(text: c.phone),
-          relation: TextEditingController(text: c.relation),
-        ));
+        _contactCtrls.add(_ContactControllers.fromContact(c));
       }
     }
   }
 
   void _addContact() {
-    setState(() {
-      _contactCtrls.add(_ContactControllers(
-        name: TextEditingController(),
-        email: TextEditingController(),
-        phone: TextEditingController(),
-        relation: TextEditingController(),
-      ));
-    });
+    setState(() => _contactCtrls.add(_ContactControllers.empty()));
   }
 
   void _removeContact(int i) {
@@ -873,26 +103,22 @@ class _EditFormState extends State<_EditForm> {
 
   @override
   void dispose() {
-    for (final c in [
-      _name,
-      _phone,
-      _bio,
-      _bloodType,
-      _meds,
-      _conditions,
-      _docName,
-      _docPhone,
-      _allergiesCtrl
-    ]) {
-      c.dispose();
-    }
+    _name.dispose();
+    _phone.dispose();
+    _bio.dispose();
+    _bloodType.dispose();
+    _meds.dispose();
+    _conditions.dispose();
+    _docName.dispose();
+    _docPhone.dispose();
+    _allergiesCtrl.dispose();
     for (final cc in _contactCtrls) {
       cc.dispose();
     }
     super.dispose();
   }
 
-  HikerProfile _buildProfile() => widget.profile.copyWith(
+  HikerProfile _buildProfile(HikerProfile base) => base.copyWith(
         displayName: _name.text.trim(),
         phone: _phone.text.trim(),
         bio: _bio.text.trim(),
@@ -914,315 +140,243 @@ class _EditFormState extends State<_EditForm> {
         doctorPhone: _docPhone.text.trim(),
       );
 
+  Future<void> _save() async {
+    final pp = context.read<ProfileProvider>();
+    final ok = await pp.save(_buildProfile(pp.profile));
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Profile saved',
+              style: TT.body(size: 13, color: TT.text)),
+          backgroundColor: TT.surf,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await Navigator.of(context).maybePop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(pp.error ?? 'Could not save profile',
+              style: TT.body(size: 13, color: TT.red)),
+          backgroundColor: TT.surf,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Top bar
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
+    return Scaffold(
+      backgroundColor: TT.bg,
+      body: Consumer<ProfileProvider>(
+        builder: (_, pp, __) {
+          _seedFromProfile(pp.profile);
+          return Stack(
             children: [
-              GestureDetector(
-                onTap: widget.onCancel,
-                child: Text('Cancel',
-                    style: GoogleFonts.outfit(
-                        color: kColorCream.withOpacity(0.5), fontSize: 15)),
-              ),
-              const Spacer(),
-              Text('Edit Profile',
-                  style: GoogleFonts.outfit(
-                      color: kColorCream,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700)),
-              const Spacer(),
-              widget.saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                          color: kColorOrange, strokeWidth: 2))
-                  : GestureDetector(
-                      onTap: () => widget.onSave(_buildProfile()),
-                      child: Text('Save',
-                          style: GoogleFonts.outfit(
-                              color: kColorOrange,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700)),
-                    ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 4),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _FormSection('Personal Info', Icons.person_outline, [
-                _Field(_name, 'Display Name', Icons.badge_outlined),
-                _Field(_phone, 'Phone number', Icons.phone_outlined,
-                    type: TextInputType.phone),
-                _Field(_bio, 'About me / bio', Icons.notes, maxLines: 3),
-                // Experience level
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Experience Level',
-                          style: GoogleFonts.outfit(
-                              color: kColorCream.withOpacity(0.55),
-                              fontSize: 12)),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          'beginner',
-                          'intermediate',
-                          'advanced',
-                          'expert'
-                        ]
-                            .map((lvl) => GestureDetector(
-                                  onTap: () =>
-                                      setState(() => _experienceLevel = lvl),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 150),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: _experienceLevel == lvl
-                                          ? kColorOrange.withOpacity(0.15)
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                          color: _experienceLevel == lvl
-                                              ? kColorOrange
-                                              : kColorBorder),
-                                    ),
-                                    child: Text(lvl,
-                                        style: GoogleFonts.outfit(
-                                            color: _experienceLevel == lvl
-                                                ? kColorOrange
-                                                : kColorCream.withOpacity(0.5),
-                                            fontSize: 12)),
-                                  ),
-                                ))
-                            .toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ]),
-              _FormSection(
-                '🆘  Emergency Contacts',
-                Icons.emergency,
-                [
-                  ...List.generate(_contactCtrls.length, (i) {
-                    final ctrl = _contactCtrls[i];
-                    return Column(
-                      children: [
-                        Row(
-                          children: [
-                            Text('CONTACT #${i + 1}',
-                                style: GoogleFonts.outfit(
-                                    color: Colors.redAccent.withOpacity(0.5),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900)),
-                            const Spacer(),
-                            if (_contactCtrls.length > 1)
-                              GestureDetector(
-                                onTap: () => _removeContact(i),
-                                child: const Icon(Icons.delete_outline,
-                                    color: Colors.redAccent, size: 16),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _Field(ctrl.name, 'Full name', Icons.person),
-                        _Field(ctrl.relation, 'Relationship',
-                            Icons.favorite_outline,
-                            hint: 'e.g. Wife, Father, Partner'),
-                        _Field(ctrl.phone, 'Phone number', Icons.phone,
-                            type: TextInputType.phone),
-                        _Field(
-                            ctrl.email, 'Email address', Icons.email_outlined,
-                            type: TextInputType.emailAddress),
-                        if (i < _contactCtrls.length - 1)
-                          const Divider(color: kColorBorder, height: 24),
-                      ],
-                    );
-                  }),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: _addContact,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: Colors.redAccent.withOpacity(0.3),
-                            style: BorderStyle.solid),
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.add,
-                                color: Colors.redAccent, size: 18),
-                            const SizedBox(width: 8),
-                            Text('ADD ANOTHER CONTACT',
-                                style: GoogleFonts.outfit(
-                                    color: Colors.redAccent,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-                borderColor: Colors.redAccent.withOpacity(0.4),
-              ),
-              _FormSection(
-                  '🩺  Medical Information', Icons.medical_services_outlined, [
-                // Blood type dropdown
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: DropdownButtonFormField<String>(
-                    value: _bloodType.text.isNotEmpty ? _bloodType.text : null,
-                    decoration: InputDecoration(
-                      hintText: 'Blood type',
-                      prefixIcon: Icon(Icons.bloodtype,
-                          color: kColorCream.withOpacity(0.4), size: 18),
-                    ),
-                    dropdownColor: kColorPanel,
-                    style: GoogleFonts.outfit(color: kColorCream),
-                    items: ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−']
-                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _bloodType.text = v ?? ''),
-                  ),
-                ),
-                // Allergies
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Allergies',
-                          style: GoogleFonts.outfit(
-                              color: kColorCream.withOpacity(0.55),
-                              fontSize: 12)),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          ..._allergies.map((a) => GestureDetector(
-                                onTap: () =>
-                                    setState(() => _allergies.remove(a)),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFF9800)
-                                        .withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                        color: const Color(0xFFFF9800)
-                                            .withOpacity(0.4)),
-                                  ),
-                                  child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(a,
-                                            style: GoogleFonts.outfit(
-                                                color: const Color(0xFFFF9800),
-                                                fontSize: 12)),
-                                        const SizedBox(width: 4),
-                                        const Icon(Icons.close,
-                                            color: Color(0xFFFF9800), size: 12),
-                                      ]),
+              const Positioned.fill(child: TTAmbient()),
+              const Positioned.fill(child: TTTopoBackdrop(opacity: 0.45)),
+              SafeArea(
+                child: Column(
+                  children: [
+                    _TopBar(onBack: () => Navigator.of(context).maybePop()),
+                    Expanded(
+                      child: pp.loading
+                          ? const Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  color: TT.ember,
+                                  strokeWidth: 2,
                                 ),
-                              )),
-                          // Add allergy
-                          GestureDetector(
-                            onTap: _showAllergyDialog,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: kColorBorder),
                               ),
-                              child: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                            )
+                          : ListView(
+                              padding: const EdgeInsets.fromLTRB(
+                                  TT.s4, TT.s2, TT.s4, TT.s5),
+                              children: [
+                                _AvatarEditorCard(profile: pp.profile),
+                                const SizedBox(height: TT.s3),
+                                _FormSection(
+                                  title: 'IDENTITY',
                                   children: [
-                                    Icon(Icons.add,
-                                        color: kColorCream.withOpacity(0.4),
-                                        size: 14),
-                                    const SizedBox(width: 4),
-                                    Text('Add',
-                                        style: GoogleFonts.outfit(
-                                            color: kColorCream.withOpacity(0.4),
-                                            fontSize: 12)),
-                                  ]),
+                                    _TTField(
+                                      controller: _name,
+                                      label: 'DISPLAY NAME',
+                                      icon: Icons.badge_outlined,
+                                      hint: 'How others see you',
+                                    ),
+                                    const SizedBox(height: TT.s3),
+                                    _TTField(
+                                      controller: _bio,
+                                      label: 'BIO',
+                                      icon: Icons.notes_outlined,
+                                      hint: 'A few words about your trail life',
+                                      maxLines: 4,
+                                    ),
+                                    const SizedBox(height: TT.s3),
+                                    _TTField(
+                                      controller: _phone,
+                                      label: 'PHONE',
+                                      icon: Icons.phone_outlined,
+                                      hint: '+27 …',
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                    const SizedBox(height: TT.s3),
+                                    _ExperienceSelector(
+                                      value: _experienceLevel,
+                                      onChanged: (v) => setState(
+                                          () => _experienceLevel = v),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: TT.s3),
+                                _FormSection(
+                                  title: 'EMERGENCY CONTACTS',
+                                  accent: TT.red,
+                                  children: [
+                                    for (var i = 0;
+                                        i < _contactCtrls.length;
+                                        i++)
+                                      _ContactBlock(
+                                        index: i,
+                                        controllers: _contactCtrls[i],
+                                        showRemove: _contactCtrls.length > 1,
+                                        onRemove: () => _removeContact(i),
+                                        isLast:
+                                            i == _contactCtrls.length - 1,
+                                      ),
+                                    const SizedBox(height: TT.s2),
+                                    _AddContactButton(onTap: _addContact),
+                                  ],
+                                ),
+                                const SizedBox(height: TT.s3),
+                                _FormSection(
+                                  title: 'MEDICAL',
+                                  accent: TT.blue,
+                                  children: [
+                                    _BloodTypeSelector(
+                                      value: _bloodType.text,
+                                      onChanged: (v) => setState(
+                                          () => _bloodType.text = v),
+                                    ),
+                                    const SizedBox(height: TT.s3),
+                                    _AllergyChips(
+                                      allergies: _allergies,
+                                      onRemove: (a) => setState(
+                                          () => _allergies.remove(a)),
+                                      onAdd: _showAllergyDialog,
+                                    ),
+                                    const SizedBox(height: TT.s3),
+                                    _TTField(
+                                      controller: _meds,
+                                      label: 'MEDICATIONS',
+                                      icon: Icons.medication_outlined,
+                                      hint: 'Current medications',
+                                      maxLines: 2,
+                                    ),
+                                    const SizedBox(height: TT.s3),
+                                    _TTField(
+                                      controller: _conditions,
+                                      label: 'CONDITIONS',
+                                      icon: Icons.healing_outlined,
+                                      hint: 'e.g. Asthma, Diabetes',
+                                      maxLines: 2,
+                                    ),
+                                    const SizedBox(height: TT.s3),
+                                    _TTField(
+                                      controller: _docName,
+                                      label: 'DOCTOR / GP',
+                                      icon: Icons.person_pin_outlined,
+                                      hint: 'Name',
+                                    ),
+                                    const SizedBox(height: TT.s3),
+                                    _TTField(
+                                      controller: _docPhone,
+                                      label: 'DOCTOR PHONE',
+                                      icon: Icons.phone_in_talk_outlined,
+                                      hint: '+27 …',
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: TT.s5),
+                                _SaveButton(
+                                  busy: pp.saving,
+                                  onTap: pp.saving ? null : _save,
+                                ),
+                                const SizedBox(height: TT.s2),
+                                _CancelButton(
+                                  enabled: !pp.saving,
+                                  onTap: () =>
+                                      Navigator.of(context).maybePop(),
+                                ),
+                                const SizedBox(height: TT.s5),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                _Field(_meds, 'Current medications', Icons.medication_outlined,
-                    maxLines: 2),
-                _Field(
-                    _conditions, 'Medical conditions', Icons.healing_outlined,
-                    maxLines: 2, hint: 'e.g. Asthma, Diabetes'),
-                _Field(_docName, 'Doctor / GP name', Icons.person_pin_outlined),
-                _Field(_docPhone, 'Doctor phone', Icons.phone_in_talk_outlined,
-                    type: TextInputType.phone),
-              ]),
-              const SizedBox(height: 24),
+              ),
             ],
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 
   void _showAllergyDialog() {
     _allergiesCtrl.clear();
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: kColorPanel,
-        title:
-            Text('Add Allergy', style: GoogleFonts.outfit(color: kColorCream)),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(TT.rLg),
+          side: const BorderSide(color: TT.line2),
+        ),
+        title: Text('Add allergy', style: TT.title(17)),
         content: TextField(
           controller: _allergiesCtrl,
           autofocus: true,
-          style: GoogleFonts.outfit(color: kColorCream),
+          style: TT.body(size: 14, color: TT.text),
+          cursorColor: TT.ember,
           decoration: InputDecoration(
-            hintText: 'e.g. Penicillin, Bee stings, Nuts…',
-            hintStyle: GoogleFonts.outfit(color: kColorCream.withOpacity(0.3)),
+            hintText: 'Penicillin, bee stings, nuts…',
+            hintStyle: TT.body(size: 13, color: TT.text3),
+            filled: true,
+            fillColor: TT.bg3,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TT.rMd),
+              borderSide: const BorderSide(color: TT.line2),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TT.rMd),
+              borderSide: const BorderSide(color: TT.line2),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TT.rMd),
+              borderSide: const BorderSide(color: TT.ember),
+            ),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child:
-                Text('Cancel', style: GoogleFonts.outfit(color: kColorCream)),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel',
+                style: TT.body(size: 13, color: TT.text2)),
           ),
           TextButton(
             onPressed: () {
               final v = _allergiesCtrl.text.trim();
               if (v.isNotEmpty) setState(() => _allergies.add(v));
-              Navigator.pop(context);
+              Navigator.pop(ctx);
             },
-            child: Text('Add', style: GoogleFonts.outfit(color: kColorOrange)),
+            child: Text('Add',
+                style:
+                    TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
           ),
         ],
       ),
@@ -1230,83 +384,428 @@ class _EditFormState extends State<_EditForm> {
   }
 }
 
-class _FormSection extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final List<Widget> items;
-  final Color? borderColor;
+// ══════════════════════════════════════════════════════════════════════════════
+// Top bar
+// ══════════════════════════════════════════════════════════════════════════════
 
-  const _FormSection(this.title, this.icon, this.items, {this.borderColor});
+class _TopBar extends StatelessWidget {
+  final VoidCallback onBack;
+  const _TopBar({required this.onBack});
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kColorPanel,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor ?? kColorBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(icon, color: kColorOrange, size: 15),
-              const SizedBox(width: 8),
-              Text(title,
-                  style: GoogleFonts.outfit(
-                      color: kColorOrange,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700)),
-            ]),
-            const SizedBox(height: 14),
-            ...items,
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(TT.s3, TT.s3, TT.s3, TT.s2),
+      child: Row(
+        children: [
+          _ChevronBackButton(onTap: onBack),
+          const SizedBox(width: TT.s3),
+          Expanded(
+            child: Text(
+              'Edit Profile',
+              style: TT.title(22, letterSpacing: -0.01 * 22),
+            ),
+          ),
+          const SizedBox(width: 38),
+        ],
+      ),
+    );
+  }
 }
 
-class _Field extends StatelessWidget {
-  final TextEditingController ctrl;
-  final String label;
-  final IconData icon;
-  final TextInputType type;
-  final int maxLines;
-  final String? hint;
+class _ChevronBackButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ChevronBackButton({required this.onTap});
 
-  const _Field(
-    this.ctrl,
-    this.label,
-    this.icon, {
-    this.type = TextInputType.text,
-    this.maxLines = 1,
-    this.hint,
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0x08FFFFFF),
+          borderRadius: BorderRadius.circular(TT.rMd),
+          border: Border.all(color: TT.line, width: 1),
+        ),
+        child: const Icon(Icons.chevron_left, size: 22, color: TT.text2),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Avatar editor
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _AvatarEditorCard extends StatelessWidget {
+  final HikerProfile profile;
+  const _AvatarEditorCard({required this.profile});
+
+  Future<void> _pickPhoto(BuildContext context) async {
+    final pp = context.read<ProfileProvider>();
+    final hasPhoto = profile.photoUrl.isNotEmpty;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: TT.surf,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rLg)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: TT.s2),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: TT.line3,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: TT.s2),
+            _SheetRow(
+              icon: Icons.photo_library_outlined,
+              label: 'Choose from gallery',
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+            _SheetRow(
+              icon: Icons.camera_alt_outlined,
+              label: 'Take a photo',
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            if (hasPhoto)
+              _SheetRow(
+                icon: Icons.delete_outline,
+                label: 'Remove photo',
+                danger: true,
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+            const SizedBox(height: TT.s2),
+          ],
+        ),
+      ),
+    );
+    if (choice == null) return;
+    if (!context.mounted) return;
+    if (choice == 'remove') {
+      await pp.removePhoto();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Photo removed',
+              style: TT.body(size: 13, color: TT.text)),
+          backgroundColor: TT.surf,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final source =
+        choice == 'camera' ? ImageSource.camera : ImageSource.gallery;
+    final result = await pp.pickAndUploadPhoto(source: source);
+    if (!context.mounted) return;
+    if (result == 'ok') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Photo updated',
+              style: TT.body(size: 13, color: TT.text)),
+          backgroundColor: TT.surf,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (result == 'cancelled') return;
+    if (result == 'no-auth') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sign in to upload a profile photo',
+              style: TT.body(size: 13, color: TT.amber)),
+          backgroundColor: TT.surf,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Photo upload failed',
+            style: TT.body(size: 13, color: TT.red)),
+        backgroundColor: TT.surf,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uploading = context.watch<ProfileProvider>().uploadingPhoto;
+    final name = profile.displayName.trim();
+    final initials = _initialsOf(name);
+    final photoUrl = profile.photoUrl.trim();
+    final hasRemote =
+        photoUrl.startsWith('http://') || photoUrl.startsWith('https://');
+
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(TT.s4, TT.s4, TT.s4, TT.s4),
+      child: Row(
+        children: [
+          _AvatarThumb(
+            initials: initials,
+            photoUrl: hasRemote ? photoUrl : '',
+            uploading: uploading,
+          ),
+          const SizedBox(width: TT.s4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('PHOTO',
+                    style: TT.label(
+                        size: 10.5, color: TT.text3, letterSpacing: 0.16 * 11)),
+                const SizedBox(height: 4),
+                Text(
+                  hasRemote ? 'Profile photo synced' : 'No photo yet',
+                  style:
+                      TT.body(size: 13, w: FontWeight.w700, color: TT.text),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'JPG/PNG · up to 1024px',
+                  style:
+                      TT.mono(size: 10, color: TT.text3, letterSpacing: 0.02 * 10),
+                ),
+                const SizedBox(height: TT.s3),
+                _ChangePhotoButton(
+                  busy: uploading,
+                  onTap: uploading ? null : () => _pickPhoto(context),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _initialsOf(String name) {
+    final s = name.trim();
+    if (s.isEmpty) return '?';
+    final parts = s.split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return parts.first
+          .substring(0, parts.first.length >= 2 ? 2 : 1)
+          .toUpperCase();
+    }
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
+  }
+}
+
+class _AvatarThumb extends StatelessWidget {
+  final String initials;
+  final String photoUrl;
+  final bool uploading;
+  const _AvatarThumb({
+    required this.initials,
+    required this.photoUrl,
+    required this.uploading,
   });
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(
-          controller: ctrl,
-          keyboardType: type,
-          maxLines: maxLines,
-          style: GoogleFonts.outfit(color: kColorCream, fontSize: 14),
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hint,
-            hintStyle: GoogleFonts.outfit(
-                color: kColorCream.withOpacity(0.25), fontSize: 13),
-            prefixIcon:
-                Icon(icon, color: kColorCream.withOpacity(0.4), size: 18),
+  Widget build(BuildContext context) {
+    final hasPhoto = photoUrl.isNotEmpty;
+    return SizedBox(
+      width: 72,
+      height: 72,
+      child: Stack(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: hasPhoto
+                  ? null
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF6B3A1A), TT.ember2],
+                    ),
+              image: hasPhoto
+                  ? DecorationImage(
+                      image: NetworkImage(photoUrl),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+              border: Border.all(color: TT.ember, width: 2),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x59FF6A2C),
+                  blurRadius: 18,
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: hasPhoto
+                ? null
+                : Text(
+                    initials,
+                    style: TT
+                        .body(size: 24, w: FontWeight.w900, color: Colors.white)
+                        .copyWith(letterSpacing: -0.02 * 24),
+                  ),
           ),
-        ),
-      );
+          if (uploading)
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xAA000000),
+                ),
+                alignment: Alignment.center,
+                child: const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: TT.ember,
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
-// ── Achievement Section ───────────────────────────────────────────────────
-class _AchievementSection extends StatelessWidget {
-  final List<Achievement> achievements;
-  const _AchievementSection({required this.achievements});
+class _ChangePhotoButton extends StatelessWidget {
+  final bool busy;
+  final VoidCallback? onTap;
+  const _ChangePhotoButton({required this.busy, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: TT.emberDim,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0x59FF6A2C), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.camera_alt_outlined, size: 13, color: TT.ember),
+            const SizedBox(width: 6),
+            Text(
+              busy ? 'UPLOADING…' : 'CHANGE PHOTO',
+              style: TT.body(size: 11, w: FontWeight.w800, color: TT.ember)
+                  .copyWith(letterSpacing: 0.12 * 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool danger;
+  final VoidCallback onTap;
+  const _SheetRow({
+    required this.icon,
+    required this.label,
+    this.danger = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? TT.red : TT.ember;
+    return ListTile(
+      leading: Icon(icon, color: color, size: 20),
+      title: Text(
+        label,
+        style: TT.body(
+          size: 14,
+          w: FontWeight.w700,
+          color: danger ? TT.red : TT.text,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Form section card
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _FormSection extends StatelessWidget {
+  final String title;
+  final Color accent;
+  final List<Widget> children;
+  const _FormSection({
+    required this.title,
+    required this.children,
+    this.accent = TT.ember,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(TT.s4, TT.s4, TT.s4, TT.s4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: TT.label(
+              size: 11,
+              color: accent,
+              letterSpacing: 0.16 * 11,
+            ),
+          ),
+          const SizedBox(height: TT.s3),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Field
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _TTField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final String? hint;
+  final int maxLines;
+  final TextInputType keyboardType;
+
+  const _TTField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.hint,
+    this.maxLines = 1,
+    this.keyboardType = TextInputType.text,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1315,31 +814,39 @@ class _AchievementSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.workspace_premium_outlined,
-                color: kColorOrange, size: 18),
-            const SizedBox(width: 8),
-            Text('ACHIEVEMENTS',
-                style: GoogleFonts.outfit(
-                    color: kColorOrange,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2)),
-            const Spacer(),
+            Icon(icon, size: 13, color: TT.text3),
+            const SizedBox(width: 6),
             Text(
-                '${achievements.where((a) => a.unlocked).length}/${achievements.length}',
-                style: GoogleFonts.outfit(
-                    color: kColorCream.withOpacity(0.5), fontSize: 11)),
+              label,
+              style: TT.label(
+                size: 10.5,
+                color: TT.text3,
+                letterSpacing: 0.16 * 11,
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 110,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: achievements.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (_, i) =>
-                _AchievementBadge(achievement: achievements[i]),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: TT.surf2,
+            borderRadius: BorderRadius.circular(TT.rMd),
+            border: Border.all(color: TT.line2, width: 1),
+          ),
+          child: TextField(
+            controller: controller,
+            maxLines: maxLines,
+            keyboardType: keyboardType,
+            cursorColor: TT.ember,
+            style: TT.body(size: 14, color: TT.text),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TT.body(size: 13, color: TT.text3),
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
           ),
         ),
       ],
@@ -1347,234 +854,193 @@ class _AchievementSection extends StatelessWidget {
   }
 }
 
-class _AchievementBadge extends StatelessWidget {
-  final Achievement achievement;
-  const _AchievementBadge({required this.achievement});
+// ══════════════════════════════════════════════════════════════════════════════
+// Experience selector
+// ══════════════════════════════════════════════════════════════════════════════
 
-  void _showDetail(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: kColorBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: achievement.unlocked
-                    ? kColorOrange.withOpacity(0.1)
-                    : kColorPanel,
-                border: Border.all(
-                    color: achievement.unlocked ? kColorOrange : kColorBorder,
-                    width: 2),
-              ),
-              child: Icon(achievement.icon,
-                  color: achievement.unlocked
-                      ? kColorOrange
-                      : kColorCream.withOpacity(0.2),
-                  size: 40),
-            ),
-            const SizedBox(height: 20),
-            Text(achievement.title.toUpperCase(),
-                style: GoogleFonts.outfit(
-                    color: kColorCream,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            Text(achievement.description,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
-                    color: kColorCream.withOpacity(0.7), fontSize: 14)),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                  color: kColorPanel, borderRadius: BorderRadius.circular(12)),
-              child: Row(
-                children: [
-                  Icon(achievement.unlocked ? Icons.check_circle : Icons.lock,
-                      color:
-                          achievement.unlocked ? Colors.green : Colors.white24,
-                      size: 18),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      achievement.unlocked
-                          ? 'Achievement Unlocked!'
-                          : 'Requirement: ${achievement.requirement}',
-                      style: GoogleFonts.outfit(
-                          color: achievement.unlocked
-                              ? Colors.green
-                              : kColorCream.withOpacity(0.5),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
+class _ExperienceSelector extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  const _ExperienceSelector({required this.value, required this.onChanged});
+
+  static const _levels = ['beginner', 'intermediate', 'advanced', 'expert'];
 
   @override
   Widget build(BuildContext context) {
-    final unlocked = achievement.unlocked;
-    return GestureDetector(
-      onTap: () => _showDetail(context),
-      child: Column(
-        children: [
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: unlocked ? kColorOrange.withOpacity(0.1) : kColorPanel,
-              border: Border.all(
-                color: unlocked ? kColorOrange : kColorBorder,
-                width: 2,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.trending_up, size: 13, color: TT.text3),
+            const SizedBox(width: 6),
+            Text(
+              'EXPERIENCE',
+              style: TT.label(
+                size: 10.5,
+                color: TT.text3,
+                letterSpacing: 0.16 * 11,
               ),
-              boxShadow: unlocked
-                  ? [
-                      BoxShadow(
-                        color: kColorOrange.withOpacity(0.2),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      )
-                    ]
-                  : null,
             ),
-            child: ColorFiltered(
-              colorFilter: unlocked
-                  ? const ColorFilter.mode(
-                      Colors.transparent, BlendMode.multiply)
-                  : const ColorFilter.matrix([
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0,
-                      0,
-                      0,
-                      1,
-                      0,
-                    ]),
-              child: Center(
-                child: Icon(
-                  achievement.icon,
-                  color:
-                      unlocked ? kColorOrange : kColorCream.withOpacity(0.25),
-                  size: 32,
+          ],
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _levels.map((lvl) {
+            final selected = lvl == value;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(lvl),
+              child: AnimatedContainer(
+                duration: TT.dFast,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: selected ? TT.emberDim : TT.surf2,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: selected
+                        ? const Color(0x59FF6A2C)
+                        : TT.line2,
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  lvl.toUpperCase(),
+                  style: TT
+                      .body(
+                        size: 11,
+                        w: FontWeight.w800,
+                        color: selected ? TT.ember : TT.text2,
+                      )
+                      .copyWith(letterSpacing: 0.12 * 11),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 80,
-            child: Text(
-              achievement.title.toUpperCase(),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              style: GoogleFonts.outfit(
-                color: unlocked ? kColorCream : kColorCream.withOpacity(0.3),
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                height: 1.1,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatsGrid extends StatelessWidget {
-  final double dist;
-  final int ascent;
-  final int count;
-  const _StatsGrid(
-      {required this.dist, required this.ascent, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _StatItem(
-            label: 'DISTANCE', value: dist.toStringAsFixed(1), unit: 'km'),
-        const SizedBox(width: 12),
-        _StatItem(label: 'ASCENT', value: '$ascent', unit: 'm'),
-        const SizedBox(width: 12),
-        _StatItem(label: 'HIKES', value: '$count', unit: ''),
+            );
+          }).toList(),
+        ),
       ],
     );
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String label, value, unit;
-  const _StatItem(
-      {required this.label, required this.value, required this.unit});
+// ══════════════════════════════════════════════════════════════════════════════
+// Emergency contacts
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _ContactBlock extends StatelessWidget {
+  final int index;
+  final _ContactControllers controllers;
+  final bool showRemove;
+  final VoidCallback onRemove;
+  final bool isLast;
+
+  const _ContactBlock({
+    required this.index,
+    required this.controllers,
+    required this.showRemove,
+    required this.onRemove,
+    required this.isLast,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: kColorPanel,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: kColorBorder),
-        ),
-        child: Column(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Text(label,
-                style: GoogleFonts.outfit(
-                    color: kColorCream.withOpacity(0.4),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1)),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(value,
-                    style: GoogleFonts.outfit(
-                        color: kColorCream,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800)),
-                if (unit.isNotEmpty) ...[
-                  const SizedBox(width: 2),
-                  Text(unit,
-                      style: GoogleFonts.outfit(
-                          color: kColorCream.withOpacity(0.4),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600)),
-                ],
-              ],
+            Text(
+              'CONTACT ${index + 1}',
+              style: TT.label(
+                size: 10,
+                color: TT.red,
+                letterSpacing: 0.16 * 10,
+              ),
+            ),
+            const Spacer(),
+            if (showRemove)
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onRemove,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Icon(Icons.delete_outline,
+                      size: 16, color: TT.red),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: TT.s2),
+        _TTField(
+          controller: controllers.name,
+          label: 'FULL NAME',
+          icon: Icons.person_outline,
+          hint: 'Their name',
+        ),
+        const SizedBox(height: TT.s3),
+        _TTField(
+          controller: controllers.relation,
+          label: 'RELATIONSHIP',
+          icon: Icons.favorite_outline,
+          hint: 'e.g. Wife, Father, Partner',
+        ),
+        const SizedBox(height: TT.s3),
+        _TTField(
+          controller: controllers.phone,
+          label: 'PHONE',
+          icon: Icons.phone_outlined,
+          hint: '+27 …',
+          keyboardType: TextInputType.phone,
+        ),
+        const SizedBox(height: TT.s3),
+        _TTField(
+          controller: controllers.email,
+          label: 'EMAIL',
+          icon: Icons.email_outlined,
+          hint: 'name@example.com',
+          keyboardType: TextInputType.emailAddress,
+        ),
+        if (!isLast)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: TT.s3),
+            child: Container(height: 1, color: TT.line),
+          )
+        else
+          const SizedBox(height: TT.s3),
+      ],
+    );
+  }
+}
+
+class _AddContactButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddContactButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: const Color(0x1AE63D2E),
+          borderRadius: BorderRadius.circular(TT.rMd),
+          border: Border.all(color: const Color(0x59E63D2E), width: 1),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add, size: 16, color: TT.red),
+            const SizedBox(width: 6),
+            Text(
+              'ADD ANOTHER CONTACT',
+              style: TT.body(size: 11, w: FontWeight.w800, color: TT.red)
+                  .copyWith(letterSpacing: 0.12 * 11),
             ),
           ],
         ),
@@ -1596,10 +1062,287 @@ class _ContactControllers {
     required this.relation,
   });
 
+  factory _ContactControllers.empty() => _ContactControllers(
+        name: TextEditingController(),
+        email: TextEditingController(),
+        phone: TextEditingController(),
+        relation: TextEditingController(),
+      );
+
+  factory _ContactControllers.fromContact(EmergencyContact c) =>
+      _ContactControllers(
+        name: TextEditingController(text: c.name),
+        email: TextEditingController(text: c.email),
+        phone: TextEditingController(text: c.phone),
+        relation: TextEditingController(text: c.relation),
+      );
+
   void dispose() {
     name.dispose();
     email.dispose();
     phone.dispose();
     relation.dispose();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Blood type + allergies
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _BloodTypeSelector extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  const _BloodTypeSelector({required this.value, required this.onChanged});
+
+  static const _types = ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.bloodtype_outlined, size: 13, color: TT.text3),
+            const SizedBox(width: 6),
+            Text(
+              'BLOOD TYPE',
+              style: TT.label(
+                size: 10.5,
+                color: TT.text3,
+                letterSpacing: 0.16 * 11,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _types.map((t) {
+            final selected = t == value;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(selected ? '' : t),
+              child: AnimatedContainer(
+                duration: TT.dFast,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? const Color(0x1A5AA1D6)
+                      : TT.surf2,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: selected
+                        ? const Color(0x595AA1D6)
+                        : TT.line2,
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  t,
+                  style: TT
+                      .body(
+                        size: 11,
+                        w: FontWeight.w800,
+                        color: selected ? TT.blue : TT.text2,
+                      )
+                      .copyWith(letterSpacing: 0.04 * 11),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _AllergyChips extends StatelessWidget {
+  final List<String> allergies;
+  final ValueChanged<String> onRemove;
+  final VoidCallback onAdd;
+
+  const _AllergyChips({
+    required this.allergies,
+    required this.onRemove,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.warning_amber_outlined,
+                size: 13, color: TT.text3),
+            const SizedBox(width: 6),
+            Text(
+              'ALLERGIES',
+              style: TT.label(
+                size: 10.5,
+                color: TT.text3,
+                letterSpacing: 0.16 * 11,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final a in allergies)
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onRemove(a),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1AF2A93B),
+                    borderRadius: BorderRadius.circular(999),
+                    border:
+                        Border.all(color: const Color(0x59F2A93B), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        a,
+                        style: TT.body(
+                            size: 11,
+                            w: FontWeight.w700,
+                            color: TT.amber),
+                      ),
+                      const SizedBox(width: 5),
+                      const Icon(Icons.close, size: 11, color: TT.amber),
+                    ],
+                  ),
+                ),
+              ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onAdd,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: TT.surf2,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: TT.line2, width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.add, size: 12, color: TT.text2),
+                    const SizedBox(width: 5),
+                    Text(
+                      'ADD',
+                      style: TT.body(
+                              size: 11,
+                              w: FontWeight.w800,
+                              color: TT.text2)
+                          .copyWith(letterSpacing: 0.12 * 11),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Save / Cancel
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _SaveButton extends StatelessWidget {
+  final bool busy;
+  final VoidCallback? onTap;
+  const _SaveButton({required this.busy, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.6,
+        child: Container(
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: TT.ember,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: TT.shadowEmber,
+          ),
+          child: busy
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: TT.emberInk,
+                    strokeWidth: 2,
+                  ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.check, size: 16, color: TT.emberInk),
+                    const SizedBox(width: 8),
+                    Text(
+                      'SAVE CHANGES',
+                      style: TT
+                          .body(
+                              size: 13,
+                              w: FontWeight.w900,
+                              color: TT.emberInk)
+                          .copyWith(letterSpacing: 0.16 * 13),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CancelButton extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback onTap;
+  const _CancelButton({required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? onTap : null,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.6,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: TT.line2, width: 1),
+          ),
+          child: Text(
+            'CANCEL',
+            style: TT
+                .body(size: 12, w: FontWeight.w800, color: TT.text2)
+                .copyWith(letterSpacing: 0.16 * 12),
+          ),
+        ),
+      ),
+    );
   }
 }

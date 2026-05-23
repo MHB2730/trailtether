@@ -1,13 +1,22 @@
+// Trailtether 3.0 — "Trails" hub, reskinned to TT tokens.
+//
+// Two-tab list (My Trails / Community) backed by RecordedTrailsProvider. The
+// detail screen reads its GPX file off Supabase Storage, renders an offline
+// flutter_map preview with the route polyline in ember, an animated TT
+// elevation chart, and exposes Share / Make private / Delete actions for the
+// owner. All data flow (provider.refresh, provider.share, provider.delete,
+// RecordedTrailService.downloadPoints) is preserved exactly.
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../core/constants.dart';
+import '../core/design_tokens.dart';
 import '../models/recorded_trail.dart';
 import '../models/recording_point.dart';
 import '../models/trail.dart';
@@ -15,12 +24,14 @@ import '../providers/auth_provider.dart' as ap;
 import '../providers/recorded_trails_provider.dart';
 import '../services/offline_map_service.dart';
 import '../services/recorded_trail_service.dart';
-import '../widgets/trail/elevation_chart.dart';
+import '../widgets/design/tt_ambient.dart';
+import '../widgets/design/tt_app_bar.dart';
+import '../widgets/design/tt_count_up.dart';
+import '../widgets/design/tt_elev_chart.dart';
+import '../widgets/design/tt_glass_card.dart';
+import '../widgets/design/tt_segmented.dart';
+import '../widgets/design/tt_topo.dart';
 
-/// "Trails" hub — shows the user's recorded hikes (auto-promoted on save)
-/// and community-shared trails. Both lists are offline-aware: the provider
-/// caches them to SharedPreferences and a tapped trail's GPX caches to disk
-/// for offline viewing.
 class RecordedTrailsScreen extends StatefulWidget {
   final bool embedded;
   const RecordedTrailsScreen({super.key, this.embedded = false});
@@ -29,21 +40,13 @@ class RecordedTrailsScreen extends StatefulWidget {
   State<RecordedTrailsScreen> createState() => _RecordedTrailsScreenState();
 }
 
-class _RecordedTrailsScreenState extends State<RecordedTrailsScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _RecordedTrailsScreenState extends State<RecordedTrailsScreen> {
+  int _tab = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -58,57 +61,47 @@ class _RecordedTrailsScreenState extends State<RecordedTrailsScreen>
   Widget build(BuildContext context) {
     final body = Column(
       children: [
-        Container(
-          color: kColorBg,
-          child: TabBar(
-            controller: _tabController,
-            labelColor: kColorOrange,
-            unselectedLabelColor: kColorCream.withOpacity(0.4),
-            indicatorColor: kColorOrange,
-            labelStyle: GoogleFonts.outfit(
-                fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.2),
-            tabs: const [
-              Tab(text: 'MY TRAILS'),
-              Tab(text: 'COMMUNITY'),
+        if (!widget.embedded)
+          TTPageAppBar(
+            title: 'Trails',
+            trailing: [
+              TTIconBtn(icon: Icons.refresh, onTap: _refresh),
             ],
+          ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+              18, widget.embedded ? 6 : 6, 18, 12),
+          child: TTSegmented(
+            tabs: const ['MY TRAILS', 'COMMUNITY'],
+            active: _tab,
+            onChange: (i) => setState(() => _tab = i),
           ),
         ),
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: const [
-              _TrailList(scope: _ListScope.mine),
-              _TrailList(scope: _ListScope.community),
-            ],
-          ),
+        Expanded(child: _TrailList(scope: _tab == 0 ? _Scope.mine : _Scope.community)),
+      ],
+    );
+
+    final stack = Stack(
+      children: [
+        const Positioned.fill(child: TTAmbient()),
+        const Positioned.fill(child: TTTopoBackdrop()),
+        SafeArea(
+          top: !widget.embedded,
+          bottom: false,
+          child: body,
         ),
       ],
     );
 
-    if (widget.embedded) return body;
-
-    return Scaffold(
-      backgroundColor: kColorBg,
-      appBar: AppBar(
-        backgroundColor: kColorBg,
-        foregroundColor: kColorCream,
-        title: Text('Trails', style: GoogleFonts.outfit()),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refresh,
-          ),
-        ],
-      ),
-      body: body,
-    );
+    if (widget.embedded) return Material(color: TT.bg, child: stack);
+    return Scaffold(backgroundColor: TT.bg, body: stack);
   }
 }
 
-enum _ListScope { mine, community }
+enum _Scope { mine, community }
 
 class _TrailList extends StatelessWidget {
-  final _ListScope scope;
+  final _Scope scope;
   const _TrailList({required this.scope});
 
   @override
@@ -117,10 +110,17 @@ class _TrailList extends StatelessWidget {
       builder: (_, prov, __) {
         if (!prov.loaded) {
           return const Center(
-              child: CircularProgressIndicator(color: kColorOrange));
+            child: SizedBox(
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(
+                color: TT.ember,
+                strokeWidth: 2.4,
+              ),
+            ),
+          );
         }
-        final items =
-            scope == _ListScope.mine ? prov.mine : prov.community;
+        final items = scope == _Scope.mine ? prov.mine : prov.community;
         if (items.isEmpty) {
           return _EmptyState(scope: scope, refreshing: prov.refreshing);
         }
@@ -130,12 +130,13 @@ class _TrailList extends StatelessWidget {
             final uid = auth.uid;
             if (uid != null) await prov.refresh(uid);
           },
-          color: kColorOrange,
+          color: TT.ember,
+          backgroundColor: TT.bg2,
           child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
             itemCount: items.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (_, i) => _TrailCard(trail: items[i]),
+            itemBuilder: (_, i) => _TrailRow(trail: items[i]),
           ),
         );
       },
@@ -144,146 +145,160 @@ class _TrailList extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  final _ListScope scope;
+  final _Scope scope;
   final bool refreshing;
   const _EmptyState({required this.scope, required this.refreshing});
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+  Widget build(BuildContext context) {
+    final isMine = scope == _Scope.mine;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 0, 28, 48),
+        child: TTCard(
+          padding: const EdgeInsets.fromLTRB(22, 26, 22, 26),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                scope == _ListScope.mine ? Icons.timeline : Icons.public,
-                color: kColorCream.withOpacity(0.2),
-                size: 60,
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: TT.emberDim,
+                  shape: BoxShape.circle,
+                  border:
+                      Border.all(color: const Color(0x52FF6A2C), width: 1),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  isMine ? Icons.timeline : Icons.public,
+                  color: TT.ember,
+                  size: 30,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
-                scope == _ListScope.mine
-                    ? 'No trails yet'
-                    : 'No community trails',
-                style: GoogleFonts.outfit(
-                  color: kColorCream,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+                isMine ? 'No trails yet' : 'No community trails',
+                textAlign: TextAlign.center,
+                style: TT.title(17, letterSpacing: -0.01 * 17),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
-                scope == _ListScope.mine
+                isMine
                     ? 'Recorded hikes show up here automatically. Tap one to view its elevation profile or share it with the community.'
                     : 'Trails other hikers share publicly will appear here. Pull down to refresh.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
-                  color: kColorCream.withOpacity(0.45),
-                  fontSize: 13,
-                  height: 1.4,
-                ),
+                style: TT.body(size: 12.5, color: TT.text3),
               ),
               if (refreshing) ...[
                 const SizedBox(height: 16),
-                const CircularProgressIndicator(color: kColorOrange),
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: TT.ember,
+                    strokeWidth: 2,
+                  ),
+                ),
               ],
             ],
           ),
-        ),
-      );
-}
-
-class _TrailCard extends StatelessWidget {
-  final RecordedTrail trail;
-  const _TrailCard({required this.trail});
-
-  @override
-  Widget build(BuildContext context) {
-    final isMine = context.read<ap.AuthProvider>().uid == trail.userId;
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RecordedTrailDetailScreen(trail: trail),
-        ),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kColorPanel,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: kColorBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    trail.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      color: kColorCream,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                _SharingBadge(trail: trail, dim: !isMine),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              DateFormat('EEE, d MMM yyyy').format(trail.createdAt),
-              style: GoogleFonts.outfit(
-                color: kColorCream.withOpacity(0.4),
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                _MiniMetric('DIST', '${trail.distanceKm.toStringAsFixed(2)} km'),
-                _MiniMetric('ASC', '${trail.ascentM} m'),
-                _MiniMetric('TIME', _fmtDuration(trail.durationSeconds)),
-              ],
-            ),
-          ],
         ),
       ),
     );
   }
 }
 
-class _SharingBadge extends StatelessWidget {
+class _TrailRow extends StatelessWidget {
   final RecordedTrail trail;
-  final bool dim;
-  const _SharingBadge({required this.trail, this.dim = false});
+  const _TrailRow({required this.trail});
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (trail.sharing) {
-      TrailSharing.public => const Color(0xFF22C55E),
-      TrailSharing.team => const Color(0xFF38BDF8),
-      TrailSharing.private => kColorCream.withOpacity(0.4),
-    };
+    final isMine = context.read<ap.AuthProvider>().uid == trail.userId;
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      onTap: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RecordedTrailDetailScreen(trail: trail),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  trail.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TT.title(16, letterSpacing: -0.01 * 16),
+                ),
+              ),
+              _SharingBadge(sharing: trail.sharing, dim: !isMine),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            DateFormat('EEE, d MMM yyyy').format(trail.createdAt),
+            style: TT.mono(size: 11, color: TT.text3),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _MiniMetric(
+                  label: 'DIST',
+                  value: '${trail.distanceKm.toStringAsFixed(2)} km'),
+              _Divider(),
+              _MiniMetric(label: 'ASC', value: '${trail.ascentM} m'),
+              _Divider(),
+              _MiniMetric(
+                  label: 'TIME',
+                  value: _fmtDuration(trail.durationSeconds)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SharingBadge extends StatelessWidget {
+  final TrailSharing sharing;
+  final bool dim;
+  const _SharingBadge({required this.sharing, this.dim = false});
+
+  @override
+  Widget build(BuildContext context) {
+    Color fg;
+    String label;
+    switch (sharing) {
+      case TrailSharing.public:
+        fg = TT.green;
+        label = 'COMMUNITY';
+        break;
+      case TrailSharing.team:
+        fg = TT.blue;
+        label = 'TEAM';
+        break;
+      case TrailSharing.private:
+        fg = TT.text3;
+        label = 'PRIVATE';
+        break;
+    }
+    if (dim) fg = fg.withOpacity(0.55);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(dim ? 0.05 : 0.12),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(dim ? 0.2 : 0.4)),
+        color: fg.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withOpacity(0.35)),
       ),
       child: Text(
-        trail.sharing.label.toUpperCase(),
-        style: GoogleFonts.outfit(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
-        ),
+        label,
+        style: TT.mono(size: 9.5, color: fg, letterSpacing: 1.14),
       ),
     );
   }
@@ -292,7 +307,7 @@ class _SharingBadge extends StatelessWidget {
 class _MiniMetric extends StatelessWidget {
   final String label;
   final String value;
-  const _MiniMetric(this.label, this.value);
+  const _MiniMetric({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) => Expanded(
@@ -301,29 +316,31 @@ class _MiniMetric extends StatelessWidget {
           children: [
             Text(
               label,
-              style: GoogleFonts.outfit(
-                color: kColorCream.withOpacity(0.32),
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TT.label(size: 9.5, color: TT.text3, letterSpacing: 1.4),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             Text(
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.outfit(
-                color: kColorCream,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TT.numStyle(size: 14, color: TT.text, w: FontWeight.w800),
             ),
           ],
         ),
       );
 }
 
-// ── Detail screen ───────────────────────────────────────────────────────────
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 1,
+        height: 30,
+        margin: const EdgeInsets.symmetric(horizontal: 6),
+        color: TT.line,
+      );
+}
+
+// ── Detail screen ─────────────────────────────────────────────────────────
 
 class RecordedTrailDetailScreen extends StatefulWidget {
   final RecordedTrail trail;
@@ -341,11 +358,13 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
 
   RecordedTrail get _trail {
     final prov = context.read<RecordedTrailsProvider>();
-    return prov.mine.firstWhere((t) => t.id == widget.trail.id,
-        orElse: () => prov.community.firstWhere(
-              (t) => t.id == widget.trail.id,
-              orElse: () => widget.trail,
-            ));
+    return prov.mine.firstWhere(
+      (t) => t.id == widget.trail.id,
+      orElse: () => prov.community.firstWhere(
+        (t) => t.id == widget.trail.id,
+        orElse: () => widget.trail,
+      ),
+    );
   }
 
   @override
@@ -365,9 +384,8 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
       setState(() {
         _points = points;
         _loading = false;
-        _loadError = points.isEmpty
-            ? 'No points found (cached download empty)'
-            : null;
+        _loadError =
+            points.isEmpty ? 'No points found (cached download empty)' : null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -384,122 +402,70 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
     final trail = _trail;
     final isMine = auth.uid == trail.userId;
     final profile = _buildElevationProfile(_points);
-    final eleMin = profile.isEmpty
-        ? 0
-        : profile.map((p) => p.elevationM).reduce((a, b) => a < b ? a : b).round();
-    final eleMax = profile.isEmpty
-        ? 0
-        : profile.map((p) => p.elevationM).reduce((a, b) => a > b ? a : b).round();
+    final altitudes =
+        profile.length >= 2 ? profile.map((p) => p.elevationM).toList() : null;
 
     return Scaffold(
-      backgroundColor: kColorBg,
-      appBar: AppBar(
-        backgroundColor: kColorBg,
-        foregroundColor: kColorCream,
-        title: Text(trail.name, style: GoogleFonts.outfit()),
-        actions: [
-          if (isMine)
-            PopupMenuButton<String>(
-              onSelected: _onAction,
-              icon: const Icon(Icons.more_vert),
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'share_public',
-                  enabled: trail.sharing != TrailSharing.public,
-                  child: const Row(children: [
-                    Icon(Icons.public, size: 18),
-                    SizedBox(width: 8),
-                    Text('Share to community'),
-                  ]),
+      backgroundColor: TT.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: TTAmbient()),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _DetailAppBar(
+                  title: trail.name,
+                  isMine: isMine,
+                  sharing: trail.sharing,
+                  onBack: () => Navigator.of(context).pop(),
+                  onAction: _onAction,
                 ),
-                PopupMenuItem(
-                  value: 'make_private',
-                  enabled: trail.sharing != TrailSharing.private,
-                  child: const Row(children: [
-                    Icon(Icons.lock_outline, size: 18),
-                    SizedBox(width: 8),
-                    Text('Make private'),
-                  ]),
-                ),
-                const PopupMenuDivider(),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(children: [
-                    Icon(Icons.delete_outline,
-                        size: 18, color: Colors.redAccent),
-                    SizedBox(width: 8),
-                    Text('Delete trail',
-                        style: TextStyle(color: Colors.redAccent)),
-                  ]),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+                    children: [
+                      Row(
+                        children: [
+                          _SharingBadge(sharing: trail.sharing),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${trail.pointCount} POINTS',
+                            style: TT.label(
+                                size: 10, color: TT.text3, letterSpacing: 1.4),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _MapPreview(
+                        loading: _loading,
+                        points: _points,
+                        trail: trail,
+                      ),
+                      if (_loadError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _loadError!,
+                          style: TT.mono(size: 10.5, color: TT.red),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      _StatsCard(trail: trail),
+                      if (altitudes != null) ...[
+                        const SizedBox(height: 14),
+                        _ElevationCard(
+                          altitudes: altitudes,
+                          distanceKm: trail.distanceKm,
+                          ascentM: trail.ascentM,
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ],
             ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-        children: [
-          Row(
-            children: [
-              _SharingBadge(trail: trail),
-              const SizedBox(width: 8),
-              Text(
-                '${trail.pointCount} points',
-                style: GoogleFonts.outfit(
-                  color: kColorCream.withOpacity(0.45),
-                  fontSize: 12,
-                ),
-              ),
-            ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            height: 240,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kColorBorder),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: _loading
-                ? const Center(
-                    child:
-                        CircularProgressIndicator(color: kColorOrange))
-                : _TrailMap(points: _points, trail: trail),
-          ),
-          if (_loadError != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _loadError!,
-              style: GoogleFonts.outfit(
-                color: Colors.redAccent.withOpacity(0.8),
-                fontSize: 11,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          _StatsGrid(trail: trail),
-          const SizedBox(height: 16),
-          if (profile.length >= 2) ...[
-            Text(
-              'ELEVATION',
-              style: GoogleFonts.outfit(
-                color: kColorOrange,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.1,
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 160,
-              child: ElevationChart(
-                profile: profile,
-                distanceKm: trail.distanceKm,
-                minEle: eleMin,
-                maxEle: eleMax,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -512,7 +478,14 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
         await prov.share(widget.trail.id, TrailSharing.public);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Trail is now visible to the community')),
+            SnackBar(
+              backgroundColor: TT.surf,
+              behavior: SnackBarBehavior.floating,
+              content: Text(
+                'Trail is now visible to the community',
+                style: TT.body(size: 13, color: TT.text),
+              ),
+            ),
           );
         }
         break;
@@ -520,7 +493,13 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
         await prov.share(widget.trail.id, TrailSharing.private);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Trail is now private')),
+            SnackBar(
+              backgroundColor: TT.surf,
+              behavior: SnackBarBehavior.floating,
+              content:
+                  Text('Trail is now private',
+                      style: TT.body(size: 13, color: TT.text)),
+            ),
           );
         }
         break;
@@ -528,18 +507,29 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
         final ok = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            backgroundColor: kColorPanel,
-            title: const Text('Delete trail?'),
-            content: const Text(
-                'This removes the trail and its GPX file from the cloud and from this device. The original hike in your Activities is not affected.'),
+            backgroundColor: TT.bg2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(TT.rLg),
+              side: const BorderSide(color: TT.line2),
+            ),
+            title: Text('Delete trail?', style: TT.title(17)),
+            content: Text(
+              'This removes the trail and its GPX file from the cloud and from this device. The original hike in your Activities is not affected.',
+              style: TT.body(size: 13, color: TT.text2),
+            ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel')),
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel',
+                    style: TT.body(
+                        size: 13, w: FontWeight.w700, color: TT.text2)),
+              ),
               TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Delete',
-                      style: TextStyle(color: Colors.redAccent))),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('Delete',
+                    style: TT.body(
+                        size: 13, w: FontWeight.w800, color: TT.red)),
+              ),
             ],
           ),
         );
@@ -558,7 +548,8 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
     for (var i = 1; i < points.length; i++) {
       final a = points[i - 1];
       final b = points[i];
-      cumulative += _haversineKm(a.latitude, a.longitude, b.latitude, b.longitude);
+      cumulative +=
+          _haversineKm(a.latitude, a.longitude, b.latitude, b.longitude);
       profile.add(ElevationPoint(cumulative, b.altitude));
     }
     return profile;
@@ -580,6 +571,145 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
   }
 }
 
+class _DetailAppBar extends StatelessWidget {
+  final String title;
+  final bool isMine;
+  final TrailSharing sharing;
+  final VoidCallback onBack;
+  final ValueChanged<String> onAction;
+
+  const _DetailAppBar({
+    required this.title,
+    required this.isMine,
+    required this.sharing,
+    required this.onBack,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+      child: Row(
+        children: [
+          TTIconBtn(icon: Icons.chevron_left, size: 38, onTap: onBack),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TT.title(20, letterSpacing: -0.01 * 20),
+            ),
+          ),
+          if (isMine)
+            _OverflowMenu(sharing: sharing, onSelected: onAction),
+        ],
+      ),
+    );
+  }
+}
+
+class _OverflowMenu extends StatelessWidget {
+  final TrailSharing sharing;
+  final ValueChanged<String> onSelected;
+  const _OverflowMenu({required this.sharing, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      onSelected: onSelected,
+      icon: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0x08FFFFFF),
+          borderRadius: BorderRadius.circular(TT.rMd),
+          border: Border.all(color: TT.line),
+        ),
+        child: const Icon(Icons.more_horiz, color: TT.text2, size: 18),
+      ),
+      color: TT.bg2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(TT.rMd),
+        side: const BorderSide(color: TT.line2),
+      ),
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'share_public',
+          enabled: sharing != TrailSharing.public,
+          child: _menuTile(
+              Icons.public, 'Share to community', TT.green),
+        ),
+        PopupMenuItem<String>(
+          value: 'make_private',
+          enabled: sharing != TrailSharing.private,
+          child: _menuTile(
+              Icons.lock_outline, 'Make private', TT.text2),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: _menuTile(
+              Icons.delete_outline, 'Delete trail', TT.red),
+        ),
+      ],
+    );
+  }
+
+  Widget _menuTile(IconData icon, String label, Color tint) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: tint),
+        const SizedBox(width: 10),
+        Text(label,
+            style:
+                TT.body(size: 13, w: FontWeight.w700, color: TT.text)),
+      ],
+    );
+  }
+}
+
+class _MapPreview extends StatelessWidget {
+  final bool loading;
+  final List<RecordingPoint> points;
+  final RecordedTrail trail;
+  const _MapPreview({
+    required this.loading,
+    required this.points,
+    required this.trail,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(TT.rLg),
+      child: Container(
+        height: 240,
+        decoration: BoxDecoration(
+          color: TT.surf,
+          borderRadius: BorderRadius.circular(TT.rLg),
+          border: Border.all(color: TT.line, width: 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: loading
+            ? const Center(
+                child: SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    color: TT.ember,
+                    strokeWidth: 2,
+                  ),
+                ),
+              )
+            : _TrailMap(points: points, trail: trail),
+      ),
+    );
+  }
+}
+
 class _TrailMap extends StatelessWidget {
   final List<RecordingPoint> points;
   final RecordedTrail trail;
@@ -589,8 +719,10 @@ class _TrailMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final pts = points.map((p) => LatLng(p.latitude, p.longitude)).toList();
     final center = pts.isEmpty
-        ? LatLng((trail.minLat ?? 0 + (trail.maxLat ?? 0)) / 2,
-            (trail.minLon ?? 0 + (trail.maxLon ?? 0)) / 2)
+        ? LatLng(
+            (trail.minLat ?? 0 + (trail.maxLat ?? 0)) / 2,
+            (trail.minLon ?? 0 + (trail.maxLon ?? 0)) / 2,
+          )
         : pts.first;
     final bounds = pts.length < 2 ? null : _boundsFor(pts);
     return FlutterMap(
@@ -608,31 +740,39 @@ class _TrailMap extends StatelessWidget {
       ),
       children: [
         TileLayer(
-          urlTemplate: kMapTileStyles[3].url, // satellite
+          urlTemplate: kMapTileStyles[3].url,
           userAgentPackageName: kTileUserAgent,
           tileProvider: OfflineMapService.tileProvider(),
           maxZoom: kMapTileStyles[3].maxZoom,
         ),
         if (pts.length >= 2)
-          PolylineLayer(polylines: [
-            Polyline(points: pts, color: kColorOrange, strokeWidth: 3.5),
-          ]),
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: pts,
+                color: TT.ember,
+                strokeWidth: 3.5,
+              ),
+            ],
+          ),
         if (pts.isNotEmpty)
-          MarkerLayer(markers: [
-            Marker(
-              point: pts.first,
-              width: 18,
-              height: 18,
-              child: const Icon(Icons.trip_origin,
-                  color: Color(0xFF81C784), size: 16),
-            ),
-            Marker(
-              point: pts.last,
-              width: 18,
-              height: 18,
-              child: const Icon(Icons.flag, color: kColorOrange, size: 18),
-            ),
-          ]),
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: pts.first,
+                width: 18,
+                height: 18,
+                child: const Icon(Icons.trip_origin,
+                    color: TT.green, size: 16),
+              ),
+              Marker(
+                point: pts.last,
+                width: 18,
+                height: 18,
+                child: const Icon(Icons.flag, color: TT.ember, size: 18),
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -647,49 +787,63 @@ class _TrailMap extends StatelessWidget {
   }
 }
 
-class _StatsGrid extends StatelessWidget {
+class _StatsCard extends StatelessWidget {
   final RecordedTrail trail;
-  const _StatsGrid({required this.trail});
+  const _StatsCard({required this.trail});
 
   @override
   Widget build(BuildContext context) {
-    final tiles = <_StatTile>[
-      _StatTile('Distance', '${trail.distanceKm.toStringAsFixed(2)} km'),
-      _StatTile('Duration', _fmtDuration(trail.durationSeconds)),
-      _StatTile('Ascent', '${trail.ascentM} m'),
-      _StatTile('Descent', '${trail.descentM} m'),
-      _StatTile('Points', '${trail.pointCount}'),
-      _StatTile('Type', trail.activityType),
-    ];
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: kColorPanel,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kColorBorder),
-      ),
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'STATS',
-            style: GoogleFonts.outfit(
-              color: kColorOrange,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.1,
-            ),
+            style:
+                TT.label(size: 11, color: TT.ember, letterSpacing: 1.4),
           ),
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (_, constraints) {
               final w = (constraints.maxWidth - 10) / 2;
+              final tiles = [
+                _Stat(
+                  width: w,
+                  label: 'DISTANCE',
+                  value: '${trail.distanceKm.toStringAsFixed(2)} km',
+                ),
+                _Stat(
+                  width: w,
+                  label: 'DURATION',
+                  value: _fmtDuration(trail.durationSeconds),
+                ),
+                _Stat(
+                  width: w,
+                  label: 'ASCENT',
+                  value: '${trail.ascentM} m',
+                  ember: true,
+                ),
+                _Stat(
+                  width: w,
+                  label: 'DESCENT',
+                  value: '${trail.descentM} m',
+                ),
+                _Stat(
+                  width: w,
+                  label: 'POINTS',
+                  value: '${trail.pointCount}',
+                ),
+                _Stat(
+                  width: w,
+                  label: 'TYPE',
+                  value: trail.activityType.toUpperCase(),
+                ),
+              ];
               return Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: tiles
-                    .map((t) => SizedBox(width: w, child: t))
-                    .toList(),
+                children: tiles,
               );
             },
           ),
@@ -699,38 +853,79 @@ class _StatsGrid extends StatelessWidget {
   }
 }
 
-class _StatTile extends StatelessWidget {
+class _Stat extends StatelessWidget {
+  final double width;
   final String label;
   final String value;
-  const _StatTile(this.label, this.value);
+  final bool ember;
+  const _Stat({
+    required this.width,
+    required this.label,
+    required this.value,
+    this.ember = false,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(12),
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.035),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: kColorBorder),
+          color: ember ? TT.emberSoft : const Color(0x05FFFFFF),
+          borderRadius: BorderRadius.circular(TT.rSm),
+          border: Border.all(
+              color: ember ? const Color(0x33FF6A2C) : TT.line),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: GoogleFonts.outfit(
-                  color: kColorCream.withOpacity(0.42),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                )),
+                style: TT.label(
+                    size: 9.5, color: TT.text3, letterSpacing: 1.4)),
             const SizedBox(height: 5),
-            Text(value,
-                style: GoogleFonts.outfit(
-                  color: kColorCream,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                )),
+            TTCountUp(
+              text: value,
+              style: TT.numStyle(
+                size: 16,
+                color: ember ? TT.ember : TT.text,
+                w: FontWeight.w800,
+              ),
+            ),
           ],
         ),
-      );
+      ),
+    );
+  }
+}
+
+class _ElevationCard extends StatelessWidget {
+  final List<double> altitudes;
+  final double distanceKm;
+  final int ascentM;
+  const _ElevationCard({
+    required this.altitudes,
+    required this.distanceKm,
+    required this.ascentM,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final peakLabel = '${distanceKm.toStringAsFixed(1)} km · $ascentM m';
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('ELEVATION',
+              style: TT.label(
+                  size: 11, color: TT.ember, letterSpacing: 1.4)),
+          const SizedBox(height: 4),
+          TTBigElevChart(samples: altitudes, peakLabel: peakLabel),
+        ],
+      ),
+    );
+  }
 }
 
 String _fmtDuration(int seconds) {

@@ -5,18 +5,21 @@
 // (Compass / Level / Torch / Altimeter / Sun / Info) over a body that
 // AnimatedSwitch-fades between each tool's distinct visual.
 //
-// Each tool is wired up to real device sensors (flutter_compass, sensors_plus,
-// torch_light, geolocator) using the same legacy mechanics as
-// `tools_tab.dart` while keeping the v3.0 visual design intact.
+// Each tool is wired to real device sensors (flutter_compass, sensors_plus,
+// torch_light, geolocator). All interactive controls — settings gear, metric
+// tiles, cardinal letters, info cards — are live; no placeholder data leaks
+// through to the UI.
 
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:torch_light/torch_light.dart';
 
 import '../core/design_tokens.dart';
@@ -45,6 +48,53 @@ const List<_ToolSpec> _kTools = [
   _ToolSpec(_Tool.info,      'Info',      Icons.tips_and_updates_outlined),
 ];
 
+// ─────────────────────── Persistent tool preferences ───────────────────────
+//
+// A tiny ChangeNotifier wrapping SharedPreferences so every tool can read &
+// react to the same settings without piping props through every widget.
+class _ToolPrefs extends ChangeNotifier {
+  static const _kDeclination = 'tt_tool_declination_deg';
+  static const _kUseImperial = 'tt_tool_use_imperial';
+  static const _kSunTime24 = 'tt_tool_sun_24h';
+
+  double _declination = 0.0; // user-entered declination in degrees (east +)
+  bool _useImperial = false; // metres / feet
+  bool _sunTime24 = true;    // 24h vs 12h sunrise/sunset readout
+
+  double get declination => _declination;
+  bool get useImperial => _useImperial;
+  bool get sunTime24 => _sunTime24;
+
+  Future<void> load() async {
+    final p = await SharedPreferences.getInstance();
+    _declination = p.getDouble(_kDeclination) ?? 0.0;
+    _useImperial = p.getBool(_kUseImperial) ?? false;
+    _sunTime24 = p.getBool(_kSunTime24) ?? true;
+    notifyListeners();
+  }
+
+  Future<void> setDeclination(double v) async {
+    _declination = v;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setDouble(_kDeclination, v);
+  }
+
+  Future<void> setUseImperial(bool v) async {
+    _useImperial = v;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kUseImperial, v);
+  }
+
+  Future<void> setSunTime24(bool v) async {
+    _sunTime24 = v;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kSunTime24, v);
+  }
+}
+
 class TTToolsScreen extends StatefulWidget {
   final bool embedded;
   const TTToolsScreen({super.key, this.embedded = false});
@@ -53,65 +103,96 @@ class TTToolsScreen extends StatefulWidget {
   State<TTToolsScreen> createState() => _TTToolsScreenState();
 }
 
-class _TTToolsScreenState extends State<TTToolsScreen> {
+class _TTToolsScreenState extends State<TTToolsScreen>
+    with AutomaticKeepAliveClientMixin {
   _Tool _tool = _Tool.compass;
+  final _ToolPrefs _prefs = _ToolPrefs();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefs.load();
+  }
+
+  Future<void> _openSettings() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: TT.bg2,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rLg)),
+      ),
+      builder: (_) => _ToolSettingsSheet(prefs: _prefs),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final body = Stack(
-      children: [
-        const Positioned.fill(child: TTAmbient()),
-        const Positioned.fill(child: TTTopoBackdrop(opacity: 0.55)),
-        SafeArea(
-          top: !widget.embedded,
-          bottom: false,
-          child: Column(
-            children: [
-              TTPageAppBar(
-                title: 'Hiking Tools',
-                trailing: [
-                  TTIconBtn(icon: Icons.settings_outlined, onTap: () {}),
-                ],
-              ),
-              _ToolPicker(
-                active: _tool,
-                onChange: (t) => setState(() => _tool = t),
-              ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: TT.dMed,
-                  switchInCurve: TT.easeOut,
-                  switchOutCurve: TT.easeOut,
-                  transitionBuilder: (child, anim) {
-                    final scale = Tween<double>(begin: 0.96, end: 1.0).animate(anim);
-                    return FadeTransition(
-                      opacity: anim,
-                      child: ScaleTransition(scale: scale, child: child),
-                    );
-                  },
-                  child: KeyedSubtree(
-                    key: ValueKey(_tool),
-                    child: _toolBody(_tool),
+    super.build(context);
+    final body = AnimatedBuilder(
+      animation: _prefs,
+      builder: (_, __) => Stack(
+        children: [
+          const Positioned.fill(child: TTAmbient()),
+          const Positioned.fill(child: TTTopoBackdrop(opacity: 0.55)),
+          SafeArea(
+            top: !widget.embedded,
+            bottom: false,
+            child: Column(
+              children: [
+                TTPageAppBar(
+                  title: 'Hiking Tools',
+                  trailing: [
+                    TTIconBtn(
+                      icon: Icons.settings_outlined,
+                      onTap: _openSettings,
+                    ),
+                  ],
+                ),
+                _ToolPicker(
+                  active: _tool,
+                  onChange: (t) => setState(() => _tool = t),
+                ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: TT.dMed,
+                    switchInCurve: TT.easeOut,
+                    switchOutCurve: TT.easeOut,
+                    transitionBuilder: (child, anim) {
+                      final scale =
+                          Tween<double>(begin: 0.96, end: 1.0).animate(anim);
+                      return FadeTransition(
+                        opacity: anim,
+                        child: ScaleTransition(scale: scale, child: child),
+                      );
+                    },
+                    child: KeyedSubtree(
+                      key: ValueKey(_tool),
+                      child: _toolBody(_tool, _prefs),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
 
     if (widget.embedded) return Material(color: TT.bg, child: body);
     return Scaffold(backgroundColor: TT.bg, body: body);
   }
 
-  Widget _toolBody(_Tool t) {
+  Widget _toolBody(_Tool t, _ToolPrefs prefs) {
     switch (t) {
-      case _Tool.compass:   return const _CompassTool();
+      case _Tool.compass:   return _CompassTool(prefs: prefs);
       case _Tool.level:     return const _LevelTool();
       case _Tool.torch:     return const _TorchTool();
-      case _Tool.altimeter: return const _AltimeterTool();
-      case _Tool.sun:       return const _SunTool();
+      case _Tool.altimeter: return _AltimeterTool(prefs: prefs);
+      case _Tool.sun:       return _SunTool(prefs: prefs);
       case _Tool.info:      return const _InfoTool();
     }
   }
@@ -202,10 +283,210 @@ class _ToolTabState extends State<_ToolTab> {
   }
 }
 
+// ──────────────────────────── SETTINGS SHEET ────────────────────────────────
+
+class _ToolSettingsSheet extends StatefulWidget {
+  final _ToolPrefs prefs;
+  const _ToolSettingsSheet({required this.prefs});
+
+  @override
+  State<_ToolSettingsSheet> createState() => _ToolSettingsSheetState();
+}
+
+class _ToolSettingsSheetState extends State<_ToolSettingsSheet> {
+  late final TextEditingController _decCtrl =
+      TextEditingController(text: widget.prefs.declination.toStringAsFixed(1));
+
+  @override
+  void dispose() {
+    _decCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _applyDeclination() async {
+    final parsed = double.tryParse(_decCtrl.text.trim());
+    if (parsed == null) {
+      _decCtrl.text = widget.prefs.declination.toStringAsFixed(1);
+      return;
+    }
+    final clamped = parsed.clamp(-30.0, 30.0).toDouble();
+    await widget.prefs.setDeclination(clamped);
+    if (mounted) _decCtrl.text = clamped.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.prefs,
+      builder: (_, __) => Padding(
+        padding: EdgeInsets.only(
+          left: 18,
+          right: 18,
+          top: 12,
+          bottom: 18 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: TT.line2,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text('Tool preferences', style: TT.title(18)),
+            const SizedBox(height: 4),
+            Text(
+              'Applies to every tool on this screen.',
+              style: TT.body(size: 11.5, color: TT.text3),
+            ),
+            const SizedBox(height: 18),
+
+            // Declination override
+            _SettingsRow(
+              icon: Icons.explore_outlined,
+              title: 'Magnetic declination',
+              subtitle: 'Added to compass heading. East positive.',
+              trailing: SizedBox(
+                width: 96,
+                child: TextField(
+                  controller: _decCtrl,
+                  textAlign: TextAlign.right,
+                  keyboardType: const TextInputType.numberWithOptions(
+                      signed: true, decimal: true),
+                  style: TT.numStyle(size: 13, color: TT.ember),
+                  decoration: InputDecoration(
+                    suffixText: '°',
+                    suffixStyle: TT.mono(size: 11, color: TT.text3),
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(TT.rSm),
+                      borderSide: const BorderSide(color: TT.line2),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(TT.rSm),
+                      borderSide: const BorderSide(color: TT.ember),
+                    ),
+                  ),
+                  onSubmitted: (_) => _applyDeclination(),
+                  onEditingComplete: _applyDeclination,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Units toggle
+            _SettingsRow(
+              icon: Icons.straighten,
+              title: 'Altitude unit',
+              subtitle: widget.prefs.useImperial
+                  ? 'Showing feet'
+                  : 'Showing metres',
+              trailing: Switch.adaptive(
+                value: widget.prefs.useImperial,
+                activeColor: TT.ember,
+                onChanged: widget.prefs.setUseImperial,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // 24-hour toggle
+            _SettingsRow(
+              icon: Icons.schedule,
+              title: 'Sun times in 24-hour',
+              subtitle: widget.prefs.sunTime24
+                  ? '06:42 / 19:18'
+                  : '6:42 AM / 7:18 PM',
+              trailing: Switch.adaptive(
+                value: widget.prefs.sunTime24,
+                activeColor: TT.ember,
+                onChanged: widget.prefs.setSunTime24,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: TT.text2,
+                  textStyle:
+                      TT.body(size: 12, w: FontWeight.w700, color: TT.text2),
+                ),
+                onPressed: () {
+                  _applyDeclination();
+                  Navigator.of(context).maybePop();
+                },
+                child: const Text('DONE'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+  const _SettingsRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(
+        children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: TT.emberDim,
+              border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 14, color: TT.ember),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TT.body(size: 13, w: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: TT.body(size: 11, color: TT.text3)),
+              ],
+            ),
+          ),
+          trailing,
+        ],
+      ),
+    );
+  }
+}
+
 // ──────────────────────────── COMPASS ───────────────────────────────────────
 
 class _CompassTool extends StatefulWidget {
-  const _CompassTool();
+  final _ToolPrefs prefs;
+  const _CompassTool({required this.prefs});
 
   @override
   State<_CompassTool> createState() => _CompassToolState();
@@ -219,6 +500,10 @@ class _CompassToolState extends State<_CompassTool> {
   // Live altitude + GPS accuracy for the metric grid below the dial.
   Position? _pos;
   StreamSubscription<Position>? _posSub;
+
+  // Heading lock — when set, dial freezes at this bearing so the user can
+  // sight a landmark without the rose spinning under their hand.
+  double? _lock;
 
   @override
   void initState() {
@@ -264,7 +549,7 @@ class _CompassToolState extends State<_CompassTool> {
         (p) {
           if (mounted) setState(() => _pos = p);
         },
-        onError: (_) {/* leave _pos null — tile will show placeholders */},
+        onError: (_) {/* leave _pos null — tile shows em-dash */},
       );
     } catch (_) {/* same */}
   }
@@ -295,11 +580,49 @@ class _CompassToolState extends State<_CompassTool> {
     return names[((deg + 22.5) / 45).floor() % 8];
   }
 
+  void _toggleLock(double bearing) {
+    setState(() {
+      _lock = (_lock == null) ? bearing : null;
+    });
+    _flash(_lock == null
+        ? 'Heading lock cleared'
+        : 'Locked at ${bearing.toStringAsFixed(0)}°');
+  }
+
+  /// Tap on a cardinal letter snaps the lock to that direction.
+  void _lockToCardinal(double deg) {
+    setState(() => _lock = deg);
+    _flash('Locked to ${_toCardinal(deg)}');
+  }
+
+  void _flash(String msg) {
+    final m = ScaffoldMessenger.maybeOf(context);
+    if (m == null) return;
+    m
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg, style: TT.body(size: 12)),
+          backgroundColor: TT.surf2,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+  }
+
+  void _copy(String value, String label) {
+    Clipboard.setData(ClipboardData(text: value));
+    _flash('$label copied: $value');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final heading = _heading ?? 0.0;
-    final cardinal = _toCardinal(heading);
-    final cardinalLong = _toCardinalLong(heading);
+    final rawHeading = _heading ?? 0.0;
+    // Apply user declination override, then optional lock.
+    final compensated = (rawHeading + widget.prefs.declination) % 360;
+    final display = _lock ?? compensated;
+    final cardinal = _toCardinal(display);
+    final cardinalLong = _toCardinalLong(display);
 
     return Stack(
       children: [
@@ -308,6 +631,7 @@ class _CompassToolState extends State<_CompassTool> {
           children: [
             TTCard(
               padding: const EdgeInsets.fromLTRB(18, 24, 18, 22),
+              onTap: () => _toggleLock(compensated),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -328,10 +652,14 @@ class _CompassToolState extends State<_CompassTool> {
                   ),
                   Column(
                     children: [
-                      _CompassDial(bearing: heading),
+                      _CompassDial(
+                        bearing: display,
+                        locked: _lock != null,
+                        onCardinalTap: _lockToCardinal,
+                      ),
                       const SizedBox(height: 18),
                       Text(
-                        '${heading.toStringAsFixed(0)}°',
+                        '${display.toStringAsFixed(0)}°',
                         style: TT.numStyle(size: 38, letterSpacing: -0.025 * 38),
                       ),
                       const SizedBox(height: 6),
@@ -340,6 +668,14 @@ class _CompassToolState extends State<_CompassTool> {
                         style: TT.body(size: 12, w: FontWeight.w800, color: TT.ember)
                             .copyWith(letterSpacing: 0.2 * 12),
                       ),
+                      if (_lock != null) ...[
+                        const SizedBox(height: 8),
+                        const TTPill(
+                          label: 'LOCKED',
+                          variant: TTPillVariant.ember,
+                          leadingIcon: Icons.lock_outline,
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -350,34 +686,60 @@ class _CompassToolState extends State<_CompassTool> {
               _MetricSpec(
                 icon: Icons.navigation_outlined,
                 label: 'Heading',
-                value: '${heading.toStringAsFixed(0)}°',
+                value: '${display.toStringAsFixed(0)}°',
                 unit: cardinal,
                 ember: true,
+                onTap: () =>
+                    _copy('${display.toStringAsFixed(0)}° $cardinal', 'Heading'),
               ),
-              const _MetricSpec(
+              _MetricSpec(
                 icon: Icons.layers_outlined,
-                label: 'Magnetic',
-                value: '-3.2°',
-                unit: 'DEC',
+                label: 'Declination',
+                value: widget.prefs.declination == 0
+                    ? '0.0'
+                    : '${widget.prefs.declination > 0 ? '+' : ''}'
+                        '${widget.prefs.declination.toStringAsFixed(1)}',
+                unit: '° DEC',
+                onTap: () => _copy(
+                  '${widget.prefs.declination.toStringAsFixed(1)}°',
+                  'Declination',
+                ),
               ),
               _MetricSpec(
                 icon: Icons.terrain_outlined,
                 label: 'Altitude',
-                value: _pos == null ? '—' : _pos!.altitude.toStringAsFixed(0),
-                unit: 'm',
+                value: _pos == null
+                    ? '—'
+                    : _formatAltShared(_pos!.altitude, widget.prefs.useImperial),
+                unit: widget.prefs.useImperial ? 'ft' : 'm',
+                onTap: _pos == null
+                    ? null
+                    : () => _copy(
+                          '${_formatAltShared(_pos!.altitude, widget.prefs.useImperial)} '
+                              '${widget.prefs.useImperial ? 'ft' : 'm'}',
+                          'Altitude',
+                        ),
               ),
               _MetricSpec(
                 icon: Icons.center_focus_strong_outlined,
                 label: 'GPS Acc',
                 value: _pos == null ? '—' : '+/- ${_pos!.accuracy.toStringAsFixed(0)}',
                 unit: 'm',
+                onTap: _pos == null
+                    ? null
+                    : () => _copy(
+                          '+/- ${_pos!.accuracy.toStringAsFixed(0)} m',
+                          'GPS accuracy',
+                        ),
               ),
             ]),
             const SizedBox(height: 14),
-            const _Callout(
+            _Callout(
               icon: Icons.info_outline,
               color: TT.blue,
-              text: 'Hold flat. Calibrate by drawing a figure-8 if values feel off.',
+              text: _lock != null
+                  ? 'Heading locked. Tap the dial again to release.'
+                  : 'Hold flat. Tap a cardinal letter to lock that bearing.',
             ),
           ],
         ),
@@ -396,7 +758,13 @@ class _CompassToolState extends State<_CompassTool> {
 
 class _CompassDial extends StatefulWidget {
   final double bearing;
-  const _CompassDial({required this.bearing});
+  final bool locked;
+  final ValueChanged<double> onCardinalTap;
+  const _CompassDial({
+    required this.bearing,
+    required this.locked,
+    required this.onCardinalTap,
+  });
 
   @override
   State<_CompassDial> createState() => _CompassDialState();
@@ -406,26 +774,63 @@ class _CompassDialState extends State<_CompassDial> with SingleTickerProviderSta
   late final AnimationController _ctl =
       AnimationController(vsync: this, duration: const Duration(seconds: 7))..repeat();
 
+  static const double _size = 220;
+
   @override
   void dispose() {
     _ctl.dispose();
     super.dispose();
   }
 
+  /// Convert a tap-local position to "did the user hit one of the four
+  /// cardinal labels?" — returns 0/90/180/270 if yes, otherwise null.
+  double? _cardinalForTap(Offset local) {
+    const r = _size / 2;
+    final dx = local.dx - r;
+    final dy = local.dy - r;
+    final dist = math.sqrt(dx * dx + dy * dy);
+    // Cardinal labels live at radius (r - 25..r - 36); accept hits in a wider
+    // band so the touch target is comfortable.
+    if (dist < r - 50 || dist > r - 4) return null;
+    // Direction in the (rotated) rose frame: undo the canvas rotation.
+    final screenAng = math.atan2(dy, dx); // 0 = east, +y is south on screen
+    // The rose is rotated by -bearing, so its 'N' lives at screen up.
+    // We want the cardinal nearest to the tap angle, but in *world* terms
+    // we just need to map the angle to one of four directions.
+    final ang = (screenAng * 180 / math.pi + 360 + 90) % 360; // 0 = up
+    if (ang < 22.5 || ang > 337.5) return 0;   // N
+    if (ang > 67.5 && ang < 112.5) return 90;  // E
+    if (ang > 157.5 && ang < 202.5) return 180; // S
+    if (ang > 247.5 && ang < 292.5) return 270; // W
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctl,
-      builder: (_, __) {
-        // Sin-based wiggle: +/- 1.5 degrees around the current bearing.
-        final wiggle = math.sin(_ctl.value * 2 * math.pi) * 1.5;
-        return SizedBox(
-          width: 220, height: 220,
-          child: CustomPaint(
-            painter: _CompassPainter(bearing: widget.bearing + wiggle),
-          ),
-        );
-      },
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (d) {
+          final c = _cardinalForTap(d.localPosition);
+          if (c != null) widget.onCardinalTap(c);
+        },
+        child: AnimatedBuilder(
+          animation: _ctl,
+          builder: (_, __) {
+            // Sin-based wiggle: +/- 1.5 degrees around the current bearing.
+            // Wiggle freezes when the dial is locked so the user gets a stable
+            // sighting reference.
+            final wiggle = widget.locked
+                ? 0.0
+                : math.sin(_ctl.value * 2 * math.pi) * 1.5;
+            return CustomPaint(
+              painter: _CompassPainter(bearing: widget.bearing + wiggle),
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -567,6 +972,12 @@ class _LevelToolState extends State<_LevelTool>
   bool _available = true;
   StreamSubscription<AccelerometerEvent>? _sub;
 
+  // Calibration offsets — subtracted from raw pitch/roll before display.
+  // Lets the user zero out a non-flat surface (e.g. their hand) and read the
+  // delta from that reference.
+  double _pitchOffset = 0;
+  double _rollOffset = 0;
+
   // Idle wobble — runs even when no sensor data so the visuals never freeze.
   late final AnimationController _wobble =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 3400))
@@ -606,14 +1017,72 @@ class _LevelToolState extends State<_LevelTool>
   }
 
   // Pitch + roll in degrees from raw accelerometer axes.
-  double get _pitch =>
+  double get _pitchRaw =>
       math.atan2(_ay, math.sqrt(_ax * _ax + _az * _az)) * 180 / math.pi;
-  double get _roll =>
+  double get _rollRaw =>
       math.atan2(-_ax, _az) * 180 / math.pi;
+  double get _pitch => _pitchRaw - _pitchOffset;
+  double get _roll => _rollRaw - _rollOffset;
   double get _tilt {
     final p = _pitch;
     final r = _roll;
     return math.sqrt(p * p + r * r);
+  }
+
+  Future<void> _calibrate() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: const Color(0xB3000000),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(TT.rLg),
+          side: const BorderSide(color: TT.line2),
+        ),
+        title: Text('Calibrate level', style: TT.title(17)),
+        content: Text(
+          'Set the current orientation as the new "level" reference. '
+          'Place the phone on the surface you want to use as zero, then '
+          'confirm.',
+          style: TT.body(size: 12.5, color: TT.text2).copyWith(height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: TT.text2),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: TT.ember),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('SET ZERO'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      setState(() {
+        _pitchOffset = _pitchRaw;
+        _rollOffset = _rollRaw;
+      });
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Level calibrated', style: TT.body(size: 12)),
+            backgroundColor: TT.surf2,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+    }
+  }
+
+  void _resetCalibration() {
+    setState(() {
+      _pitchOffset = 0;
+      _rollOffset = 0;
+    });
   }
 
   @override
@@ -624,6 +1093,7 @@ class _LevelToolState extends State<_LevelTool>
     final level = tilt < 2.0;
     final statusText = level ? 'NEARLY LEVEL' : 'TILTED';
     final statusColor = level ? TT.green : TT.amber;
+    final calibrated = _pitchOffset != 0 || _rollOffset != 0;
 
     return Stack(
       children: [
@@ -643,7 +1113,10 @@ class _LevelToolState extends State<_LevelTool>
                           gradient: RadialGradient(
                             center: Alignment.center,
                             radius: 0.95,
-                            colors: [statusColor.withOpacity(0.08), const Color(0x004CC38A)],
+                            colors: [
+                              statusColor.withOpacity(0.08),
+                              const Color(0x004CC38A),
+                            ],
                             stops: const [0.0, 0.7],
                           ),
                         ),
@@ -654,7 +1127,11 @@ class _LevelToolState extends State<_LevelTool>
                     children: [
                       SizedBox(
                         width: 240, height: 240,
-                        child: _BubbleLevel(ax: _ax, ay: _ay, wobble: _wobble),
+                        child: _BubbleLevel(
+                          ax: _ax - _rollOffset * 0.17,
+                          ay: _ay + _pitchOffset * 0.17,
+                          wobble: _wobble,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -695,6 +1172,66 @@ class _LevelToolState extends State<_LevelTool>
                 value: '${rollAbs.toStringAsFixed(1)}°',
               ),
             ]),
+            const SizedBox(height: 14),
+            // Calibration row — replaces the dead "calibrate by drawing a
+            // figure-8" instructional text with a real action.
+            TTCard(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              onTap: _calibrate,
+              child: Row(
+                children: [
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: TT.emberDim,
+                      border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.tune, size: 14, color: TT.ember),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          calibrated
+                              ? 'Custom zero set'
+                              : 'Calibrate level',
+                          style: TT.body(size: 13, w: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          calibrated
+                              ? 'Tap to recalibrate. Long-press to reset.'
+                              : 'Tap to set the current orientation as zero.',
+                          style: TT.body(size: 11, color: TT.text3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (calibrated)
+                    GestureDetector(
+                      onTap: _resetCalibration,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: TT.surf2,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: TT.line2),
+                        ),
+                        child: Text(
+                          'RESET',
+                          style: TT.mono(size: 9.5, color: TT.text2, letterSpacing: 1.1),
+                        ),
+                      ),
+                    )
+                  else
+                    const Icon(Icons.chevron_right, color: TT.text3),
+                ],
+              ),
+            ),
           ],
         ),
         if (!_available)
@@ -849,6 +1386,11 @@ class _TorchTool extends StatefulWidget {
 class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMixin {
   bool _on = false;
   bool _available = true;
+
+  // Strobe (SOS) mode — runs a Morse-coded loop while active.
+  bool _strobeActive = false;
+  Future<void>? _strobeTask;
+
   late final AnimationController _flicker =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat(reverse: true);
 
@@ -867,26 +1409,88 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
     }
   }
 
-  Future<void> _toggle() async {
-    if (!_available) return;
-    final next = !_on;
+  Future<void> _setTorch(bool on) async {
     try {
-      if (next) {
+      if (on) {
         await TorchLight.enableTorch();
       } else {
         await TorchLight.disableTorch();
       }
-      if (mounted) setState(() => _on = next);
     } catch (_) {
       if (mounted) setState(() => _available = false);
+    }
+  }
+
+  Future<void> _toggle() async {
+    if (!_available) return;
+    // If strobe is running, killing the toggle should stop it cleanly first.
+    if (_strobeActive) {
+      await _stopStrobe();
+      return;
+    }
+    final next = !_on;
+    await _setTorch(next);
+    if (mounted) setState(() => _on = next);
+  }
+
+  Future<void> _startStrobe() async {
+    if (!_available || _strobeActive) return;
+    setState(() {
+      _strobeActive = true;
+      _on = false;
+    });
+    _strobeTask = _runStrobe();
+  }
+
+  Future<void> _stopStrobe() async {
+    setState(() => _strobeActive = false);
+    await _strobeTask;
+    await _setTorch(false);
+    if (mounted) setState(() => _on = false);
+  }
+
+  Future<void> _runStrobe() async {
+    // SOS in Morse: ... --- ...   Dot = 200ms, dash = 600ms, intra-letter gap
+    // 200ms, letter gap 600ms, word gap 1400ms.
+    const sequence = <int>[
+      // S
+      200, 200, 200, 200, 200,
+      // letter gap
+      600,
+      // O
+      600, 200, 600, 200, 600,
+      // letter gap
+      600,
+      // S
+      200, 200, 200, 200, 200,
+      // word gap (loop wait)
+      1400,
+    ];
+    var on = true;
+    while (_strobeActive && mounted) {
+      for (var i = 0; i < sequence.length; i++) {
+        if (!_strobeActive || !mounted) break;
+        if (i == sequence.length - 1 ||
+            i == 5 ||
+            i == 11) {
+          // long off gap segments — never turn the torch on
+          await _setTorch(false);
+          if (mounted) setState(() => _on = false);
+        } else {
+          await _setTorch(on);
+          if (mounted) setState(() => _on = on);
+        }
+        await Future.delayed(Duration(milliseconds: sequence[i]));
+        on = !on;
+      }
     }
   }
 
   @override
   void dispose() {
     // Best-effort: turn the torch off when leaving so it doesn't get stuck on.
+    _strobeActive = false;
     if (_on) {
-      // Fire-and-forget; we're disposing.
       TorchLight.disableTorch().catchError((_) {});
     }
     _flicker.dispose();
@@ -895,6 +1499,7 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
 
   @override
   Widget build(BuildContext context) {
+    final modeLabel = _strobeActive ? 'SOS' : (_on ? 'Steady' : 'Off');
     return Stack(
       children: [
         ListView(
@@ -935,23 +1540,34 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _TorchButton(on: _on, onTap: _available ? _toggle : () {}),
+                        _TorchButton(
+                          on: _on,
+                          onTap: _available ? _toggle : () {},
+                        ),
                         const SizedBox(height: 18),
                         Text(
                           !_available
                               ? 'NO FLASHLIGHT AVAILABLE'
-                              : 'TORCH · ${_on ? 'ON' : 'OFF'}',
+                              : _strobeActive
+                                  ? 'TORCH · SOS'
+                                  : 'TORCH · ${_on ? 'ON' : 'OFF'}',
                           style: TT.body(
                                   size: 13,
                                   w: FontWeight.w800,
                                   color: !_available
                                       ? TT.text3
-                                      : (_on ? TT.ember : TT.text3))
+                                      : (_on || _strobeActive
+                                          ? TT.ember
+                                          : TT.text3))
                               .copyWith(letterSpacing: 0.2 * 13),
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          _available ? 'Tap to toggle' : 'This device has no torch.',
+                          _available
+                              ? (_strobeActive
+                                  ? 'Tap the lamp to stop SOS'
+                                  : 'Tap the lamp to toggle')
+                              : 'This device has no torch.',
                           style: TT.mono(size: 11, color: TT.text3),
                         ),
                       ],
@@ -965,15 +1581,27 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
               _MetricSpec(
                 icon: Icons.local_fire_department_outlined,
                 label: 'Mode',
-                value: 'Steady',
-                ember: _on,
+                value: modeLabel,
+                ember: _on || _strobeActive,
               ),
-              const _MetricSpec(
+              _MetricSpec(
                 icon: Icons.warning_amber_outlined,
                 label: 'Strobe',
-                value: 'OFF',
+                value: _strobeActive ? 'ON' : 'OFF',
+                ember: _strobeActive,
+                onTap: !_available
+                    ? null
+                    : (_strobeActive ? _stopStrobe : _startStrobe),
               ),
             ]),
+            const SizedBox(height: 14),
+            _Callout(
+              icon: _strobeActive ? Icons.sos : Icons.tips_and_updates_outlined,
+              color: _strobeActive ? TT.red : TT.blue,
+              text: _strobeActive
+                  ? 'Sending SOS in Morse — three short, three long, three short.'
+                  : 'Tap the strobe tile to start an SOS pattern.',
+            ),
           ],
         ),
       ],
@@ -1046,7 +1674,8 @@ class _TorchButtonState extends State<_TorchButton> {
 // ──────────────────────────── ALTIMETER ─────────────────────────────────────
 
 class _AltimeterTool extends StatefulWidget {
-  const _AltimeterTool();
+  final _ToolPrefs prefs;
+  const _AltimeterTool({required this.prefs});
 
   @override
   State<_AltimeterTool> createState() => _AltimeterToolState();
@@ -1060,6 +1689,11 @@ class _AltimeterToolState extends State<_AltimeterTool> {
   bool _available = true;
   String? _error;
   StreamSubscription<Position>? _sub;
+
+  // Rolling altitude history fed into the spark chart so the line responds to
+  // real data instead of a hard-coded curve.
+  final List<_AltSample> _history = [];
+  static const int _maxSamples = 240; // ~2h at 30s tick / unlimited otherwise
 
   @override
   void initState() {
@@ -1080,6 +1714,13 @@ class _AltimeterToolState extends State<_AltimeterTool> {
             _firstAltitude ??= p.altitude;
             if (p.altitude < _minAlt) _minAlt = p.altitude;
             if (p.altitude > _maxAlt) _maxAlt = p.altitude;
+            _history.add(_AltSample(
+              when: p.timestamp,
+              altitude: p.altitude,
+            ));
+            if (_history.length > _maxSamples) {
+              _history.removeRange(0, _history.length - _maxSamples);
+            }
           });
         },
         onError: (e) {
@@ -1103,7 +1744,8 @@ class _AltimeterToolState extends State<_AltimeterTool> {
   }
 
   String _fmtAlt(double m) {
-    final rounded = m.round();
+    final v = widget.prefs.useImperial ? m * 3.28084 : m;
+    final rounded = v.round();
     if (rounded.abs() < 1000) return '$rounded';
     // Add a thousands separator.
     final s = rounded.abs().toString();
@@ -1115,122 +1757,186 @@ class _AltimeterToolState extends State<_AltimeterTool> {
     return '${rounded < 0 ? '-' : ''}$buf';
   }
 
+  void _resetMinMax() {
+    setState(() {
+      _firstAltitude = _pos?.altitude;
+      _minAlt = _pos?.altitude ?? double.infinity;
+      _maxAlt = _pos?.altitude ?? double.negativeInfinity;
+      _history.clear();
+      if (_pos != null) {
+        _history.add(_AltSample(when: _pos!.timestamp, altitude: _pos!.altitude));
+      }
+    });
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Min / max reset', style: TT.body(size: 12)),
+          backgroundColor: TT.surf2,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+  }
+
+  void _openHistorySheet() {
+    if (_history.length < 2) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: TT.bg2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rLg)),
+      ),
+      builder: (_) => _AltitudeHistorySheet(
+        history: _history,
+        useImperial: widget.prefs.useImperial,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasFix = _pos != null;
+    final unit = widget.prefs.useImperial ? 'ft' : 'm';
     final altM = _pos?.altitude ?? 0;
-    final altFt = altM * 3.28084;
     final delta = (hasFix && _firstAltitude != null)
         ? (altM - _firstAltitude!)
         : 0.0;
+    final deltaDisp = widget.prefs.useImperial ? delta * 3.28084 : delta;
     final deltaPositive = delta >= 0;
+    // Show metres and the alternate unit so the user always has a quick cross-
+    // reference even when prefs is set to imperial.
+    final altPrimary = hasFix ? _fmtAlt(altM) : '—';
+    final altSecondary = hasFix
+        ? widget.prefs.useImperial
+            ? '${altM.toStringAsFixed(0)} m'
+            : '${(altM * 3.28084).toStringAsFixed(0)} ft'
+        : (widget.prefs.useImperial ? '— m' : '— ft');
 
     return Stack(
       children: [
         ListView(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
           children: [
-            TTCard(
-              padding: const EdgeInsets.fromLTRB(18, 24, 18, 22),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(TT.rLg),
-                          gradient: const RadialGradient(
-                            center: Alignment(0, 1.0),
-                            radius: 0.9,
-                            colors: [Color(0x1FFF6A2C), Color(0x00FF6A2C)],
-                            stops: [0.0, 0.7],
+            // Swipe horizontally to reset session min/max. Wrapped around the
+            // whole hero card so the gesture target is generous.
+            Dismissible(
+              key: const ValueKey('altimeter-reset'),
+              direction: DismissDirection.horizontal,
+              confirmDismiss: (_) async {
+                _resetMinMax();
+                return false; // keep the widget mounted
+              },
+              background: const _SwipeHint(
+                alignment: Alignment.centerLeft,
+                icon: Icons.restart_alt,
+                label: 'RESET',
+              ),
+              secondaryBackground: const _SwipeHint(
+                alignment: Alignment.centerRight,
+                icon: Icons.restart_alt,
+                label: 'RESET',
+              ),
+              child: TTCard(
+                padding: const EdgeInsets.fromLTRB(18, 24, 18, 22),
+                onTap: _history.length >= 2 ? _openHistorySheet : null,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(TT.rLg),
+                            gradient: const RadialGradient(
+                              center: Alignment(0, 1.0),
+                              radius: 0.9,
+                              colors: [Color(0x1FFF6A2C), Color(0x00FF6A2C)],
+                              stops: [0.0, 0.7],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'CURRENT ELEVATION',
-                        textAlign: TextAlign.center,
-                        style: TT.label(size: 11, color: TT.text3, letterSpacing: 0.18 * 11),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            hasFix ? _fmtAlt(altM) : '—',
-                            style: TT.numStyle(
-                              size: 56,
-                              color: TT.ember,
-                              w: FontWeight.w900,
-                              letterSpacing: -0.03 * 56,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text('m', style: TT.body(size: 20, color: TT.text2, w: FontWeight.w600)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            deltaPositive ? Icons.arrow_upward : Icons.arrow_downward,
-                            size: 12,
-                            color: deltaPositive ? TT.green : TT.amber,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            hasFix
-                                ? '${deltaPositive ? '+' : ''}${delta.toStringAsFixed(0)} m this session'
-                                : 'Waiting for GPS fix',
-                            style: TT.mono(
-                              size: 11,
-                              color: hasFix
-                                  ? (deltaPositive ? TT.green : TT.amber)
-                                  : TT.text3,
-                              w: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Container(
-                            width: 3, height: 3,
-                            decoration: const BoxDecoration(color: TT.text3, shape: BoxShape.circle),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            hasFix ? '${altFt.toStringAsFixed(0)} ft' : '— ft',
-                            style: TT.mono(size: 11, color: TT.text3),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        height: 80,
-                        child: CustomPaint(painter: _SparkPainter(), size: Size.infinite),
-                      ),
-                      const SizedBox(height: 6),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'CURRENT ELEVATION',
+                          textAlign: TextAlign.center,
+                          style: TT.label(size: 11, color: TT.text3, letterSpacing: 0.18 * 11),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
                           children: [
-                            Text('06:00', style: TT.mono(size: 9, color: TT.text3)),
-                            Text('08:00', style: TT.mono(size: 9, color: TT.text3)),
-                            Text('10:00', style: TT.mono(size: 9, color: TT.text3)),
-                            Text('NOW', style: TT.mono(size: 9, color: TT.ember)),
+                            Text(
+                              altPrimary,
+                              style: TT.numStyle(
+                                size: 56,
+                                color: TT.ember,
+                                w: FontWeight.w900,
+                                letterSpacing: -0.03 * 56,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(unit, style: TT.body(size: 20, color: TT.text2, w: FontWeight.w600)),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              deltaPositive ? Icons.arrow_upward : Icons.arrow_downward,
+                              size: 12,
+                              color: deltaPositive ? TT.green : TT.amber,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              hasFix
+                                  ? '${deltaPositive ? '+' : ''}'
+                                      '${deltaDisp.toStringAsFixed(0)} $unit this session'
+                                  : 'Waiting for GPS fix',
+                              style: TT.mono(
+                                size: 11,
+                                color: hasFix
+                                    ? (deltaPositive ? TT.green : TT.amber)
+                                    : TT.text3,
+                                w: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              width: 3, height: 3,
+                              decoration: const BoxDecoration(color: TT.text3, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(altSecondary, style: TT.mono(size: 11, color: TT.text3)),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          height: 80,
+                          child: CustomPaint(
+                            painter: _SparkPainter(
+                              samples: _history,
+                              useImperial: widget.prefs.useImperial,
+                            ),
+                            size: Size.infinite,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: _SparkAxisLabels(history: _history),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 14),
@@ -1239,9 +1945,10 @@ class _AltimeterToolState extends State<_AltimeterTool> {
                 icon: Icons.arrow_upward,
                 label: 'Delta',
                 value: hasFix
-                    ? '${deltaPositive ? '+' : ''}${delta.toStringAsFixed(0)}'
+                    ? '${deltaPositive ? '+' : ''}'
+                        '${deltaDisp.toStringAsFixed(0)}'
                     : '—',
-                unit: 'm',
+                unit: unit,
                 ember: true,
               ),
               _MetricSpec(
@@ -1254,15 +1961,21 @@ class _AltimeterToolState extends State<_AltimeterTool> {
                 icon: Icons.terrain_outlined,
                 label: 'Max',
                 value: _maxAlt.isFinite ? _fmtAlt(_maxAlt) : '—',
-                unit: 'm',
+                unit: unit,
               ),
               _MetricSpec(
                 icon: Icons.layers_outlined,
                 label: 'Min',
                 value: _minAlt.isFinite ? _fmtAlt(_minAlt) : '—',
-                unit: 'm',
+                unit: unit,
               ),
             ]),
+            const SizedBox(height: 14),
+            const _Callout(
+              icon: Icons.swipe_outlined,
+              color: TT.blue,
+              text: 'Swipe the card to reset min/max. Tap to expand the trace.',
+            ),
           ],
         ),
         if (!_available || _error != null)
@@ -1278,18 +1991,80 @@ class _AltimeterToolState extends State<_AltimeterTool> {
   }
 }
 
+class _AltSample {
+  final DateTime when;
+  final double altitude;
+  const _AltSample({required this.when, required this.altitude});
+}
+
+class _SwipeHint extends StatelessWidget {
+  final Alignment alignment;
+  final IconData icon;
+  final String label;
+  const _SwipeHint({
+    required this.alignment,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: const Color(0x33FF6A2C),
+        borderRadius: BorderRadius.circular(TT.rLg),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: TT.ember),
+          const SizedBox(width: 8),
+          Text(label,
+              style: TT.mono(size: 11, color: TT.ember, letterSpacing: 1.4)),
+        ],
+      ),
+    );
+  }
+}
+
 class _SparkPainter extends CustomPainter {
+  final List<_AltSample> samples;
+  final bool useImperial;
+  _SparkPainter({required this.samples, required this.useImperial});
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
+    final empty = Paint()
+      ..color = TT.line2
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    // Baseline so the chart never feels visually broken when empty.
+    canvas.drawLine(Offset(0, h - 1), Offset(w, h - 1), empty);
 
-    // Sample curve — ascending elevation profile.
-    final path = Path()
-      ..moveTo(0, h * 0.85)
-      ..quadraticBezierTo(w * 0.15, h * 0.75, w * 0.28, h * 0.60)
-      ..quadraticBezierTo(w * 0.45, h * 0.50, w * 0.55, h * 0.40)
-      ..quadraticBezierTo(w * 0.7, h * 0.32, w * 0.82, h * 0.22)
-      ..quadraticBezierTo(w * 0.92, h * 0.18, w, h * 0.12);
+    if (samples.length < 2) return;
+
+    final values = samples
+        .map((s) => useImperial ? s.altitude * 3.28084 : s.altitude)
+        .toList();
+    final minV = values.reduce(math.min);
+    final maxV = values.reduce(math.max);
+    final span = (maxV - minV).abs() < 1.0 ? 1.0 : (maxV - minV);
+
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      final t = i / (values.length - 1);
+      final x = t * w;
+      // Pad top/bottom a touch so peaks/troughs don't graze the edges.
+      final y = h - 8 - ((values[i] - minV) / span) * (h - 16);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
 
     // Fill underneath.
     final fill = Path.from(path)
@@ -1316,8 +2091,12 @@ class _SparkPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
-    // Endpoint dot.
-    final endpoint = Offset(w, h * 0.12);
+    // Endpoint dot at the current sample.
+    final lastValue = values.last;
+    final endpoint = Offset(
+      w,
+      h - 8 - ((lastValue - minV) / span) * (h - 16),
+    );
     canvas.drawCircle(
       endpoint, 5,
       Paint()..color = const Color(0x40FF6A2C),
@@ -1336,13 +2115,166 @@ class _SparkPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SparkPainter old) => false;
+  bool shouldRepaint(_SparkPainter old) =>
+      old.samples.length != samples.length ||
+      old.useImperial != useImperial;
+}
+
+class _SparkAxisLabels extends StatelessWidget {
+  final List<_AltSample> history;
+  const _SparkAxisLabels({required this.history});
+
+  String _fmt(DateTime dt) =>
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    if (history.length < 2) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('—', style: TT.mono(size: 9, color: TT.text3)),
+          Text('Waiting for GPS', style: TT.mono(size: 9, color: TT.text3)),
+          Text('NOW', style: TT.mono(size: 9, color: TT.ember)),
+        ],
+      );
+    }
+    final first = history.first.when.toLocal();
+    final mid = history[history.length ~/ 2].when.toLocal();
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(_fmt(first), style: TT.mono(size: 9, color: TT.text3)),
+        Text(_fmt(mid), style: TT.mono(size: 9, color: TT.text3)),
+        Text('NOW', style: TT.mono(size: 9, color: TT.ember)),
+      ],
+    );
+  }
+}
+
+class _AltitudeHistorySheet extends StatelessWidget {
+  final List<_AltSample> history;
+  final bool useImperial;
+  const _AltitudeHistorySheet({
+    required this.history,
+    required this.useImperial,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final unit = useImperial ? 'ft' : 'm';
+    final values = history
+        .map((s) => useImperial ? s.altitude * 3.28084 : s.altitude)
+        .toList();
+    final minV = values.reduce(math.min);
+    final maxV = values.reduce(math.max);
+    final last = history.last;
+    final first = history.first;
+    final span = last.when.difference(first.when);
+    String fmtTime(DateTime dt) =>
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    String fmtSpan(Duration d) {
+      if (d.inHours > 0) return '${d.inHours}h ${d.inMinutes % 60}m';
+      if (d.inMinutes > 0) return '${d.inMinutes}m';
+      return '${d.inSeconds}s';
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: TT.line2,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text('Altitude trace', style: TT.title(18)),
+          const SizedBox(height: 4),
+          Text(
+            'Live samples since this tool was opened.',
+            style: TT.body(size: 11.5, color: TT.text3),
+          ),
+          const SizedBox(height: 16),
+          TTCard(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 180,
+                  child: CustomPaint(
+                    painter: _SparkPainter(
+                      samples: history,
+                      useImperial: useImperial,
+                    ),
+                    size: Size.infinite,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(fmtTime(first.when.toLocal()),
+                        style: TT.mono(size: 10, color: TT.text3)),
+                    Text(fmtTime(last.when.toLocal()),
+                        style: TT.mono(size: 10, color: TT.ember)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _MetricGrid(tiles: [
+            _MetricSpec(
+              icon: Icons.terrain_outlined,
+              label: 'Max',
+              value: maxV.toStringAsFixed(0),
+              unit: unit,
+              ember: true,
+            ),
+            _MetricSpec(
+              icon: Icons.layers_outlined,
+              label: 'Min',
+              value: minV.toStringAsFixed(0),
+              unit: unit,
+            ),
+            _MetricSpec(
+              icon: Icons.timer_outlined,
+              label: 'Span',
+              value: fmtSpan(span),
+            ),
+            _MetricSpec(
+              icon: Icons.show_chart,
+              label: 'Samples',
+              value: '${history.length}',
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              style: TextButton.styleFrom(foregroundColor: TT.text2),
+              onPressed: () => Navigator.of(context).maybePop(),
+              child: const Text('CLOSE'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ──────────────────────────── SUN ───────────────────────────────────────────
 
 class _SunTool extends StatefulWidget {
-  const _SunTool();
+  final _ToolPrefs prefs;
+  const _SunTool({required this.prefs});
 
   @override
   State<_SunTool> createState() => _SunToolState();
@@ -1353,6 +2285,7 @@ class _SunToolState extends State<_SunTool> {
   bool _waiting = true;
   String? _error;
   StreamSubscription<Position>? _sub;
+  bool _refreshing = false;
 
   // Tick the UI every 30 seconds so "time to peak" / current time stay live.
   Timer? _tick;
@@ -1406,12 +2339,60 @@ class _SunToolState extends State<_SunTool> {
     super.dispose();
   }
 
-  String _hm(DateTime dt) =>
-      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  Future<void> _manualRefresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      final perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        final next = await Geolocator.requestPermission();
+        if (next == LocationPermission.denied ||
+            next == LocationPermission.deniedForever) {
+          throw Exception('Location permission required');
+        }
+      }
+      final p = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (mounted) {
+        setState(() {
+          _pos = p;
+          _error = null;
+          _waiting = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
 
-  String _hm12(DateTime dt) {
-    final h12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    return '$h12:${dt.minute.toString().padLeft(2, '0')}';
+  String _formatTime(DateTime dt) {
+    final local = dt.toLocal();
+    if (widget.prefs.sunTime24) {
+      return '${local.hour.toString().padLeft(2, '0')}:'
+          '${local.minute.toString().padLeft(2, '0')}';
+    }
+    final h12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final ampm = local.hour >= 12 ? 'PM' : 'AM';
+    return '$h12:${local.minute.toString().padLeft(2, '0')} $ampm';
+  }
+
+  void _copyTime(String label, DateTime? dt) {
+    if (dt == null) return;
+    final str = _formatTime(dt);
+    Clipboard.setData(ClipboardData(text: '$label $str'));
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('$label copied: $str', style: TT.body(size: 12)),
+          backgroundColor: TT.surf2,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
   }
 
   @override
@@ -1442,6 +2423,10 @@ class _SunToolState extends State<_SunTool> {
         ? SunUtils.formatDuration(sunset.difference(sunrise))
         : '—';
 
+    // Golden hour: ±30min around sunrise/sunset for a quick photographer cue.
+    final goldenStart = sunset?.subtract(const Duration(minutes: 60));
+    final goldenEnd = sunset?.add(const Duration(minutes: 0));
+
     // Status copy: time-to-peak when sun is up; otherwise countdown to next event.
     String fmt(Duration d) {
       final h = d.inHours;
@@ -1464,7 +2449,10 @@ class _SunToolState extends State<_SunTool> {
       }
     }
 
-    final ampm = now.hour >= 12 ? 'PM' : 'AM';
+    final clockNow = widget.prefs.sunTime24
+        ? '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}'
+        : '${now.hour % 12 == 0 ? 12 : now.hour % 12}:${now.minute.toString().padLeft(2, '0')}';
+    final ampm = widget.prefs.sunTime24 ? '' : (now.hour >= 12 ? 'PM' : 'AM');
 
     return Stack(
       children: [
@@ -1506,11 +2494,13 @@ class _SunToolState extends State<_SunTool> {
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            _hm12(now),
+                            clockNow,
                             style: TT.numStyle(size: 38, w: FontWeight.w900, letterSpacing: -0.025 * 38),
                           ),
-                          const SizedBox(width: 6),
-                          Text(ampm, style: TT.body(size: 16, color: TT.text2)),
+                          if (ampm.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Text(ampm, style: TT.body(size: 16, color: TT.text2)),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -1520,6 +2510,16 @@ class _SunToolState extends State<_SunTool> {
                         style: TT.body(size: 11, w: FontWeight.w800, color: TT.ember)
                             .copyWith(letterSpacing: 0.18 * 11),
                       ),
+                      const SizedBox(height: 12),
+                      _SunPillStrip(
+                        sunrise: sunrise,
+                        sunset: sunset,
+                        goldenStart: goldenStart,
+                        goldenEnd: goldenEnd,
+                        format: _formatTime,
+                        onCopy: _copyTime,
+                      ),
+                      const SizedBox(height: 4),
                     ],
                   ),
                 ],
@@ -1530,13 +2530,15 @@ class _SunToolState extends State<_SunTool> {
               _MetricSpec(
                 icon: Icons.wb_twilight,
                 label: 'Sunrise',
-                value: sunrise != null ? _hm(sunrise) : '—',
+                value: sunrise != null ? _formatTime(sunrise) : '—',
                 ember: true,
+                onTap: sunrise == null ? null : () => _copyTime('Sunrise', sunrise),
               ),
               _MetricSpec(
                 icon: Icons.nights_stay_outlined,
                 label: 'Sunset',
-                value: sunset != null ? _hm(sunset) : '—',
+                value: sunset != null ? _formatTime(sunset) : '—',
+                onTap: sunset == null ? null : () => _copyTime('Sunset', sunset),
               ),
               _MetricSpec(
                 icon: Icons.schedule,
@@ -1549,8 +2551,73 @@ class _SunToolState extends State<_SunTool> {
                 value: hasFix
                     ? '${_pos!.latitude.toStringAsFixed(2)},${_pos!.longitude.toStringAsFixed(2)}'
                     : '—',
+                onTap: !hasFix
+                    ? null
+                    : () {
+                        Clipboard.setData(ClipboardData(
+                          text:
+                              '${_pos!.latitude.toStringAsFixed(5)}, ${_pos!.longitude.toStringAsFixed(5)}',
+                        ));
+                        ScaffoldMessenger.maybeOf(context)
+                          ?..hideCurrentSnackBar()
+                          ..showSnackBar(
+                            SnackBar(
+                              content: Text('Coordinates copied',
+                                  style: TT.body(size: 12)),
+                              backgroundColor: TT.surf2,
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                      },
               ),
             ]),
+            const SizedBox(height: 14),
+            TTCard(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              onTap: _refreshing ? null : _manualRefresh,
+              child: Row(
+                children: [
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: TT.emberDim,
+                      border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: _refreshing
+                        ? const SizedBox(
+                            width: 14, height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2, color: TT.ember,
+                            ),
+                          )
+                        : const Icon(Icons.my_location, size: 14, color: TT.ember),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _refreshing ? 'Refreshing GPS' : 'Refresh location',
+                          style: TT.body(size: 13, w: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasFix
+                              ? 'Last fix +/- ${_pos!.accuracy.toStringAsFixed(0)} m'
+                              : 'Tap to request a fresh GPS fix.',
+                          style: TT.body(size: 11, color: TT.text3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: TT.text3),
+                ],
+              ),
+            ),
           ],
         ),
         if (!hasFix && !_waiting)
@@ -1558,9 +2625,95 @@ class _SunToolState extends State<_SunTool> {
             child: _ToolUnavailableOverlay(
               icon: Icons.wb_sunny_outlined,
               title: 'No location fix',
-              subtitle: _error ?? 'Tap to enable location for live data.',
+              subtitle: _error ?? 'Tap refresh to enable location for live data.',
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _SunPillStrip extends StatelessWidget {
+  final DateTime? sunrise;
+  final DateTime? sunset;
+  final DateTime? goldenStart;
+  final DateTime? goldenEnd;
+  final String Function(DateTime dt) format;
+  final void Function(String label, DateTime? dt) onCopy;
+  const _SunPillStrip({
+    required this.sunrise,
+    required this.sunset,
+    required this.goldenStart,
+    required this.goldenEnd,
+    required this.format,
+    required this.onCopy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget pill({
+      required IconData icon,
+      required String label,
+      required DateTime? dt,
+      required Color color,
+    }) {
+      final disabled = dt == null;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: disabled ? null : () => onCopy(label, dt),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: color.withOpacity(disabled ? 0.04 : 0.10),
+            border: Border.all(
+              color: color.withOpacity(disabled ? 0.14 : 0.40),
+            ),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 12,
+                  color: disabled ? TT.text3 : color),
+              const SizedBox(width: 6),
+              Text(
+                disabled ? '$label —' : '$label ${format(dt)}',
+                style: TT.mono(
+                  size: 10,
+                  color: disabled ? TT.text3 : color,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        pill(
+          icon: Icons.wb_twilight,
+          label: 'SUNRISE',
+          dt: sunrise,
+          color: TT.ember,
+        ),
+        pill(
+          icon: Icons.nights_stay_outlined,
+          label: 'SUNSET',
+          dt: sunset,
+          color: TT.blue,
+        ),
+        pill(
+          icon: Icons.wb_iridescent,
+          label: 'GOLDEN',
+          dt: goldenStart,
+          color: TT.amber,
+        ),
       ],
     );
   }
@@ -1652,12 +2805,54 @@ class _InfoTool extends StatelessWidget {
   const _InfoTool();
 
   static const _tips = <_InfoTip>[
-    _InfoTip(icon: Icons.place_outlined,          title: 'Tell someone your route',          body: 'Share trail name + expected return.'),
-    _InfoTip(icon: Icons.local_fire_department_outlined, title: 'Pack layers, not weight',   body: 'Mountain temps drop 6 degrees C per 1,000m.'),
-    _InfoTip(icon: Icons.air,                      title: 'Watch the wind shift',             body: 'A sudden change often precedes a front.'),
-    _InfoTip(icon: Icons.water_drop_outlined,      title: 'Hydrate before you are thirsty',   body: 'Thirst lags 1-2 hours behind dehydration.'),
-    _InfoTip(icon: Icons.bolt_outlined,            title: 'Lightning: count then crouch',     body: 'Under 30s between flash and thunder = strike risk.'),
-    _InfoTip(icon: Icons.battery_charging_full,    title: 'Conserve your phone battery',      body: 'Airplane mode + offline maps stretches charge.'),
+    _InfoTip(
+      icon: Icons.ac_unit,
+      title: 'Hypothermia warning signs',
+      body:
+          'Persistent shivering, slurred speech, clumsy hands, drowsiness — '
+          'tap for the full field treatment checklist.',
+      detail: _hypothermiaDetail,
+    ),
+    _InfoTip(
+      icon: Icons.healing,
+      title: 'Snake bite first aid',
+      body:
+          'Stay calm, immobilise the limb, mark the swelling — never cut, '
+          'suck or apply ice. Tap for the full sequence.',
+      detail: _snakeBiteDetail,
+    ),
+    _InfoTip(
+      icon: Icons.bolt_outlined,
+      title: 'Lightning safety',
+      body:
+          'If under 30 s between flash and thunder, you are inside the strike '
+          'zone. Tap for crouch-and-cover drill.',
+      detail: _lightningDetail,
+    ),
+    _InfoTip(
+      icon: Icons.water_drop_outlined,
+      title: 'Hydration & heat',
+      body:
+          'Thirst lags 1-2 h behind real dehydration. Tap for daily intake '
+          'targets and warning signs.',
+      detail: _hydrationDetail,
+    ),
+    _InfoTip(
+      icon: Icons.local_fire_department_outlined,
+      title: 'Layering & cold protection',
+      body:
+          'Mountain temperatures drop ~6 °C per 1,000 m. Tap for the wicking / '
+          'insulation / shell rule of thumb.',
+      detail: _layeringDetail,
+    ),
+    _InfoTip(
+      icon: Icons.battery_charging_full,
+      title: 'Battery and signal',
+      body:
+          'Airplane mode + offline maps multiplies battery life. Tap for the '
+          'cold-weather charging trick.',
+      detail: _batteryDetail,
+    ),
   ];
 
   @override
@@ -1678,18 +2873,36 @@ class _InfoTip {
   final IconData icon;
   final String title;
   final String body;
-  const _InfoTip({required this.icon, required this.title, required this.body});
+  final List<_InfoSection> detail;
+  const _InfoTip({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.detail,
+  });
+}
+
+class _InfoSection {
+  final String heading;
+  final List<String> bullets;
+  const _InfoSection(this.heading, this.bullets);
 }
 
 class _InfoRow extends StatelessWidget {
   final _InfoTip tip;
   const _InfoRow({required this.tip});
 
+  void _open(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => _InfoDetailScreen(tip: tip),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return TTCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      onTap: () {},
+      onTap: () => _open(context),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1710,7 +2923,149 @@ class _InfoRow extends StatelessWidget {
               children: [
                 Text(tip.title, style: TT.body(size: 13.5, w: FontWeight.w800)),
                 const SizedBox(height: 4),
-                Text(tip.body, style: TT.body(size: 11.5, color: TT.text2).copyWith(height: 1.45)),
+                Text(tip.body,
+                    style: TT.body(size: 11.5, color: TT.text2)
+                        .copyWith(height: 1.45)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.chevron_right, size: 18, color: TT.text3),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoDetailScreen extends StatelessWidget {
+  final _InfoTip tip;
+  const _InfoDetailScreen({required this.tip});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: TT.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: TTAmbient()),
+          const Positioned.fill(child: TTTopoBackdrop(opacity: 0.55)),
+          SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 18, 8),
+                  child: Row(
+                    children: [
+                      TTIconBtn(
+                        icon: Icons.arrow_back,
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('FIELD GUIDE',
+                                style: TT.label(
+                                    size: 10.5,
+                                    color: TT.text3,
+                                    letterSpacing: 1.6)),
+                            const SizedBox(height: 2),
+                            Text(tip.title, style: TT.title(20)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+                    children: [
+                      TTCard(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36, height: 36,
+                              decoration: BoxDecoration(
+                                color: TT.emberDim,
+                                border: Border.all(
+                                    color: const Color(0x52FF6A2C), width: 1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              alignment: Alignment.center,
+                              child:
+                                  Icon(tip.icon, size: 16, color: TT.ember),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                tip.body,
+                                style: TT.body(size: 12.5, color: TT.text2)
+                                    .copyWith(height: 1.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      for (final section in tip.detail) ...[
+                        TTCard(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(section.heading.toUpperCase(),
+                                  style: TT.label(
+                                      size: 10.5,
+                                      color: TT.ember,
+                                      letterSpacing: 1.6)),
+                              const SizedBox(height: 10),
+                              for (var i = 0; i < section.bullets.length; i++)
+                                Padding(
+                                  padding:
+                                      EdgeInsets.only(bottom: i == section.bullets.length - 1 ? 0 : 8),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 6),
+                                        width: 5, height: 5,
+                                        decoration: const BoxDecoration(
+                                          color: TT.ember,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          section.bullets[i],
+                                          style: TT.body(
+                                                  size: 12.5, color: TT.text)
+                                              .copyWith(height: 1.45),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      const _Callout(
+                        icon: Icons.warning_amber_outlined,
+                        color: TT.amber,
+                        text:
+                            'Field reference only. If life is threatened call '
+                            'emergency services and arrange evacuation.',
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1720,7 +3075,147 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+// Detail content kept inline so each tip's full guide travels with the file.
+const _hypothermiaDetail = <_InfoSection>[
+  _InfoSection('Recognise', [
+    'Persistent shivering, often violent in early stages.',
+    'Slurred speech, fumbling fingers, stumbling gait.',
+    'Confusion, apathy, or unusual drowsiness.',
+    'Pale or grey skin, blue lips, weak pulse.',
+  ]),
+  _InfoSection('Stop the heat loss', [
+    'Get out of wind and rain — even a rock wall helps.',
+    'Replace any wet layer with dry insulation.',
+    'Insulate from the ground with packs or foam.',
+    'Cover head and neck; most heat escapes there.',
+  ]),
+  _InfoSection('Rewarm carefully', [
+    'Warm sweet drinks for conscious casualties only.',
+    'Skin-to-skin contact inside a sleeping bag works fast.',
+    'Apply heat to torso and armpits, not just limbs.',
+    'Never rub frozen skin or use direct flame.',
+  ]),
+  _InfoSection('Evacuate if', [
+    'The person cannot stop shivering after 30 minutes.',
+    'They become drowsy, irrational or unresponsive.',
+    'They have fallen into cold water.',
+  ]),
+];
+
+const _snakeBiteDetail = <_InfoSection>[
+  _InfoSection('Stay calm and still', [
+    'Move at least two metres clear of the snake.',
+    'Sit or lie the casualty down with the bite below the heart.',
+    'Keep activity to a minimum — venom spreads with movement.',
+  ]),
+  _InfoSection('Immobilise the limb', [
+    'Apply a firm crepe bandage from fingers/toes upward, then splint.',
+    'Mark the swelling outline with a pen every 15 minutes.',
+    'Remove rings, watches, tight clothing before swelling sets in.',
+  ]),
+  _InfoSection('Do not', [
+    'Cut, suck or apply ice or a tourniquet.',
+    'Give alcohol or aspirin.',
+    'Try to catch the snake — a photo from distance is enough.',
+  ]),
+  _InfoSection('Call for evacuation', [
+    'Note the time of the bite — antivenom timing depends on it.',
+    'Use Trailtether SOS or a satellite messenger if no signal.',
+    'Provide your coordinates, species description, symptom timeline.',
+  ]),
+];
+
+const _lightningDetail = <_InfoSection>[
+  _InfoSection('Count the gap', [
+    'Flash-to-thunder under 30 seconds = strike danger now.',
+    'Under 10 seconds = take cover immediately.',
+    'Wait 30 minutes after the last thunder before moving.',
+  ]),
+  _InfoSection('Get low and small', [
+    'Leave summits, ridges and exposed slabs first.',
+    'Avoid lone trees, fence lines and metal hardware.',
+    'Crouch on insulating gear, feet together, head tucked.',
+    'Spread the group 5+ metres apart to limit casualties.',
+  ]),
+  _InfoSection('After the strike', [
+    'Begin CPR on anyone unresponsive — they hold no charge.',
+    'Treat burns at entry and exit points.',
+    'Watch for cardiac arrhythmia for at least 24 hours.',
+  ]),
+];
+
+const _hydrationDetail = <_InfoSection>[
+  _InfoSection('Daily intake targets', [
+    'Cool-weather hike: 500-750 ml per hour of moving time.',
+    'Hot or high-altitude hike: 750 ml-1 L per hour.',
+    'Add electrolytes after 90 minutes of sweating.',
+  ]),
+  _InfoSection('Dehydration warning signs', [
+    'Dark or infrequent urine.',
+    'Headache, light-headedness, irritability.',
+    'Cramping calves, hamstrings or hands.',
+    'Resting pulse climbing 20+ bpm above normal.',
+  ]),
+  _InfoSection('Field rules', [
+    'Drink before you feel thirsty — thirst lags 1-2 hours.',
+    'Filter or boil water from any natural source.',
+    'Eat salty snacks alongside water to retain it.',
+  ]),
+];
+
+const _layeringDetail = <_InfoSection>[
+  _InfoSection('Layer principles', [
+    'Base: wicks moisture off the skin (merino / synthetic).',
+    'Mid: traps warmth (fleece, light down or synthetic puffy).',
+    'Shell: blocks wind and rain (hardshell or wind shirt).',
+  ]),
+  _InfoSection('Pack the temperature drop', [
+    'Mountain temperatures fall ~6 °C per 1,000 m gained.',
+    'Wind chill at 30 km/h doubles the felt cold.',
+    'Carry a beanie and gloves on any 3-season day-hike.',
+  ]),
+  _InfoSection('Adjust on the move', [
+    'Ventilate before you sweat — open pit zips early.',
+    'Stop, layer up, then start again at every rest stop.',
+    'Keep one dry insulation layer in a dry bag for camp.',
+  ]),
+];
+
+const _batteryDetail = <_InfoSection>[
+  _InfoSection('Stretch battery life', [
+    'Switch to airplane mode and use offline maps.',
+    'Set screen to the lowest readable brightness.',
+    'Disable background app refresh and live wallpapers.',
+    'Pause non-essential notifications during the hike.',
+  ]),
+  _InfoSection('Cold-weather charging', [
+    'Keep the phone in an inside pocket close to your body.',
+    'Charge from a warmed power bank, not a frozen one.',
+    'Avoid charging below 0 °C — capacity drops sharply.',
+  ]),
+  _InfoSection('Field power kit', [
+    'Carry one power bank with 2x your phone capacity.',
+    'Include a short, durable USB-C cable.',
+    'Test the kit end-to-end before each trip.',
+  ]),
+];
+
 // ──────────────────────────── SHARED PIECES ─────────────────────────────────
+
+/// Convert an altitude in metres to the user's preferred unit and round.
+/// Used by both the compass and altimeter tiles so the readouts stay consistent.
+String _formatAltShared(double metres, bool useImperial) {
+  final v = useImperial ? metres * 3.28084 : metres;
+  final rounded = v.round();
+  if (rounded.abs() < 1000) return '$rounded';
+  final s = rounded.abs().toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  return '${rounded < 0 ? '-' : ''}$buf';
+}
 
 class _MetricSpec {
   final IconData icon;
@@ -1728,12 +3223,14 @@ class _MetricSpec {
   final String value;
   final String? unit;
   final bool ember;
+  final VoidCallback? onTap;
   const _MetricSpec({
     required this.icon,
     required this.label,
     required this.value,
     this.unit,
     this.ember = false,
+    this.onTap,
   });
 }
 
@@ -1769,6 +3266,7 @@ class _MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return TTCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      onTap: spec.onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1784,6 +3282,8 @@ class _MetricTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (spec.onTap != null)
+                const Icon(Icons.copy_outlined, size: 11, color: TT.text4),
             ],
           ),
           Row(

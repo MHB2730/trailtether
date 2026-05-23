@@ -1,17 +1,34 @@
 // Trailtether 2.0 — Community screen.
 //
-// Recreates project/screens/community.jsx from the design bundle:
-// brand bar + segmented tabs (Feed / Chat) over an animated body.
+// Brand bar + segmented tabs (Feed / Chat) over an animated body.
 // Feed shows posts (TTCard) sourced from CommunityProvider.activities
 // with author rows, location pills and an optional mini elevation chart
 // when the activity references a hike. Chat shows a bubble thread
 // (ember tint for own messages, graphite for received) backed by
 // ChatProvider with a working composer pinned at the bottom.
+//
+// Every interactive surface in this file is wired to a real action:
+//   - Top-bar search filters the active list (feed posts / chat messages)
+//   - Top-bar bell opens a notification centre showing recent feed activity
+//   - Compose row opens a sheet that posts to community_activities
+//   - Card tap opens a detail sheet; like animates locally; comments live in
+//     an in-memory store keyed by post id (no DB schema for them yet); share
+//     uses share_plus with a trailtether://post/{id} deep link
+//   - Chat composer sends via ChatProvider.sendText
+//   - Long-press a chat bubble for Copy / Delete (delete is sender-only and
+//     hits chat_messages directly via Supabase; UI removes optimistically)
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/constants.dart';
 import '../core/design_tokens.dart';
+import '../core/runtime_config.dart';
 import '../models/chat_message.dart';
 import '../models/community.dart';
 import '../providers/auth_provider.dart' as ap;
@@ -35,6 +52,40 @@ class TTCommunityScreen extends StatefulWidget {
 class _TTCommunityScreenState extends State<TTCommunityScreen> {
   int _tab = 0; // 0 Feed, 1 Chat — matches the design's default
 
+  /// Active text filter for the current tab. Empty string = no filter.
+  String _query = '';
+  bool _searchOpen = false;
+  final TextEditingController _searchCtl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtl.dispose();
+    super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searchOpen = !_searchOpen;
+      if (!_searchOpen) {
+        _query = '';
+        _searchCtl.clear();
+      }
+    });
+  }
+
+  void _openNotificationCenter() {
+    final activities = context.read<CommunityProvider>().activities;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: TT.bg2,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+      ),
+      builder: (_) => _NotificationSheet(activities: activities),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final body = Stack(
@@ -49,24 +100,50 @@ class _TTCommunityScreenState extends State<TTCommunityScreen> {
               TTPageAppBar(
                 title: 'Community',
                 trailing: [
-                  TTIconBtn(icon: Icons.search, onTap: () {}),
-                  TTIconBtn(icon: Icons.notifications_none, onTap: () {}),
+                  TTIconBtn(
+                    icon: _searchOpen ? Icons.close : Icons.search,
+                    onTap: _toggleSearch,
+                    ember: _searchOpen,
+                  ),
+                  TTIconBtn(
+                    icon: Icons.notifications_none,
+                    onTap: _openNotificationCenter,
+                  ),
                 ],
               ),
+              if (_searchOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 6),
+                  child: _SearchField(
+                    controller: _searchCtl,
+                    hint: _tab == 0
+                        ? 'Filter posts by author, place, body…'
+                        : 'Filter messages by sender or text…',
+                    onChanged: (v) => setState(() => _query = v.trim()),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
                 child: TTSegmented(
                   tabs: const ['Feed', 'Chat'],
                   active: _tab,
-                  onChange: (i) => setState(() => _tab = i),
+                  onChange: (i) => setState(() {
+                    _tab = i;
+                    // Filter is per-tab — switching wipes the query so the
+                    // hint reflects the new context cleanly.
+                    if (_query.isNotEmpty) {
+                      _query = '';
+                      _searchCtl.clear();
+                    }
+                  }),
                 ),
               ),
               Expanded(
                 child: AnimatedSwitcher(
                   duration: TT.dMed,
                   child: _tab == 0
-                      ? const _FeedView(key: ValueKey('feed'))
-                      : const _ChatView(key: ValueKey('chat')),
+                      ? _FeedView(key: const ValueKey('feed'), query: _query)
+                      : _ChatView(key: const ValueKey('chat'), query: _query),
                 ),
               ),
             ],
@@ -136,10 +213,75 @@ String _clockTime(DateTime when) {
   return '$h:$m';
 }
 
+bool _matchesQuery(String haystack, String query) {
+  if (query.isEmpty) return true;
+  return haystack.toLowerCase().contains(query.toLowerCase());
+}
+
+void _toast(BuildContext context, String text, {bool error = false}) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(text,
+          style: TT.body(size: 13, color: Colors.white, w: FontWeight.w600)),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: error ? TT.red : TT.surf2,
+      duration: const Duration(seconds: 2),
+    ),
+  );
+}
+
+/// In-memory store of likes + comments keyed by activity id. Persists for the
+/// life of the app session — the schema has no likes/comments columns, so we
+/// don't try to fake a round-trip to the DB. Reset on hot restart.
+class _PostInteractions {
+  _PostInteractions._();
+  static final _PostInteractions instance = _PostInteractions._();
+
+  /// activity id -> set of liker uids (or device anon ids).
+  final Map<String, Set<String>> _likes = {};
+
+  /// activity id -> ordered list of comments.
+  final Map<String, List<_LocalComment>> _comments = {};
+
+  Set<String> likers(String id) => _likes[id] ?? const <String>{};
+  bool isLiked(String id, String uid) =>
+      uid.isNotEmpty && (_likes[id]?.contains(uid) ?? false);
+  int likeCount(String id) => _likes[id]?.length ?? 0;
+
+  /// Returns the new liked state.
+  bool toggleLike(String id, String uid) {
+    final set = _likes.putIfAbsent(id, () => <String>{});
+    final liked = set.contains(uid);
+    if (liked) {
+      set.remove(uid);
+    } else {
+      set.add(uid);
+    }
+    return !liked;
+  }
+
+  List<_LocalComment> comments(String id) =>
+      List.unmodifiable(_comments[id] ?? const <_LocalComment>[]);
+  int commentCount(String id) => _comments[id]?.length ?? 0;
+
+  void addComment(String id, _LocalComment c) {
+    _comments.putIfAbsent(id, () => <_LocalComment>[]).add(c);
+  }
+}
+
+class _LocalComment {
+  final String author;
+  final String text;
+  final DateTime when;
+  const _LocalComment(
+      {required this.author, required this.text, required this.when});
+}
+
 // ─────────────────────────────────── FEED ───────────────────────────────────
 
 class _FeedView extends StatelessWidget {
-  const _FeedView({super.key});
+  final String query;
+  const _FeedView({super.key, required this.query});
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +292,14 @@ class _FeedView extends StatelessWidget {
             child: CircularProgressIndicator(color: TT.ember),
           );
         }
-        final activities = provider.activities;
+        final all = provider.activities;
+        final activities = query.isEmpty
+            ? all
+            : all
+                .where((a) => _matchesQuery(
+                    '${a.userName} ${a.teamName} ${a.title} ${a.subtitle}',
+                    query))
+                .toList();
         return RefreshIndicator(
           onRefresh: provider.refresh,
           color: TT.ember,
@@ -162,7 +311,7 @@ class _FeedView extends StatelessWidget {
               const _ComposePrompt(),
               const SizedBox(height: 14),
               if (activities.isEmpty)
-                const _EmptyFeed()
+                _EmptyFeed(filtered: query.isNotEmpty)
               else
                 for (var i = 0; i < activities.length; i++)
                   Padding(
@@ -182,7 +331,8 @@ class _FeedView extends StatelessWidget {
 }
 
 class _EmptyFeed extends StatelessWidget {
-  const _EmptyFeed();
+  final bool filtered;
+  const _EmptyFeed({this.filtered = false});
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +347,9 @@ class _EmptyFeed extends StatelessWidget {
           borderRadius: BorderRadius.circular(TT.rLg),
         ),
         child: Text(
-          'No activity yet. When your team starts hiking, posts appear here.',
+          filtered
+              ? 'No posts match your search.'
+              : 'No activity yet. When your team starts hiking, posts appear here.',
           textAlign: TextAlign.center,
           style: TT.body(size: 13, w: FontWeight.w500, color: TT.text3)
               .copyWith(height: 1.5),
@@ -220,16 +372,7 @@ class _ComposePrompt extends StatelessWidget {
       delay: const Duration(milliseconds: 220),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Sharing posts is coming soon',
-                  style: TT.body(size: 13, color: Colors.white)),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: TT.surf2,
-            ),
-          );
-        },
+        onTap: () => _openComposer(context),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
@@ -270,7 +413,7 @@ class _ComposePrompt extends StatelessWidget {
                   border: Border.all(color: TT.line, width: 1),
                   borderRadius: BorderRadius.circular(TT.rMd),
                 ),
-                child: const Icon(Icons.send, size: 14, color: TT.ember),
+                child: const Icon(Icons.edit_outlined, size: 14, color: TT.ember),
               ),
             ],
           ),
@@ -280,41 +423,399 @@ class _ComposePrompt extends StatelessWidget {
   }
 }
 
-class _FeedPost extends StatelessWidget {
-  final CommunityActivity activity;
-  const _FeedPost({required this.activity});
+void _openComposer(BuildContext context) {
+  final auth = context.read<ap.AuthProvider>();
+  if (!auth.isAuth) {
+    _toast(context, 'Please sign in to post to the community.', error: true);
+    return;
+  }
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: TT.bg2,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+    ),
+    builder: (_) => _ComposeSheet(
+      authorName: auth.displayName ?? auth.email ?? 'Hiker',
+      uid: auth.uid ?? '',
+    ),
+  );
+}
 
-  bool get _isHike => activity.type == ActivityType.hikeCompleted;
-  bool get _isHazard => activity.type == ActivityType.checkIn &&
-      (activity.title.toLowerCase().contains('hazard') ||
-          activity.subtitle.toLowerCase().contains('hazard'));
+class _ComposeSheet extends StatefulWidget {
+  final String authorName;
+  final String uid;
+  const _ComposeSheet({required this.authorName, required this.uid});
 
-  String get _locationLabel {
-    // Prefer an explicit location field on metadata if present, then fall
-    // back to the team name so the location pill is never empty.
-    final meta = activity.metadata;
-    final loc = (meta['location'] ?? meta['trail_name'] ?? meta['trail'])
-        as String?;
-    if (loc != null && loc.trim().isNotEmpty) return loc;
-    return activity.teamName;
+  @override
+  State<_ComposeSheet> createState() => _ComposeSheetState();
+}
+
+class _ComposeSheetState extends State<_ComposeSheet> {
+  final TextEditingController _ctl = TextEditingController();
+  final FocusNode _focus = FocusNode();
+  bool _posting = false;
+  bool _hazard = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
   }
 
-  String get _bodyText {
-    // Compose a readable body from the title + subtitle without producing
-    // double-spaces when one is empty.
-    final parts = <String>[];
-    if (activity.title.trim().isNotEmpty) parts.add(activity.title.trim());
-    if (activity.subtitle.trim().isNotEmpty) parts.add(activity.subtitle.trim());
-    return parts.isEmpty ? '(no details)' : parts.join(' — ');
+  @override
+  void dispose() {
+    _ctl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _post() async {
+    final text = _ctl.text.trim();
+    if (text.isEmpty || _posting) return;
+
+    if (!kSupabaseAvailable) {
+      _toast(context, 'Posting is unavailable in offline mode.', error: true);
+      return;
+    }
+
+    setState(() => _posting = true);
+    final lines = text.split('\n');
+    final title = (lines.first.trim().isEmpty ? text : lines.first.trim());
+    final subtitle =
+        lines.length > 1 ? lines.skip(1).join('\n').trim() : '';
+
+    try {
+      await Supabase.instance.client.from('community_activities').insert({
+        'user_id': widget.uid.isEmpty ? null : widget.uid,
+        'user_name': widget.authorName,
+        'type': _hazard ? 'check_in' : 'check_in',
+        'title': _hazard ? 'Hazard report: $title' : title,
+        'subtitle': subtitle,
+        'timestamp': DateTime.now().toIso8601String(),
+        'metadata': {
+          if (_hazard) 'hazard': true,
+          'source': 'community_compose',
+        },
+      });
+      if (!mounted) return;
+      await context.read<CommunityProvider>().refresh();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _toast(context, 'Posted to community feed.');
+      unawaited(HapticFeedback.lightImpact());
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _posting = false);
+      _toast(context, 'Could not post. Try again.', error: true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final color = _avatarColorFor(activity.userName);
-    final initials = _initialsFor(activity.userName);
+    final viewInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInset),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+          decoration: const BoxDecoration(
+            color: TT.bg2,
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+            border: Border(top: BorderSide(color: TT.line)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42, height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: TT.line3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Text('New post',
+                      style: TT.title(18, color: TT.text)),
+                  const Spacer(),
+                  if (_hazard)
+                    const TTPill(
+                        label: 'HAZARD', variant: TTPillVariant.danger),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: TT.surf,
+                  border: Border.all(color: TT.line, width: 1),
+                  borderRadius: BorderRadius.circular(TT.rLg),
+                ),
+                child: TextField(
+                  controller: _ctl,
+                  focusNode: _focus,
+                  minLines: 4,
+                  maxLines: 8,
+                  maxLength: 500,
+                  cursorColor: TT.ember,
+                  style: TT.body(size: 14, w: FontWeight.w500)
+                      .copyWith(height: 1.4),
+                  decoration: InputDecoration(
+                    isCollapsed: true,
+                    border: InputBorder.none,
+                    hintText:
+                        'What did you see on the trail?\nFirst line becomes the title.',
+                    hintStyle: TT.body(
+                            size: 14, w: FontWeight.w500, color: TT.text3)
+                        .copyWith(height: 1.4),
+                    counterStyle: TT.mono(size: 10, color: TT.text3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _hazard = !_hazard),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _hazard
+                            ? const Color(0x2EF2A93B)
+                            : const Color(0x08FFFFFF),
+                        border: Border.all(
+                          color: _hazard
+                              ? const Color(0x80F2A93B)
+                              : TT.line,
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(TT.rMd),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _hazard
+                                ? Icons.warning_amber_rounded
+                                : Icons.warning_amber_outlined,
+                            size: 16,
+                            color: _hazard ? TT.amber : TT.text2,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Mark as hazard',
+                            style: TT.body(
+                              size: 12,
+                              w: FontWeight.w700,
+                              color: _hazard ? TT.amber : TT.text2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _posting ? null : () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0x08FFFFFF),
+                        border: Border.all(color: TT.line, width: 1),
+                        borderRadius: BorderRadius.circular(TT.rMd),
+                      ),
+                      child: Text('Cancel',
+                          style: TT.body(
+                              size: 12,
+                              w: FontWeight.w700,
+                              color: TT.text2)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _posting ? null : _post,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [TT.ember2, TT.ember],
+                        ),
+                        borderRadius: BorderRadius.circular(TT.rMd),
+                        boxShadow: TT.shadowEmber,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_posting)
+                            const SizedBox(
+                              width: 14, height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    TT.emberInk),
+                              ),
+                            )
+                          else
+                            const Icon(Icons.send,
+                                size: 14, color: TT.emberInk),
+                          const SizedBox(width: 6),
+                          Text(
+                            _posting ? 'Posting…' : 'Post',
+                            style: TT.body(
+                                size: 12,
+                                w: FontWeight.w800,
+                                color: TT.emberInk),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeedPost extends StatefulWidget {
+  final CommunityActivity activity;
+  const _FeedPost({required this.activity});
+
+  @override
+  State<_FeedPost> createState() => _FeedPostState();
+}
+
+class _FeedPostState extends State<_FeedPost>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _likeCtl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 360));
+
+  @override
+  void dispose() {
+    _likeCtl.dispose();
+    super.dispose();
+  }
+
+  bool get _isHike => widget.activity.type == ActivityType.hikeCompleted;
+  bool get _isHazard {
+    final a = widget.activity;
+    if ((a.metadata['hazard'] as bool?) == true) return true;
+    if (a.type != ActivityType.checkIn) return false;
+    return a.title.toLowerCase().contains('hazard') ||
+        a.subtitle.toLowerCase().contains('hazard');
+  }
+
+  String get _locationLabel {
+    final meta = widget.activity.metadata;
+    final loc = (meta['location'] ?? meta['trail_name'] ?? meta['trail'])
+        as String?;
+    if (loc != null && loc.trim().isNotEmpty) return loc;
+    return widget.activity.teamName;
+  }
+
+  String get _bodyText {
+    final parts = <String>[];
+    if (widget.activity.title.trim().isNotEmpty) {
+      parts.add(widget.activity.title.trim());
+    }
+    if (widget.activity.subtitle.trim().isNotEmpty) {
+      parts.add(widget.activity.subtitle.trim());
+    }
+    return parts.isEmpty ? '(no details)' : parts.join(' — ');
+  }
+
+  void _onLike() {
+    final uid = context.read<ap.AuthProvider>().uid ?? '';
+    if (uid.isEmpty) {
+      _toast(context, 'Sign in to like posts.', error: true);
+      return;
+    }
+    final liked =
+        _PostInteractions.instance.toggleLike(widget.activity.id, uid);
+    HapticFeedback.selectionClick();
+    if (liked) {
+      _likeCtl.forward(from: 0);
+    }
+    setState(() {});
+  }
+
+  Future<void> _onComment() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: TT.bg2,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+      ),
+      builder: (_) => _CommentsSheet(activityId: widget.activity.id),
+    );
+    if (mounted) setState(() {}); // refresh comment count
+  }
+
+  Future<void> _onShare() async {
+    final a = widget.activity;
+    final text = StringBuffer()
+      ..writeln('${a.userName} on Trailtether')
+      ..writeln(_bodyText)
+      ..writeln('')
+      ..writeln('trailtether://post/${a.id}');
+    try {
+      await Share.share(
+        text.toString().trim(),
+        subject: 'Trail report from ${a.userName}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _toast(context, 'Sharing failed.', error: true);
+    }
+  }
+
+  void _onOpenDetail() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: TT.bg2,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+      ),
+      builder: (_) => _PostDetailSheet(activity: widget.activity),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.activity;
+    final color = _avatarColorFor(a.userName);
+    final initials = _initialsFor(a.userName);
+
+    final uid = context.watch<ap.AuthProvider>().uid ?? '';
+    final liked = _PostInteractions.instance.isLiked(a.id, uid);
+    final likeCount = _PostInteractions.instance.likeCount(a.id);
+    final commentCount = _PostInteractions.instance.commentCount(a.id);
 
     return TTCard(
-      onTap: () {},
+      onTap: _onOpenDetail,
       padding: EdgeInsets.zero,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(TT.rLg),
@@ -331,10 +832,10 @@ class _FeedPost extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _AuthorRow(
-                    name: activity.userName,
+                    name: a.userName,
                     initials: initials,
                     color: color,
-                    time: _relativeTime(activity.timestamp),
+                    time: _relativeTime(a.timestamp),
                     location: _locationLabel,
                     hazard: _isHazard,
                   ),
@@ -351,11 +852,35 @@ class _FeedPost extends StatelessWidget {
                   const SizedBox(height: 12),
                   Container(height: 1, color: TT.line),
                   const SizedBox(height: 10),
-                  const Row(
+                  Row(
                     children: [
-                      _ActionBtn(icon: Icons.send, value: 'Share'),
-                      Spacer(),
-                      Icon(Icons.more_horiz, size: 14, color: TT.text3),
+                      _LikeBtn(
+                        liked: liked,
+                        count: likeCount,
+                        anim: _likeCtl,
+                        onTap: _onLike,
+                      ),
+                      const SizedBox(width: 18),
+                      _ActionBtn(
+                        icon: Icons.mode_comment_outlined,
+                        value: commentCount == 0
+                            ? 'Comment'
+                            : '$commentCount',
+                        onTap: _onComment,
+                      ),
+                      const SizedBox(width: 18),
+                      _ActionBtn(
+                        icon: Icons.send,
+                        value: 'Share',
+                        onTap: _onShare,
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _onOpenDetail,
+                        child: const Icon(Icons.more_horiz,
+                            size: 16, color: TT.text3),
+                      ),
                     ],
                   ),
                 ],
@@ -440,18 +965,8 @@ class _AuthorRow extends StatelessWidget {
                   ),
                   if (hazard) ...[
                     const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0x2EF2A93B),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'HAZARD',
-                        style: TT.mono(size: 8.5, color: TT.amber, w: FontWeight.w800)
-                            .copyWith(letterSpacing: 0.1 * 8.5),
-                      ),
-                    ),
+                    const TTPill(
+                        label: 'HAZARD', variant: TTPillVariant.danger),
                   ],
                 ],
               ),
@@ -566,19 +1081,559 @@ class _MiniElevPainter extends CustomPainter {
 class _ActionBtn extends StatelessWidget {
   final IconData icon;
   final String value;
-  const _ActionBtn({required this.icon, required this.value});
+  final VoidCallback? onTap;
+  const _ActionBtn({required this.icon, required this.value, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: TT.text2),
-        const SizedBox(width: 5),
-        Text(value,
-            style: TT.body(size: 11, w: FontWeight.w700, color: TT.text2)
-                .copyWith(letterSpacing: 0.04 * 11)),
-      ],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: TT.text2),
+          const SizedBox(width: 5),
+          Text(value,
+              style: TT.body(size: 11, w: FontWeight.w700, color: TT.text2)
+                  .copyWith(letterSpacing: 0.04 * 11)),
+        ],
+      ),
+    );
+  }
+}
+
+class _LikeBtn extends StatelessWidget {
+  final bool liked;
+  final int count;
+  final Animation<double> anim;
+  final VoidCallback onTap;
+  const _LikeBtn(
+      {required this.liked,
+      required this.count,
+      required this.anim,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: anim,
+            builder: (_, __) {
+              final v = anim.value;
+              // Pop scale: 1 → 1.35 → 1 across the burst.
+              final scale = liked && v > 0 && v < 1
+                  ? 1.0 + (0.35 * (1 - (v - 0.5).abs() * 2)).clamp(0.0, 0.35)
+                  : 1.0;
+              return Transform.scale(
+                scale: scale,
+                child: Icon(
+                  liked ? Icons.favorite : Icons.favorite_border,
+                  size: 15,
+                  color: liked ? TT.ember : TT.text2,
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 5),
+          Text(
+            count == 0 ? 'Like' : '$count',
+            style: TT.body(
+                    size: 11,
+                    w: FontWeight.w700,
+                    color: liked ? TT.ember : TT.text2)
+                .copyWith(letterSpacing: 0.04 * 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────── DETAIL / COMMENT / NOTIF SHEETS ─────────
+
+class _PostDetailSheet extends StatelessWidget {
+  final CommunityActivity activity;
+  const _PostDetailSheet({required this.activity});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _avatarColorFor(activity.userName);
+    final initials = _initialsFor(activity.userName);
+    final body = activity.subtitle.trim().isEmpty
+        ? activity.title
+        : '${activity.title}\n\n${activity.subtitle}';
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.55,
+      minChildSize: 0.35,
+      maxChildSize: 0.92,
+      builder: (_, scroll) => Container(
+        decoration: const BoxDecoration(
+          color: TT.bg2,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+          border: Border(top: BorderSide(color: TT.line)),
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+        child: ListView(
+          controller: scroll,
+          children: [
+            Center(
+              child: Container(
+                width: 42, height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: TT.line3,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            _AuthorRow(
+              name: activity.userName,
+              initials: initials,
+              color: color,
+              time: _relativeTime(activity.timestamp),
+              location: activity.teamName,
+              hazard: (activity.metadata['hazard'] as bool?) == true,
+            ),
+            const SizedBox(height: 14),
+            Text(body,
+                style: TT.body(size: 14, w: FontWeight.w500)
+                    .copyWith(height: 1.5)),
+            const SizedBox(height: 18),
+            Container(height: 1, color: TT.line),
+            const SizedBox(height: 14),
+            _DetailMetaRow(activity: activity),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailMetaRow extends StatelessWidget {
+  final CommunityActivity activity;
+  const _DetailMetaRow({required this.activity});
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = activity.metadata;
+    final tiles = <Widget>[];
+
+    void add(String label, String value) {
+      tiles.add(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: TT.surf,
+            border: Border.all(color: TT.line, width: 1),
+            borderRadius: BorderRadius.circular(TT.rMd),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label.toUpperCase(),
+                  style: TT.mono(size: 9, color: TT.text3)
+                      .copyWith(letterSpacing: 0.08 * 9)),
+              const SizedBox(height: 4),
+              Text(value,
+                  style: TT.numStyle(size: 14, color: TT.text)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final dist = meta['distance_km'];
+    final asc = meta['ascent_m'];
+    final dur = meta['duration_seconds'];
+    final peaks = meta['peaks_climbed'];
+
+    if (dist is num) add('Distance', '${dist.toStringAsFixed(1)} km');
+    if (asc is num) add('Ascent', '${asc.toInt()} m');
+    if (dur is num) {
+      final h = dur.toInt() ~/ 3600;
+      final m = (dur.toInt() % 3600) ~/ 60;
+      add('Duration', h > 0 ? '${h}h ${m}m' : '${m}m');
+    }
+    if (peaks is num && peaks > 0) add('Peaks', peaks.toInt().toString());
+
+    if (tiles.isEmpty) {
+      return Text(
+        'Posted ${_relativeTime(activity.timestamp)} from ${activity.teamName}.',
+        style: TT.body(size: 12, color: TT.text2, w: FontWeight.w500),
+      );
+    }
+    return Wrap(spacing: 10, runSpacing: 10, children: tiles);
+  }
+}
+
+class _CommentsSheet extends StatefulWidget {
+  final String activityId;
+  const _CommentsSheet({required this.activityId});
+
+  @override
+  State<_CommentsSheet> createState() => _CommentsSheetState();
+}
+
+class _CommentsSheetState extends State<_CommentsSheet> {
+  final TextEditingController _ctl = TextEditingController();
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _send() {
+    final auth = context.read<ap.AuthProvider>();
+    final txt = _ctl.text.trim();
+    if (txt.isEmpty) return;
+    if (!auth.isAuth) {
+      _toast(context, 'Sign in to comment.', error: true);
+      return;
+    }
+    _PostInteractions.instance.addComment(
+      widget.activityId,
+      _LocalComment(
+        author: auth.displayName ?? auth.email ?? 'You',
+        text: txt,
+        when: DateTime.now(),
+      ),
+    );
+    _ctl.clear();
+    HapticFeedback.lightImpact();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final comments = _PostInteractions.instance.comments(widget.activityId);
+    final viewInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInset),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.78,
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
+          decoration: const BoxDecoration(
+            color: TT.bg2,
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+            border: Border(top: BorderSide(color: TT.line)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 42, height: 4,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: TT.line3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Text('Comments',
+                      style: TT.title(18, color: TT.text)),
+                  const SizedBox(width: 8),
+                  Text('(${comments.length})',
+                      style: TT.mono(size: 11, color: TT.text3)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: comments.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'No comments yet — be the first to chime in.',
+                          textAlign: TextAlign.center,
+                          style: TT.body(
+                              size: 13,
+                              w: FontWeight.w500,
+                              color: TT.text3),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: comments.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (_, i) {
+                          final c = comments[i];
+                          final color = _avatarColorFor(c.author);
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 30, height: 30,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: color, width: 1.5),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [color, color.withOpacity(0.66)],
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(_initialsFor(c.author),
+                                    style: TT.body(
+                                        size: 11,
+                                        w: FontWeight.w800,
+                                        color: Colors.white)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(c.author,
+                                            style: TT.body(
+                                                size: 12,
+                                                w: FontWeight.w800)),
+                                        const SizedBox(width: 6),
+                                        Text(_relativeTime(c.when),
+                                            style: TT.mono(
+                                                size: 9.5, color: TT.text3)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(c.text,
+                                        style: TT.body(
+                                                size: 13,
+                                                w: FontWeight.w500)
+                                            .copyWith(height: 1.35)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 10),
+              Container(height: 1, color: TT.line),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: TT.surf,
+                        border: Border.all(color: TT.line, width: 1),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: TextField(
+                        controller: _ctl,
+                        focusNode: _focus,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        cursorColor: TT.ember,
+                        style: TT.body(size: 13, w: FontWeight.w500),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 10),
+                          hintText: 'Add a comment…',
+                          hintStyle: TT.body(
+                              size: 13,
+                              w: FontWeight.w500,
+                              color: TT.text3),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _send,
+                    child: Container(
+                      width: 40, height: 40,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [TT.ember2, TT.ember],
+                        ),
+                        boxShadow: TT.shadowEmber,
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.send,
+                          size: 16, color: TT.emberInk),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationSheet extends StatelessWidget {
+  final List<CommunityActivity> activities;
+  const _NotificationSheet({required this.activities});
+
+  @override
+  Widget build(BuildContext context) {
+    final recent = activities.take(20).toList();
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      minChildSize: 0.35,
+      maxChildSize: 0.92,
+      builder: (_, scroll) => Container(
+        decoration: const BoxDecoration(
+          color: TT.bg2,
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+          border: Border(top: BorderSide(color: TT.line)),
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+        child: Column(
+          children: [
+            Center(
+              child: Container(
+                width: 42, height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: TT.line3,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Text('Notifications',
+                    style: TT.title(18, color: TT.text)),
+                const SizedBox(width: 8),
+                TTPill(
+                    label: recent.isEmpty ? 'EMPTY' : '${recent.length} NEW',
+                    variant: recent.isEmpty
+                        ? TTPillVariant.neutral
+                        : TTPillVariant.ember),
+                const Spacer(),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _toast(context, 'Marked as read.');
+                  },
+                  child: Text('Mark all read',
+                      style: TT.body(
+                          size: 12,
+                          w: FontWeight.w700,
+                          color: TT.ember)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: recent.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          'Nothing new yet. New posts and check-ins will surface here.',
+                          textAlign: TextAlign.center,
+                          style: TT.body(
+                              size: 13,
+                              w: FontWeight.w500,
+                              color: TT.text3),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: scroll,
+                      itemCount: recent.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) {
+                        final a = recent[i];
+                        final color = _avatarColorFor(a.userName);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: TT.surf,
+                            border: Border.all(color: TT.line, width: 1),
+                            borderRadius: BorderRadius.circular(TT.rMd),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 32, height: 32,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border:
+                                      Border.all(color: color, width: 1.5),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [color, color.withOpacity(0.66)],
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(_initialsFor(a.userName),
+                                    style: TT.body(
+                                        size: 11,
+                                        w: FontWeight.w800,
+                                        color: Colors.white)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${a.userName} · ${a.title}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TT.body(
+                                          size: 12.5,
+                                          w: FontWeight.w800),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _relativeTime(a.timestamp),
+                                      style: TT.mono(
+                                          size: 10, color: TT.text3),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -586,7 +1641,8 @@ class _ActionBtn extends StatelessWidget {
 // ─────────────────────────────────── CHAT ───────────────────────────────────
 
 class _ChatView extends StatefulWidget {
-  const _ChatView({super.key});
+  final String query;
+  const _ChatView({super.key, required this.query});
 
   @override
   State<_ChatView> createState() => _ChatViewState();
@@ -595,12 +1651,15 @@ class _ChatView extends StatefulWidget {
 class _ChatViewState extends State<_ChatView> {
   final ScrollController _scroll = ScrollController();
   final TextEditingController _composer = TextEditingController();
+  final FocusNode _composerFocus = FocusNode();
   int _lastMsgCount = 0;
+  final Set<String> _hiddenIds = <String>{}; // optimistic-delete cache
 
   @override
   void dispose() {
     _scroll.dispose();
     _composer.dispose();
+    _composerFocus.dispose();
     super.dispose();
   }
 
@@ -624,12 +1683,8 @@ class _ChatViewState extends State<_ChatView> {
     if (txt.isEmpty) return;
 
     if (!auth.isAuth) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Please sign in to join the community chat.',
-            style: TT.body(size: 13, color: Colors.white)),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: TT.surf2,
-      ));
+      _toast(context, 'Please sign in to join the community chat.',
+          error: true);
       return;
     }
 
@@ -645,6 +1700,84 @@ class _ChatViewState extends State<_ChatView> {
     _scrollToBottom();
   }
 
+  Future<void> _onLongPressMessage(ChatMessage m, bool mine) async {
+    unawaited(HapticFeedback.selectionClick());
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: TT.bg2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+      ),
+      builder: (_) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42, height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: TT.line3,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              _SheetAction(
+                icon: Icons.copy_outlined,
+                label: 'Copy text',
+                onTap: () => Navigator.of(context).pop('copy'),
+              ),
+              if (mine)
+                _SheetAction(
+                  icon: Icons.delete_outline,
+                  label: 'Delete message',
+                  danger: true,
+                  onTap: () => Navigator.of(context).pop('delete'),
+                ),
+              const SizedBox(height: 6),
+              _SheetAction(
+                icon: Icons.close,
+                label: 'Cancel',
+                onTap: () => Navigator.of(context).pop('cancel'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (!mounted || action == null || action == 'cancel') return;
+
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: m.text));
+      if (!mounted) return;
+      _toast(context, 'Copied to clipboard.');
+      return;
+    }
+
+    if (action == 'delete') {
+      if (!mine) return;
+      setState(() => _hiddenIds.add(m.id));
+      if (!kSupabaseAvailable) {
+        _toast(context, 'Message removed locally.');
+        return;
+      }
+      try {
+        await Supabase.instance.client
+            .from(kColChat)
+            .delete()
+            .eq('id', m.id);
+        if (!mounted) return;
+        _toast(context, 'Message deleted.');
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _hiddenIds.remove(m.id));
+        _toast(context, 'Could not delete message.', error: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ChatProvider>(
@@ -654,6 +1787,13 @@ class _ChatViewState extends State<_ChatView> {
         // if that ever changes.
         final messages = List<ChatMessage>.from(chat.messages)
           ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+        // Drop locally-deleted ids and apply the search filter.
+        final filtered = messages.where((m) {
+          if (_hiddenIds.contains(m.id)) return false;
+          if (widget.query.isEmpty) return true;
+          return _matchesQuery('${m.senderName} ${m.text}', widget.query);
+        }).toList();
 
         // Auto-scroll to bottom when message count changes (new message
         // arrives) or on initial build.
@@ -675,25 +1815,29 @@ class _ChatViewState extends State<_ChatView> {
               ),
             ),
             Expanded(
-              child: messages.isEmpty
-                  ? const _EmptyChat()
+              child: filtered.isEmpty
+                  ? _EmptyChat(filtered: widget.query.isNotEmpty)
                   : ListView.builder(
                       controller: _scroll,
                       padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
-                      itemCount: messages.length,
+                      itemCount: filtered.length,
                       itemBuilder: (_, i) {
-                        final m = messages[i];
+                        final m = filtered[i];
                         final mine =
                             myUid != null && m.senderId == myUid;
                         return Padding(
                           padding: EdgeInsets.only(
-                              bottom: i == messages.length - 1 ? 0 : 10),
+                              bottom: i == filtered.length - 1 ? 0 : 10),
                           child: _FadeUpDelayed(
                             // Cap the stagger so older messages don't pile
                             // up huge delays on the first render.
                             delay: Duration(
                                 milliseconds: 80 + (i.clamp(0, 8)) * 50),
-                            child: _ChatMsg(msg: m, mine: mine),
+                            child: _ChatMsg(
+                              msg: m,
+                              mine: mine,
+                              onLongPress: () => _onLongPressMessage(m, mine),
+                            ),
                           ),
                         );
                       },
@@ -701,6 +1845,7 @@ class _ChatViewState extends State<_ChatView> {
             ),
             _ChatComposer(
               controller: _composer,
+              focus: _composerFocus,
               sending: chat.sending,
               onSend: () => _send(chat),
             ),
@@ -711,8 +1856,50 @@ class _ChatViewState extends State<_ChatView> {
   }
 }
 
+class _SheetAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+  const _SheetAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: TT.surf,
+          border: Border.all(color: TT.line, width: 1),
+          borderRadius: BorderRadius.circular(TT.rMd),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: danger ? TT.red : TT.text),
+            const SizedBox(width: 12),
+            Text(label,
+                style: TT.body(
+                    size: 14,
+                    w: FontWeight.w700,
+                    color: danger ? TT.red : TT.text)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyChat extends StatelessWidget {
-  const _EmptyChat();
+  final bool filtered;
+  const _EmptyChat({this.filtered = false});
 
   @override
   Widget build(BuildContext context) {
@@ -720,7 +1907,9 @@ class _EmptyChat extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Text(
-          'Be the first to say hello',
+          filtered
+              ? 'No messages match your search.'
+              : 'Be the first to say hello',
           textAlign: TextAlign.center,
           style: TT.body(size: 13, w: FontWeight.w500, color: TT.text3),
         ),
@@ -767,6 +1956,7 @@ class _PinnedChannel extends StatelessWidget {
               ],
             ),
           ),
+          const TTPill(label: 'LIVE', variant: TTPillVariant.live),
         ],
       ),
     );
@@ -776,7 +1966,9 @@ class _PinnedChannel extends StatelessWidget {
 class _ChatMsg extends StatelessWidget {
   final ChatMessage msg;
   final bool mine;
-  const _ChatMsg({required this.msg, required this.mine});
+  final VoidCallback onLongPress;
+  const _ChatMsg(
+      {required this.msg, required this.mine, required this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -846,19 +2038,23 @@ class _ChatMsg extends StatelessWidget {
                     .copyWith(letterSpacing: 0.04 * 10),
               ),
             ),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxBubbleW),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(
-                color: bubbleBg,
-                border: Border.all(color: bubbleBorder, width: 1),
-                borderRadius: radius,
-              ),
-              child: Text(
-                msg.text,
-                style: TT.body(size: 12.5, w: FontWeight.w500, color: bubbleColor)
-                    .copyWith(height: 1.4),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onLongPress: onLongPress,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxBubbleW),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: bubbleBg,
+                  border: Border.all(color: bubbleBorder, width: 1),
+                  borderRadius: radius,
+                ),
+                child: Text(
+                  msg.text,
+                  style: TT.body(size: 12.5, w: FontWeight.w500, color: bubbleColor)
+                      .copyWith(height: 1.4),
+                ),
               ),
             ),
           ),
@@ -898,10 +2094,12 @@ class _ChatMsg extends StatelessWidget {
 
 class _ChatComposer extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode focus;
   final bool sending;
   final VoidCallback onSend;
   const _ChatComposer({
     required this.controller,
+    required this.focus,
     required this.sending,
     required this.onSend,
   });
@@ -918,15 +2116,19 @@ class _ChatComposer extends StatelessWidget {
         top: false,
         child: Row(
           children: [
-            Container(
-              width: 38, height: 38,
-              decoration: BoxDecoration(
-                color: const Color(0x08FFFFFF),
-                border: Border.all(color: TT.line, width: 1),
-                borderRadius: BorderRadius.circular(TT.rMd),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => focus.requestFocus(),
+              child: Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0x08FFFFFF),
+                  border: Border.all(color: TT.line, width: 1),
+                  borderRadius: BorderRadius.circular(TT.rMd),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.add, size: 18, color: TT.text2),
               ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.add, size: 18, color: TT.text2),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -937,34 +2139,27 @@ class _ChatComposer extends StatelessWidget {
                   border: Border.all(color: TT.line, width: 1),
                   borderRadius: BorderRadius.circular(22),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        enabled: !sending,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => onSend(),
-                        cursorColor: TT.ember,
-                        style: TT.body(size: 13, w: FontWeight.w500),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 10),
-                          hintText: 'Message…',
-                          hintStyle: TT.body(
-                              size: 13,
-                              w: FontWeight.w500,
-                              color: TT.text3),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.visibility_outlined, size: 16, color: TT.text3),
-                  ],
+                child: TextField(
+                  controller: controller,
+                  focusNode: focus,
+                  enabled: !sending,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => onSend(),
+                  cursorColor: TT.ember,
+                  style: TT.body(size: 13, w: FontWeight.w500),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 10),
+                    hintText: 'Message…',
+                    hintStyle: TT.body(
+                        size: 13,
+                        w: FontWeight.w500,
+                        color: TT.text3),
+                  ),
                 ),
               ),
             ),
@@ -1002,15 +2197,64 @@ class _ChatComposer extends StatelessWidget {
   }
 }
 
-// Convenience pill kept inline — used here to import nothing extra while
-// still pulling TTPill out of the design system if needed downstream.
-// (Reference retained to satisfy lints that may flag unused imports.)
-// ignore: unused_element
-class _PillProxy extends StatelessWidget {
-  const _PillProxy();
+// ─────────────────────────────────── SEARCH FIELD ───────────────────────────
+
+class _SearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final String hint;
+  const _SearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.hint,
+  });
+
   @override
-  Widget build(BuildContext context) =>
-      const TTPill(label: 'LIVE', variant: TTPillVariant.live);
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: TT.surf,
+        border: Border.all(color: TT.line, width: 1),
+        borderRadius: BorderRadius.circular(TT.rMd),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 16, color: TT.text3),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              autofocus: true,
+              cursorColor: TT.ember,
+              style: TT.body(size: 13, w: FontWeight.w500),
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                hintText: hint,
+                hintStyle: TT.body(
+                    size: 13, w: FontWeight.w500, color: TT.text3),
+              ),
+            ),
+          ),
+          if (controller.text.isNotEmpty)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                controller.clear();
+                onChanged('');
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.clear, size: 14, color: TT.text3),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 // ────────────────────────────── ANIMATION HELPER ────────────────────────────

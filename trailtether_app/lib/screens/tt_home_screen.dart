@@ -6,11 +6,10 @@
 // strip), last-hike card backed by TTBigElevChart, and a field-intel strip.
 // All sections enter via staggered fade-up animations.
 //
-// Visuals are unchanged from the design mock — every value that used to be a
-// hardcoded placeholder ("John D.", "Mt. Marcy Summit", static weather, etc.)
-// is now sourced from the live providers (`AuthProvider`, `HikeHistoryProvider`,
-// `WeatherProvider`, `TeamProvider`, `SafetyProvider`, `RecordingProvider`)
-// with intentional fallback copy when no data is present.
+// Every value is sourced from the live providers (`AuthProvider`,
+// `HikeHistoryProvider`, `WeatherProvider`, `TeamProvider`, `SafetyProvider`,
+// `RecordingProvider`) with intentional fallback copy when no data is present.
+// Every interactive surface routes to a real screen — no empty onTap handlers.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -38,6 +37,10 @@ import '../widgets/design/tt_elev_chart.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
 import '../widgets/design/tt_topo.dart';
+import 'create_hike_plan_screen.dart';
+import 'hike_history_screen.dart' show HikeDetailScreen;
+import 'hike_plan_detail_screen.dart';
+import 'incident_detail_sheet.dart';
 import 'sos_screen.dart';
 
 class TTHomeScreen extends StatefulWidget {
@@ -105,6 +108,7 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onNavigate = widget.onNavigate;
     final body = Stack(
       children: [
         const Positioned.fill(child: TTAmbient()),
@@ -115,16 +119,16 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
           child: ListView(
             padding: const EdgeInsets.only(bottom: 28),
             children: [
-              const _HomeHero(),
+              _HomeHero(onNavigate: onNavigate),
               const SizedBox(height: 4),
-              _HomeQuickActions(onNavigate: widget.onNavigate),
+              _HomeQuickActions(onNavigate: onNavigate),
               _UpcomingHikeCard(
                 plansFuture: _plansFuture,
-                onNavigateToMap: () => widget.onNavigate?.call(1),
+                onNavigateToTeams: () => onNavigate?.call(4),
               ),
               const _WeatherCard(),
-              _LastHikeCard(onNavigateToMap: () => widget.onNavigate?.call(1)),
-              const _FieldIntelStrip(),
+              _LastHikeCard(onNavigateToMap: () => onNavigate?.call(1)),
+              _FieldIntelStrip(onNavigate: onNavigate),
             ],
           ),
         ),
@@ -139,7 +143,8 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
 // ─────────────────────────────────── HERO ───────────────────────────────────
 
 class _HomeHero extends StatefulWidget {
-  const _HomeHero();
+  final ValueChanged<int>? onNavigate;
+  const _HomeHero({this.onNavigate});
 
   @override
   State<_HomeHero> createState() => _HomeHeroState();
@@ -215,7 +220,11 @@ class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixi
             top: 14,
             left: 18,
             right: 18,
-            child: _HeroBrandRow(entry: _entryCtl, auth: auth),
+            child: _HeroBrandRow(
+              entry: _entryCtl,
+              auth: auth,
+              onAvatarTap: () => widget.onNavigate?.call(5),
+            ),
           ),
           // Greeting overlay
           Positioned(
@@ -305,12 +314,18 @@ String _avatarInitials(ap.AuthProvider auth) {
 class _HeroBrandRow extends StatelessWidget {
   final AnimationController entry;
   final ap.AuthProvider auth;
-  const _HeroBrandRow({required this.entry, required this.auth});
+  final VoidCallback onAvatarTap;
+  const _HeroBrandRow({
+    required this.entry,
+    required this.auth,
+    required this.onAvatarTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final photo = auth.photoUrl;
     final hasPhoto = photo != null && photo.isNotEmpty;
+    final initials = _avatarInitials(auth);
     return AnimatedBuilder(
       animation: entry,
       builder: (_, child) {
@@ -320,55 +335,59 @@ class _HeroBrandRow extends StatelessWidget {
       child: Row(
         children: [
           const Expanded(child: TTBrandMark()),
-          TTIconBtn(icon: Icons.notifications_outlined, onTap: () {}),
-          const SizedBox(width: 8),
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: TT.ember, width: 2),
-              gradient: hasPhoto
-                  ? null
-                  : const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF6B3A1A), TT.ember2],
-                    ),
-              boxShadow: const [
-                BoxShadow(color: Color(0x73FF6A2C), blurRadius: 14),
-              ],
-            ),
-            alignment: Alignment.center,
-            clipBehavior: hasPhoto ? Clip.antiAlias : Clip.none,
-            child: hasPhoto
-                ? Image.network(
-                    photo,
-                    width: 38,
-                    height: 38,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF6B3A1A), TT.ember2],
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onAvatarTap,
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: TT.ember, width: 2),
+                gradient: hasPhoto
+                    ? null
+                    : const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF6B3A1A), TT.ember2],
+                      ),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x73FF6A2C), blurRadius: 14),
+                ],
+              ),
+              alignment: Alignment.center,
+              clipBehavior: hasPhoto ? Clip.antiAlias : Clip.none,
+              child: hasPhoto
+                  ? Image.network(
+                      photo,
+                      width: 38,
+                      height: 38,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF6B3A1A), TT.ember2],
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          initials,
+                          style: TT.body(
+                              size: 13,
+                              w: FontWeight.w800,
+                              color: Colors.white),
                         ),
                       ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        _avatarInitials(auth),
-                        style: TT.body(
-                            size: 13, w: FontWeight.w800, color: Colors.white),
-                      ),
+                    )
+                  : Text(
+                      initials,
+                      style: TT.body(
+                          size: 13, w: FontWeight.w800, color: Colors.white),
                     ),
-                  )
-                : Text(
-                    _avatarInitials(auth),
-                    style: TT.body(
-                        size: 13, w: FontWeight.w800, color: Colors.white),
-                  ),
+            ),
           ),
         ],
       ),
@@ -394,19 +413,26 @@ class _HomeQuickActions extends StatelessWidget {
         label: isRecording ? 'Recording' : 'Start Hike',
         color: TT.ember,
         primary: true,
+        // Map tab hosts the live recording controls (start/pause/stop, GPS
+        // status, target-trail overlay). Routes the user there in either
+        // direction — fresh start or resume of an in-progress recording.
         onTap: () => onNavigate?.call(1),
       ),
       _QuickAction(
         icon: Icons.alt_route_rounded,
         label: 'Plan Route',
         color: TT.text2,
+        // Map tab is also where trails are browsed and routes drafted before
+        // saving to a team plan.
         onTap: () => onNavigate?.call(1),
       ),
       _QuickAction(
         icon: Icons.visibility_outlined,
         label: 'Live Track',
         color: TT.blue,
-        onTap: () => onNavigate?.call(2),
+        // Live tracking surfaces team members on the map — Teams tab (4)
+        // holds the live tracking experience, not Tools.
+        onTap: () => onNavigate?.call(4),
       ),
       _QuickAction(
         icon: Icons.radio_button_checked,
@@ -536,10 +562,12 @@ class _QuickActionTileState extends State<_QuickActionTile> {
 
 class _UpcomingHikeCard extends StatefulWidget {
   final Future<List<HikePlan>> plansFuture;
-  final VoidCallback onNavigateToMap;
+  // Fallback when there's no selected team and no plans yet — sends the user
+  // to the Teams tab where they can create or join a team.
+  final VoidCallback onNavigateToTeams;
   const _UpcomingHikeCard({
     required this.plansFuture,
-    required this.onNavigateToMap,
+    required this.onNavigateToTeams,
   });
 
   @override
@@ -563,6 +591,50 @@ class _UpcomingHikeCardState extends State<_UpcomingHikeCard>
   void dispose() {
     _ctl.dispose();
     super.dispose();
+  }
+
+  /// Push the plan detail screen using the team that owns this plan. The
+  /// plan-list future doesn't return Team objects, so we look up the parent
+  /// team in TeamProvider by id (it's already in memory for the home screen).
+  void _openPlan(HikePlan plan) {
+    final teams = context.read<TeamProvider>().teams;
+    final team = teams.firstWhere(
+      (t) => t.id == plan.teamId,
+      orElse: () => teams.isNotEmpty
+          ? teams.first
+          : Team(
+              id: plan.teamId,
+              name: 'Team',
+              description: '',
+              createdBy: plan.createdBy,
+              members: const [],
+              memberUids: const [],
+              createdAt: DateTime.now(),
+            ),
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HikePlanDetailScreen(plan: plan, team: team),
+      ),
+    );
+  }
+
+  /// Open the plan-creation flow for the user's currently selected team. If
+  /// they aren't in a team yet, send them to the Teams tab to create or join
+  /// one — CreateHikePlanScreen requires a Team object to anchor the plan.
+  void _openCreatePlan() {
+    final teamProvider = context.read<TeamProvider>();
+    final team = teamProvider.selectedTeam ??
+        (teamProvider.teams.isNotEmpty ? teamProvider.teams.first : null);
+    if (team == null) {
+      widget.onNavigateToTeams();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CreateHikePlanScreen(team: team),
+      ),
+    );
   }
 
   @override
@@ -593,9 +665,9 @@ class _UpcomingHikeCardState extends State<_UpcomingHikeCard>
             final plan = next.isNotEmpty ? next.first : null;
             return TTCard(
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-              onTap: widget.onNavigateToMap,
+              onTap: plan == null ? _openCreatePlan : () => _openPlan(plan),
               child: plan == null
-                  ? _UpcomingEmptyContent(onTap: widget.onNavigateToMap)
+                  ? _UpcomingEmptyContent(onTap: _openCreatePlan)
                   : _UpcomingPlanContent(plan: plan),
             );
           },
@@ -660,27 +732,35 @@ class _UpcomingEmptyContent extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: TT.emberDim,
-                    border: Border.all(color: const Color(0x52FF6A2C), width: 1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.add_rounded,
-                          size: 13, color: TT.ember),
-                      const SizedBox(width: 5),
-                      Text(
-                        'PLAN HIKE',
-                        style: TT
-                            .mono(size: 10.5, color: TT.ember, w: FontWeight.w800)
-                            .copyWith(letterSpacing: 0.12 * 10.5),
-                      ),
-                    ],
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: TT.emberDim,
+                      border:
+                          Border.all(color: const Color(0x52FF6A2C), width: 1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.add_rounded,
+                            size: 13, color: TT.ember),
+                        const SizedBox(width: 5),
+                        Text(
+                          'PLAN HIKE',
+                          style: TT
+                              .mono(
+                                  size: 10.5,
+                                  color: TT.ember,
+                                  w: FontWeight.w800)
+                              .copyWith(letterSpacing: 0.12 * 10.5),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const Icon(Icons.chevron_right, size: 16, color: TT.text3),
@@ -992,6 +1072,15 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
         ? (wp.locations.first['name'] as String? ?? 'DRAKENSBERG')
         : 'DRAKENSBERG';
 
+    // Tap-to-refresh handler. Skipped while a fetch is already in flight so we
+    // don't queue overlapping network calls; otherwise re-runs the multi-source
+    // aggregator for the first stored location.
+    final canRefresh = !wp.loading && wp.locations.isNotEmpty;
+    void refresh() {
+      if (!canRefresh) return;
+      unawaited(wp.fetchWeatherForLocation(0));
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
       child: AnimatedBuilder(
@@ -1006,63 +1095,62 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
             ),
           );
         },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: weather == null && !wp.loading
-              ? () => unawaited(wp.fetchWeatherForLocation(0))
-              : null,
-          child: TTCard(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: RichText(
-                        text: TextSpan(
-                          style: TT.body(
-                                  size: 11, w: FontWeight.w700, color: TT.text2)
-                              .copyWith(letterSpacing: 0.16 * 11),
-                          children: [
-                            const TextSpan(text: 'CONDITIONS · '),
-                            TextSpan(
-                              text: locationName.toUpperCase(),
-                              style: const TextStyle(color: TT.text3),
-                            ),
-                          ],
-                        ),
+        child: TTCard(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          onTap: canRefresh ? refresh : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: TT.body(
+                                size: 11, w: FontWeight.w700, color: TT.text2)
+                            .copyWith(letterSpacing: 0.16 * 11),
+                        children: [
+                          const TextSpan(text: 'CONDITIONS · '),
+                          TextSpan(
+                            text: locationName.toUpperCase(),
+                            style: const TextStyle(color: TT.text3),
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      wp.loading ? 'LOADING…' : '7 DAYS →',
+                  ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: canRefresh ? refresh : null,
+                    child: Text(
+                      wp.loading ? 'LOADING…' : 'REFRESH →',
                       style: TT
                           .mono(size: 10, color: TT.ember, w: FontWeight.w800)
                           .copyWith(letterSpacing: 0.1 * 10),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (weather == null)
-                  _WeatherSkeleton(loading: wp.loading, error: wp.error)
-                else
-                  _WeatherBody(
-                    weather: weather,
-                    sunCtl: _sunCtl,
-                    rayCtl: _rayCtl,
-                    cloudCtl: _cloudCtl,
                   ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.only(top: 10),
-                  decoration: const BoxDecoration(
-                    border: Border(top: BorderSide(color: TT.line, width: 1)),
-                  ),
-                  child: _HourStrip(weather: weather),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (weather == null)
+                _WeatherSkeleton(loading: wp.loading, error: wp.error)
+              else
+                _WeatherBody(
+                  weather: weather,
+                  sunCtl: _sunCtl,
+                  rayCtl: _rayCtl,
+                  cloudCtl: _cloudCtl,
                 ),
-              ],
-            ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.only(top: 10),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: TT.line, width: 1)),
+                ),
+                child: _HourStrip(weather: weather),
+              ),
+            ],
           ),
         ),
       ),
@@ -1513,6 +1601,26 @@ class _LastHikeCardState extends State<_LastHikeCard> with SingleTickerProviderS
     super.dispose();
   }
 
+  void _openHike(SavedHike hike) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HikeDetailScreen(hike: hike),
+      ),
+    );
+  }
+
+  /// Open the most recent hike's detail screen — or, if there is no recorded
+  /// hike yet, send the user to the Map tab where they can start one. This
+  /// keeps the "VIEW ALL →" affordance always actionable.
+  void _onViewAll() {
+    final hikes = context.read<HikeHistoryProvider>().hikes;
+    if (hikes.isNotEmpty) {
+      _openHike(hikes.first);
+    } else {
+      widget.onNavigateToMap();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final history = context.watch<HikeHistoryProvider>();
@@ -1534,10 +1642,15 @@ class _LastHikeCardState extends State<_LastHikeCard> with SingleTickerProviderS
                   style: TT.body(size: 11, w: FontWeight.w700, color: TT.text2)
                       .copyWith(letterSpacing: 0.16 * 11),
                 ),
-                Text(
-                  'VIEW ALL →',
-                  style: TT.body(size: 10, w: FontWeight.w800, color: TT.ember)
-                      .copyWith(letterSpacing: 0.1 * 10),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _onViewAll,
+                  child: Text(
+                    'VIEW ALL →',
+                    style: TT
+                        .body(size: 10, w: FontWeight.w800, color: TT.ember)
+                        .copyWith(letterSpacing: 0.1 * 10),
+                  ),
                 ),
               ],
             ),
@@ -1556,7 +1669,9 @@ class _LastHikeCardState extends State<_LastHikeCard> with SingleTickerProviderS
             },
             child: TTCard(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              onTap: latest != null ? () {} : widget.onNavigateToMap,
+              onTap: latest != null
+                  ? () => _openHike(latest)
+                  : widget.onNavigateToMap,
               child: latest == null
                   ? _LastHikeEmpty(onTap: widget.onNavigateToMap)
                   : _LastHikeContent(hike: latest),
@@ -1754,8 +1869,15 @@ class _StatChip extends StatelessWidget {
 
 // ───────────────────────────── FIELD INTEL STRIP ────────────────────────────
 
+/// Semantic destinations for a field-intel row. Each row carries the tab to
+/// navigate to (Map for off-trail, Teams for team intel) or an Incident to
+/// open in the bottom-sheet detail. Static-fallback rows route to whichever
+/// tab best matches their copy (storms → Map, join-team → Teams).
+enum _IntelDest { map, teams, incident }
+
 class _FieldIntelStrip extends StatelessWidget {
-  const _FieldIntelStrip();
+  final ValueChanged<int>? onNavigate;
+  const _FieldIntelStrip({this.onNavigate});
 
   @override
   Widget build(BuildContext context) {
@@ -1785,11 +1907,36 @@ class _FieldIntelStrip extends StatelessWidget {
             base: const Duration(milliseconds: 1050),
             step: const Duration(milliseconds: 80),
             gap: 8,
-            children: rows.map((e) => _IntelRow(entry: e)).toList(),
+            children: rows
+                .map((e) => _IntelRow(
+                      entry: e,
+                      onTap: () => _handleTap(context, e),
+                    ))
+                .toList(),
           ),
         ],
       ),
     );
+  }
+
+  void _handleTap(BuildContext context, _IntelEntry entry) {
+    switch (entry.dest) {
+      case _IntelDest.incident:
+        final incident = entry.incident;
+        if (incident != null) {
+          IncidentDetailSheet.show(context, incident);
+        } else {
+          // Defensive fallback so a missing incident never produces a dead tap.
+          onNavigate?.call(1);
+        }
+        break;
+      case _IntelDest.teams:
+        onNavigate?.call(4);
+        break;
+      case _IntelDest.map:
+        onNavigate?.call(1);
+        break;
+    }
   }
 
   List<_IntelEntry> _buildRows(SafetyProvider safety, TeamProvider teams,
@@ -1797,7 +1944,8 @@ class _FieldIntelStrip extends StatelessWidget {
     final rows = <_IntelEntry>[];
 
     // 1) If recording is active and the user has drifted off-trail, surface
-    //    that first — most important live signal.
+    //    that first — most important live signal. Routes to the Map tab so
+    //    the user can see the "head back" arrow on the live tracking view.
     if (recording.isOffTrail) {
       final dist = recording.offTrailDist.round();
       rows.add(_IntelEntry(
@@ -1805,6 +1953,7 @@ class _FieldIntelStrip extends StatelessWidget {
         color: TT.amber,
         title: 'Off trail by ${dist}m',
         sub: 'Head ${recording.returnDirection} to return to route',
+        dest: _IntelDest.map,
       ));
     }
 
@@ -1824,10 +1973,13 @@ class _FieldIntelStrip extends StatelessWidget {
         title: _shortTitle(h),
         sub:
             '${h.trailName ?? "Drakensberg"} · reported ${_ago(h.reportedAt)}',
+        dest: _IntelDest.incident,
+        incident: h,
       ));
     }
 
-    // 3) Team activity — selected team's name + member count.
+    // 3) Team activity — selected team's name + member count. Routes to the
+    //    Teams tab where live tracking + chat live.
     final t = teams.selectedTeam;
     if (t != null) {
       rows.add(_IntelEntry(
@@ -1835,11 +1987,14 @@ class _FieldIntelStrip extends StatelessWidget {
         color: TT.green,
         title: '${t.members.length} hikers in ${t.name}',
         sub: 'TAP TEAMS TAB FOR LIVE TRACKING',
+        dest: _IntelDest.teams,
       ));
     }
 
     // Fall back to curated Drakensberg-focused content when the live signals
-    // aren't ready yet — keeps the strip looking intentional.
+    // aren't ready yet — keeps the strip looking intentional. Each fallback
+    // routes to the tab that matches its copy so taps still produce real
+    // navigation, never a dead end.
     if (rows.isEmpty) {
       return const [
         _IntelEntry(
@@ -1847,18 +2002,21 @@ class _FieldIntelStrip extends StatelessWidget {
           color: TT.amber,
           title: 'Loose rock near Tugela Gorge',
           sub: 'Drakensberg North · advisory standing',
+          dest: _IntelDest.map,
         ),
         _IntelEntry(
           icon: Icons.air,
           color: TT.blue,
           title: 'Afternoon storms possible',
           sub: 'Check weather card before late departures',
+          dest: _IntelDest.map,
         ),
         _IntelEntry(
           icon: Icons.group_outlined,
           color: TT.green,
           title: 'Join a Trailtether team',
           sub: 'Share live location with hiking partners',
+          dest: _IntelDest.teams,
         ),
       ];
     }
@@ -1919,23 +2077,28 @@ class _IntelEntry {
   final Color color;
   final String title;
   final String sub;
+  final _IntelDest dest;
+  final Incident? incident;
   const _IntelEntry({
     required this.icon,
     required this.color,
     required this.title,
     required this.sub,
+    required this.dest,
+    this.incident,
   });
 }
 
 class _IntelRow extends StatelessWidget {
   final _IntelEntry entry;
-  const _IntelRow({required this.entry});
+  final VoidCallback onTap;
+  const _IntelRow({required this.entry, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {},
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(

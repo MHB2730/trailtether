@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 import 'app_shell.dart';
 import 'desktop_shell.dart';
-import '../core/constants.dart';
+import '../core/design_tokens.dart';
 
 import 'onboarding_screen.dart'
     show hasCompletedOnboarding, markOnboardingDone, markPopiaConsented;
@@ -40,8 +40,8 @@ class _AuthGateState extends State<AuthGate> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        backgroundColor: kColorBg,
-        body: Center(child: CircularProgressIndicator(color: kColorOrange)),
+        backgroundColor: TT.bg,
+        body: Center(child: CircularProgressIndicator(color: TT.ember)),
       );
     }
 

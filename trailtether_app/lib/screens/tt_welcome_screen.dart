@@ -91,7 +91,13 @@ class TTWelcomeScreen extends StatefulWidget {
 class _TTWelcomeScreenState extends State<TTWelcomeScreen>
     with TickerProviderStateMixin {
   int _idx = 0;
+  // Transient pause — set true while the user is hovering / pressing the
+  // copy block so the carousel doesn't change scenes under their finger.
   bool _paused = false;
+  // Sticky pause — set true the first time the user taps a dot manually.
+  // The user clearly wants to control the carousel themselves, so we stop
+  // the auto-rotate for the rest of the screen's lifetime.
+  bool _manualControl = false;
   late final AnimationController _enterCtl;
 
   static const Duration _rotateEvery = Duration(milliseconds: 5200);
@@ -108,6 +114,7 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
   void _scheduleNext() {
     Future.delayed(_rotateEvery, () {
       if (!mounted) return;
+      if (_manualControl) return; // permanent stop after manual tap
       if (_paused) {
         _scheduleNext();
         return;
@@ -118,8 +125,11 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
   }
 
   void _select(int i) {
-    if (i == _idx) return;
-    setState(() => _idx = i);
+    if (i == _idx && _manualControl) return;
+    setState(() {
+      _idx = i;
+      _manualControl = true;
+    });
   }
 
   @override

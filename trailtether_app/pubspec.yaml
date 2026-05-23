@@ -1,7 +1,7 @@
 name: trailtether_app
 description: Trailtether - Trail Planner
 publish_to: 'none'
-version: 3.1.1+32
+version: 3.1.2+33
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
