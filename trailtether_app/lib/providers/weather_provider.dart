@@ -44,11 +44,11 @@ class WeatherProvider extends ChangeNotifier {
     // WMO snow codes (per Open-Meteo's reference table).
     bool isSnowCode(int code) =>
         (code >= 71 && code <= 77) || code == 85 || code == 86;
-    if (isSnowCode(w.weatherCode)) return true;
+    if (isSnowCode(w.current.weatherCode)) return true;
     for (final d in w.daily.take(2)) {
       if (isSnowCode(d.weatherCode)) return true;
       // Below-freezing forecast with any precip → treat as snow.
-      if (d.tempMin <= 0 && d.precipitation > 0.2) return true;
+      if (d.tempMin <= 0 && d.precipSum > 0.2) return true;
     }
     return false;
   }

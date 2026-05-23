@@ -117,20 +117,34 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
         // Drakensberg weather (WeatherProvider.isSnowingInDrakensberg).
         // AnimatedSwitcher crossfades the two images over 600 ms so the
         // change is smooth, not a hard cut.
+        // Hero photo — swaps between dark and snowy hero based on
+        // real Drakensberg conditions. Uses Selector (not Consumer)
+        // so we ONLY rebuild when the snow flag flips, not on every
+        // weather notifyListeners() — that previously confused the
+        // image stream and rendered black. AnimatedCrossFade keeps
+        // both images in the tree at all times so the swap is a true
+        // cross-fade with no "decode from scratch" gap.
         Positioned.fill(
-          child: Consumer<WeatherProvider>(
-            builder: (_, weather, __) {
-              final snow = weather.isSnowingInDrakensberg;
-              final asset = snow
-                  ? 'assets/icon/hero_snow.png'
-                  : 'assets/icon/hero_mountain.png';
-              return AnimatedSwitcher(
+          child: Selector<WeatherProvider, bool>(
+            selector: (_, w) => w.isSnowingInDrakensberg,
+            builder: (_, snow, __) {
+              return AnimatedCrossFade(
                 duration: const Duration(milliseconds: 600),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                child: Image.asset(
-                  asset,
-                  key: ValueKey<String>(asset),
+                crossFadeState: snow
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                firstCurve: Curves.easeOut,
+                secondCurve: Curves.easeOut,
+                sizeCurve: Curves.easeOut,
+                firstChild: Image.asset(
+                  'assets/icon/hero_mountain.png',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (_, __, ___) => Container(color: TT.bg),
+                ),
+                secondChild: Image.asset(
+                  'assets/icon/hero_snow.png',
                   fit: BoxFit.cover,
                   alignment: Alignment.center,
                   filterQuality: FilterQuality.medium,
@@ -191,17 +205,18 @@ class _HomeBackgroundScrim extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            // Top 10%: only a faint tint so the peak silhouette reads.
+            // Top 30%: transparent so the hero peak / topo trail show
+            // at full strength behind the brand row + greeting.
+            Color(0x00000000),
+            // Light tint behind the greeting so the white text stays
+            // legible without crushing the ember lines.
             Color(0x4007090C),
-            // Mid-band: slightly heavier so the WELCOME BACK / name overlay
-            // stays high-contrast.
-            Color(0x9907090C),
-            // From ~60% down the page: nearly opaque body colour so the
-            // cards underneath get a calm dark background to land on.
-            Color(0xF207090C),
+            // From ~55% down: ramp up so the cards have a calm dark
+            // surface to land on instead of fighting the photo.
+            Color(0xE807090C),
             TT.bg,
           ],
-          stops: [0.0, 0.45, 0.65, 1.0],
+          stops: [0.0, 0.32, 0.55, 0.85],
         ),
       ),
     );
