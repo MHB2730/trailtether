@@ -1,7 +1,7 @@
 name: trailtether_app
 description: Trailtether - Trail Planner
 publish_to: 'none'
-version: 3.2.1+36
+version: 3.2.2+37
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -95,13 +95,13 @@ dev_dependencies:
 # ── Native splash screen ─────────────────────────────────────────────────
 flutter_native_splash:
   color:               "#0D0D0D"
-  image:               "assets/icon/hero_mountains.jpg"
+  image:               "assets/icon/hero_mountain.png"
   android:             true
   ios:                 false
   web:                 false
   android_12:
     color:             "#0D0D0D"
-    image:             "assets/icon/hero_mountains.jpg"
+    image:             "assets/icon/hero_mountain.png"
   android_gravity:     center
   fullscreen:          true
 

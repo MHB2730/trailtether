@@ -113,7 +113,7 @@ class _AdminTrailsTabState extends State<AdminTrailsTab>
       LoggerService.error('GPX_UPLOAD', 'Upload failed: $e', stack);
       if (mounted) _showErrorDialog('Upload Failed', '$e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -267,7 +267,7 @@ class _AdminTrailsTabState extends State<AdminTrailsTab>
       } catch (e) {
         debugPrint('Error deleting trail: $e');
       } finally {
-        setState(() => _loading = false);
+        if (mounted) setState(() => _loading = false);
       }
     }
   }

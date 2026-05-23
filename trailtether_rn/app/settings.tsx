@@ -16,7 +16,6 @@ import { useRouter } from 'expo-router';
 import { ScreenShell } from '@components/primitives/ScreenShell';
 import { TTAppBar, IconBtn } from '@components/primitives/TTAppBar';
 import { SettingRow, SettingsGroup } from '@components/design/SettingRow';
-import { BlockedSection } from '@components/primitives/BlockedSection';
 import { Icon } from '@components/Icon';
 import { useAuth } from '@/store/auth';
 import { font, fz, ls, radius, sp, tt } from '@theme/tokens';
@@ -42,12 +41,6 @@ export default function SettingsScreen() {
         right={<IconBtn name="search" />}
       />
       <View style={styles.body}>
-        <BlockedSection
-          number={15}
-          title="Toggles aren't persisted yet"
-          note="Settings UI is wired; notification_settings + units write paths land in BLOCKERS.md #15."
-        />
-
         <SettingsGroup title="Tether">
           <SettingRow
             icon="tether"

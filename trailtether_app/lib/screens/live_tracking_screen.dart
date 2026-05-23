@@ -540,7 +540,14 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   Widget build(BuildContext context) {
     final rec = context.watch<RecordingProvider>();
     final units = context.watch<UnitsProvider>();
-    final topPad = MediaQuery.of(context).padding.top;
+    // Floor the inset so floating controls don't crash into the very
+    // top of the screen under immersiveSticky (status bar hidden ⇒
+    // padding.top reads 0). 24 dp keeps them out of the swipe-down
+    // gesture zone.
+    final topPad =
+        MediaQuery.of(context).padding.top > 0
+            ? MediaQuery.of(context).padding.top
+            : 24.0;
     final botPad = MediaQuery.of(context).padding.bottom;
 
     if (rec.points.isNotEmpty && _weather == null && !_loadingWeather) {

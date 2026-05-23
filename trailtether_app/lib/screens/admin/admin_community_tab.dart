@@ -32,12 +32,14 @@ class _AdminCommunityTabState extends State<AdminCommunityTab> {
           .select('*, profiles(username)')
           .order('created_at', ascending: false);
 
+      if (!mounted) return;
       setState(() {
         _reviews = List<Map<String, dynamic>>.from(response);
         _loading = false;
       });
     } catch (e) {
       debugPrint('Error fetching community data: $e');
+      if (!mounted) return;
       setState(() => _loading = false);
     }
   }
@@ -73,7 +75,7 @@ class _AdminCommunityTabState extends State<AdminCommunityTab> {
       } catch (e) {
         debugPrint('Error deleting review: $e');
       } finally {
-        setState(() => _loading = false);
+        if (mounted) setState(() => _loading = false);
       }
     }
   }

@@ -335,7 +335,13 @@ class _MapScreenState extends State<MapScreen> {
     final data = context.watch<StaticDataProvider>();
     final safety = context.watch<SafetyProvider>();
     final appState = context.watch<AppStateProvider>();
-    final topPad = MediaQuery.of(context).padding.top;
+    // Floor to 24 dp so floating controls stay out of the swipe-down
+    // gesture zone under immersiveSticky (padding.top reads 0 when the
+    // status bar is hidden).
+    final topPad =
+        MediaQuery.of(context).padding.top > 0
+            ? MediaQuery.of(context).padding.top
+            : 24.0;
 
     final selected = data.selectedTrail;
     final trails = data.allTrails;

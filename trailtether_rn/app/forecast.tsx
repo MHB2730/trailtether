@@ -23,7 +23,6 @@ import { Card } from '@components/primitives/Card';
 import { ChipRow } from '@components/design/ChipRow';
 import { ScoreOrb } from '@components/design/ScoreOrb';
 import { WeatherIcon } from '@components/design/WeatherIcon';
-import { BlockedSection } from '@components/primitives/BlockedSection';
 import { ErrorState, LoadingState } from '@components/primitives/States';
 import { useCurrentWeather, useForecast, useWeatherLocations } from '@/data/hooks';
 import { describeWeatherCode } from '@/data/adapters';
@@ -58,11 +57,9 @@ export default function ForecastScreen() {
           <ErrorState error={locations.error} onRetry={locations.refetch} />
         )}
         {!locations.loading && locations.data && locations.data.length === 0 && (
-          <BlockedSection
-            number={13}
-            title="No saved weather locations"
-            note="Add one from Home → Weather card → 'Add location'."
-          />
+          <Text style={styles.emptyHint}>
+            No saved weather locations. Add one from Home → Weather card → "Add location".
+          </Text>
         )}
 
         {locations.data && locations.data.length > 0 && (
@@ -157,13 +154,9 @@ export default function ForecastScreen() {
           </Card>
         )}
 
-        <View style={{ marginTop: sp.s5 }}>
-          <BlockedSection
-            number={12}
-            title="Hourly graph + warning tiles"
-            note="The hourly + multi-source alert UI need the notifications + alerts ingestion in BLOCKERS.md #12."
-          />
-        </View>
+        {/* Hourly graph + warning tiles are a follow-up UI pass — the
+            data path exists (Open-Meteo hourly + notifications table)
+            but the dedicated tiles aren't wired here yet. */}
       </ScrollView>
     </ScreenShell>
   );
@@ -183,6 +176,14 @@ function Tile({ label, value, unit }: { label: string; value: string; unit: stri
 
 const styles = StyleSheet.create({
   body: { paddingHorizontal: sp.screen, paddingBottom: sp.s11 },
+  emptyHint: {
+    marginTop: sp.s5,
+    paddingVertical: sp.s5,
+    fontFamily: font.uiMed,
+    fontSize: fz.body,
+    color: tt.text3,
+    textAlign: 'center',
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

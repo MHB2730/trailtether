@@ -77,7 +77,7 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
     } catch (e) {
       debugPrint('Error deleting user: $e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -97,7 +97,7 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
     } catch (e) {
       debugPrint('Error toggling admin status: $e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 

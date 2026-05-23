@@ -1,9 +1,10 @@
 // Trailtether — Search.
 //
 // Single search bar + scope ChipRow + grouped results. Trails come
-// from the bundled `useTrailsCatalog()`; people, caves and reports
-// are blocked (no person search, caves are pending #9 bundling, and
-// reports use the same hazard reads we already have).
+// from the bundled `useTrailsCatalog()`; caves from the bundled
+// `SHELTERS` catalog; reports from the open-incidents feed.
+// Person search is intentionally absent until a `profiles_public`
+// view ships.
 
 import React, { useMemo, useState } from 'react';
 import {
@@ -23,6 +24,7 @@ import { ErrorState, LoadingState } from '@components/primitives/States';
 import { BlockedSection } from '@components/primitives/BlockedSection';
 import { Icon } from '@components/Icon';
 import { useTrailsCatalog, useFieldIntel, parseBlocked } from '@/data/hooks';
+import { SHELTERS } from '@/data/shelters';
 import { font, fz, ls, radius, sp, tt } from '@theme/tokens';
 
 type Scope = 'all' | 'trails' | 'caves' | 'reports';
@@ -46,6 +48,14 @@ export default function SearchScreen() {
       : trails.data;
     return filtered.slice(0, 25);
   }, [trails.data, q]);
+
+  const caveMatches = useMemo(() => {
+    const lq = q.trim().toLowerCase();
+    const list = lq
+      ? SHELTERS.filter((s) => s.name.toLowerCase().includes(lq))
+      : SHELTERS;
+    return list.slice(0, 25);
+  }, [q]);
 
   const reportMatches = useMemo(() => {
     if (!reports.data) return [];
@@ -105,7 +115,7 @@ export default function SearchScreen() {
                 count: (trails.data?.length ?? 0) + (reports.data?.length ?? 0),
               },
               { id: 'trails', label: 'Trails', count: trails.data?.length ?? 0 },
-              { id: 'caves', label: 'Caves' },
+              { id: 'caves', label: 'Caves', count: SHELTERS.length },
               { id: 'reports', label: 'Reports', count: reports.data?.length ?? 0 },
             ]}
           />
@@ -154,12 +164,27 @@ export default function SearchScreen() {
 
         {showCaves && (
           <View style={styles.section}>
-            <Text style={styles.heading}>Caves</Text>
-            <BlockedSection
-              number={9}
-              title="125 surveyed caves pending bundle"
-              note="caves.gpx ships via the same routes bundle in BLOCKERS.md #9."
-            />
+            <Text style={styles.heading}>
+              Caves <Text style={{ color: tt.text3 }}>· {SHELTERS.length}</Text>
+            </Text>
+            {caveMatches.map((c) => (
+              <Card key={c.name} tight style={{ marginTop: sp.s3 }}>
+                <View style={styles.row}>
+                  <Icon name="rock" size={14} color={tt.green} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.trailName} numberOfLines={1}>
+                      {c.name}
+                    </Text>
+                    <Text style={styles.trailMeta} numberOfLines={1}>
+                      {c.lat.toFixed(4)}, {c.lon.toFixed(4)}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            ))}
+            {caveMatches.length === 0 && (
+              <Text style={styles.trailMeta}>No caves match "{q}".</Text>
+            )}
           </View>
         )}
 

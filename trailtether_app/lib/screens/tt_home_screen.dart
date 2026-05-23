@@ -119,7 +119,7 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
         // bundled yet so the screen never shows a Flutter exception banner.
         Positioned.fill(
           child: Image.asset(
-            'assets/icon/hero_home.png',
+            'assets/icon/hero_mountain.png',
             fit: BoxFit.cover,
             alignment: Alignment.center,
             filterQuality: FilterQuality.medium,
