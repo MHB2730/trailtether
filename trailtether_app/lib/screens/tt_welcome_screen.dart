@@ -1,8 +1,8 @@
-﻿// Trailtether 2.0 â€” Welcome / Onboarding screen.
+// Trailtether 2.0 - Welcome / Onboarding screen.
 //
 // Auto-rotating first-run hero with five animated feature scenes:
 // Tether, Plan, Navigate, Stay Aware, SOS. Recreates project/screens/
-// welcome.jsx â€” animated dots indicator, rotating eyebrow + title + body,
+// welcome.jsx - animated dots indicator, rotating eyebrow + title + body,
 // shimmering CTA, and a brand mark in the top-left.
 //
 // This screen is always full-screen and has no provider/service dependencies.
@@ -16,7 +16,7 @@ import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_topo.dart';
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ FEATURES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== FEATURES =================================
 
 enum _SceneId { tether, plan, navigate, aware, sos }
 
@@ -41,7 +41,7 @@ const List<_Feature> _kFeatures = [
     eyebrow: 'STAY TETHERED',
     title: 'Someone at home, always watching.',
     body:
-        'Your phone broadcasts live position to a base-camp PC at home. No surveillance â€” just a tether.',
+        'Your phone broadcasts live position to a base-camp PC at home. No surveillance - just a tether.',
     color: TT.ember,
   ),
   _Feature(
@@ -49,7 +49,7 @@ const List<_Feature> _kFeatures = [
     eyebrow: 'PLAN',
     title: 'Know what you walk into.',
     body:
-        'Curated routes with distance, elevation, and live weather scored for hiking â€” not just temperature.',
+        'Curated routes with distance, elevation, and live weather scored for hiking - not just temperature.',
     color: TT.ember2,
   ),
   _Feature(
@@ -73,12 +73,12 @@ const List<_Feature> _kFeatures = [
     eyebrow: 'ACT FAST',
     title: 'One tap. Help on the way.',
     body:
-        'SOS shares your live location. Compass, flashlight, native emergency contacts â€” all one tap deep.',
+        'SOS shares your live location. Compass, flashlight, native emergency contacts - all one tap deep.',
     color: TT.red,
   ),
 ];
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ SCREEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== SCREEN ===================================
 
 class TTWelcomeScreen extends StatefulWidget {
   final VoidCallback? onDone;
@@ -141,7 +141,7 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
             child: Column(
               children: [
                 _BrandBar(onSkip: widget.onDone, enterCtl: _enterCtl),
-                // Hero illustration zone â€” fixed height, color-tinted radial glow.
+                // Hero illustration zone - fixed height, color-tinted radial glow.
                 SizedBox(
                   height: 340,
                   child: Stack(
@@ -168,7 +168,7 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                           ),
                         ),
                       ),
-                      // Scene crossfade â€” only the active scene is built.
+                      // Scene crossfade - only the active scene is built.
                       Positioned.fill(
                         child: AnimatedSwitcher(
                           duration: _xfade,
@@ -197,7 +197,7 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                     padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
                     child: Column(
                       children: [
-                        // Tagline â€” never changes. Slides in once on first build.
+                        // Tagline - never changes. Slides in once on first build.
                         _AnimUp(
                           ctl: _enterCtl,
                           delay: 180,
@@ -271,7 +271,7 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                               _SignInRow(onTap: widget.onDone),
                               const SizedBox(height: 16),
                               Text(
-                                'FREE  Â·  NO ADS  Â·  BUILT IN CAPE TOWN',
+                                'FREE   NO ADS   BUILT IN CAPE TOWN',
                                 textAlign: TextAlign.center,
                                 style: TT.mono(
                                   size: 9.5,
@@ -295,7 +295,7 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ BRAND BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== BRAND BAR ================================
 
 class _BrandBar extends StatelessWidget {
   final VoidCallback? onSkip;
@@ -331,7 +331,7 @@ class _BrandBar extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ COPY BLOCK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== COPY BLOCK ===============================
 
 class _CopyBlock extends StatelessWidget {
   final _Feature feat;
@@ -398,7 +398,7 @@ class _CopyBlock extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ DOTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== DOTS =====================================
 
 class _Dots extends StatelessWidget {
   final int count;
@@ -443,7 +443,7 @@ class _Dots extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ CTA / FOOTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== CTA / FOOTER =============================
 
 class _GetStartedButton extends StatefulWidget {
   final VoidCallback? onTap;
@@ -540,9 +540,9 @@ class _SignInRow extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ ANIM PRIMITIVES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== ANIM PRIMITIVES ==========================
 
-/// Mirrors the `anim-up` CSS keyframe â€” fades + rises into place once, driven
+/// Mirrors the `anim-up` CSS keyframe - fades + rises into place once, driven
 /// by an external controller so all entrance animations stay in sync with the
 /// screen lifetime.
 class _AnimUp extends StatelessWidget {
@@ -574,7 +574,7 @@ class _AnimUp extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ SCENE DISPATCH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== SCENE DISPATCH ===========================
 
 class _Scene extends StatelessWidget {
   final _SceneId id;
@@ -597,7 +597,7 @@ class _Scene extends StatelessWidget {
   }
 }
 
-// Logical canvas the SVGs were authored in. All scenes are 412 Ã— 340 and
+// Logical canvas the SVGs were authored in. All scenes are 412 x 340 and
 // scale to fit the available box via `FittedBox`.
 const Size _kSceneSize = Size(412, 340);
 
@@ -617,8 +617,8 @@ Widget _sceneFit(CustomPainter painter, {Widget? overlay}) {
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• SCENE 1 Â· TETHER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Phone on mountain â†” basecamp PC connected via a glowing dashed tether arc.
+// =========================== SCENE 1 - TETHER =============================
+// Phone on mountain <-> basecamp PC connected via a glowing dashed tether arc.
 
 class _SceneTether extends StatefulWidget {
   const _SceneTether();
@@ -725,7 +725,7 @@ class _TetherPainter extends CustomPainter {
           ..close(),
         snow);
 
-    // â”€â”€â”€ Base camp house â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Base camp house ----------------------------------------------------
     canvas.save();
     canvas.translate(310, 210);
     const wall = Rect.fromLTWH(-30, 0, 60, 46);
@@ -775,7 +775,7 @@ class _TetherPainter extends CustomPainter {
         letterSpacing: 0.2 * 9);
     canvas.restore();
 
-    // â”€â”€â”€ Tether arc (animated dash offset) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Tether arc (animated dash offset) ---------------------------------
     final dashOffset = -100 * arcT;
     _drawDashed(
       canvas,
@@ -803,7 +803,7 @@ class _TetherPainter extends CustomPainter {
       offset: dashOffset * 0.8,
     );
 
-    // Data packet pulses traveling along the arc â€” two staggered.
+    // Data packet pulses traveling along the arc - two staggered.
     for (final phase in const [0.0, 0.5]) {
       final p = (arcT + phase) % 1.0;
       final metrics = _arcPath().computeMetrics().toList();
@@ -822,7 +822,7 @@ class _TetherPainter extends CustomPainter {
       }
     }
 
-    // â”€â”€â”€ Phone on mountain peak â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Phone on mountain peak --------------------------------------------
     canvas.save();
     canvas.translate(140, 130);
     final phoneOuter = RRect.fromRectAndRadius(
@@ -860,11 +860,11 @@ class _TetherPainter extends CustomPainter {
           ..strokeWidth = 1.2);
     canvas.restore();
 
-    // â”€â”€â”€ Floating data labels (alternating opacity) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Floating data labels (alternating opacity) ------------------------
     final lbl1Op = (math.sin(arcT * _twoPi - 0.4) * 0.5 + 0.5).clamp(0.0, 1.0);
     final lbl2Op = (math.sin(arcT * _twoPi + 2.0) * 0.5 + 0.5).clamp(0.0, 1.0);
-    _floatingLabel(canvas, const Offset(218, 80), 'GPS Â· 3m', lbl1Op);
-    _floatingLabel(canvas, const Offset(252, 55), '+2Â° SE', lbl2Op);
+    _floatingLabel(canvas, const Offset(218, 80), 'GPS  3m', lbl1Op);
+    _floatingLabel(canvas, const Offset(252, 55), '+2 SE', lbl2Op);
   }
 
   void _floatingLabel(Canvas canvas, Offset center, String text, double opacity) {
@@ -893,7 +893,7 @@ class _TetherPainter extends CustomPainter {
       old.arcT != arcT || old.windowT != windowT || old.pulseT != pulseT;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• SCENE 2 Â· PLAN â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// =========================== SCENE 2 - PLAN ===============================
 // Curated route with elevation card. Route draws in, peak pops, weather chip
 // floats up.
 
@@ -970,7 +970,7 @@ class _PlanPainter extends CustomPainter {
     }
     canvas.restore();
 
-    // Route â€” animated draw-in.
+    // Route - animated draw-in.
     final route = Path()
       ..moveTo(70, 180)
       ..quadraticBezierTo(130, 150, 170, 130)
@@ -1049,7 +1049,7 @@ class _PlanPainter extends CustomPainter {
         weight: FontWeight.w800,
         letterSpacing: 0.14 * 10.5);
 
-    // â”€â”€â”€ Elevation card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Elevation card ----------------------------------------------------
     canvas.save();
     canvas.translate(36, 232);
     final card = RRect.fromRectAndRadius(
@@ -1159,7 +1159,7 @@ class _PlanPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 0.7);
       _drawText(canvas,
-          text: '8/10 â˜€',
+          text: '8/10',
           center: const Offset(-23, 0),
           color: TT.ember2.withOpacity(chipT),
           fontFamily: 'JetBrainsMono',
@@ -1174,7 +1174,7 @@ class _PlanPainter extends CustomPainter {
   bool shouldRepaint(_PlanPainter old) => old.t != t;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• SCENE 3 Â· NAVIGATE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// =========================== SCENE 3 - NAVIGATE ===========================
 // Isometric 3D terrain block + compass with rotating needle + 2D/3D/SAT chip.
 
 class _SceneNavigate extends StatefulWidget {
@@ -1204,7 +1204,7 @@ class _SceneNavigateState extends State<_SceneNavigate>
     return AnimatedBuilder(
       animation: Listenable.merge([_drawCtl, _compassCtl]),
       builder: (_, __) {
-        // Compass needle eases between -12Â° and +18Â°.
+        // Compass needle eases between -12 and +18 degrees.
         final ease = Curves.easeInOut.transform(_compassCtl.value);
         final needleDeg = -12 + 30 * ease;
         return _sceneFit(_NavigatePainter(
@@ -1225,7 +1225,7 @@ class _NavigatePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // â”€â”€â”€ 3D terrain block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // 3D terrain block --------------------------------------------------
     canvas.save();
     canvas.translate(206, 180);
     // Base shadow.
@@ -1354,7 +1354,7 @@ class _NavigatePainter extends CustomPainter {
     }
     canvas.restore();
 
-    // â”€â”€â”€ Compass â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Compass -----------------------------------------------------------
     canvas.save();
     canvas.translate(330, 80);
     canvas.drawCircle(Offset.zero, 44,
@@ -1376,7 +1376,8 @@ class _NavigatePainter extends CustomPainter {
     // Ticks.
     for (var i = 0; i < 24; i++) {
       final a = i * 15 * math.pi / 180;
-      final r1 = 32.0, r2 = i % 6 == 0 ? 26.0 : 30.0;
+      const r1 = 32.0;
+      final r2 = i % 6 == 0 ? 26.0 : 30.0;
       final isMajor = i % 6 == 0;
       canvas.drawLine(
           Offset(math.sin(a) * r1, -math.cos(a) * r1),
@@ -1445,7 +1446,7 @@ class _NavigatePainter extends CustomPainter {
           ..strokeWidth = 1);
     canvas.restore();
 
-    // â”€â”€â”€ Layer toggle chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Layer toggle chip -------------------------------------------------
     final chipT = _sub(0.3, 0.6);
     if (chipT > 0) {
       canvas.save();
@@ -1494,9 +1495,9 @@ class _NavigatePainter extends CustomPainter {
       old.t != t || old.needleDeg != needleDeg;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• SCENE 4 Â· STAY AWARE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Weather card with sun + drifting cloud + wind lines, hazard pin, shelter pin,
-// and a floating "Storm in 90 min" alert.
+// =========================== SCENE 4 - STAY AWARE =========================
+// Weather card with sun + drifting cloud + wind lines, hazard pin, shelter
+// pin, and a floating "Storm in 90 min" alert.
 
 class _SceneAware extends StatefulWidget {
   const _SceneAware();
@@ -1562,7 +1563,7 @@ class _AwarePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // â”€â”€â”€ Weather card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Weather card -----------------------------------------------------
     canvas.save();
     canvas.translate(50, 40);
     final card = RRect.fromRectAndRadius(
@@ -1643,7 +1644,7 @@ class _AwarePainter extends CustomPainter {
         weight: FontWeight.w800,
         letterSpacing: 0.16 * 9);
     _drawText(canvas,
-        text: '14Â°',
+        text: '14',
         topLeft: const Offset(200, 44),
         color: TT.text,
         fontFamily: 'JetBrainsMono',
@@ -1666,7 +1667,7 @@ class _AwarePainter extends CustomPainter {
         letterSpacing: 0.06 * 10);
     canvas.restore();
 
-    // â”€â”€â”€ Hazard pin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Hazard pin -------------------------------------------------------
     canvas.save();
     canvas.translate(50, 180);
     final hazardCard = RRect.fromRectAndRadius(
@@ -1736,7 +1737,7 @@ class _AwarePainter extends CustomPainter {
         letterSpacing: 0.12 * 8);
     canvas.restore();
 
-    // â”€â”€â”€ Shelter pin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Shelter pin ------------------------------------------------------
     canvas.save();
     canvas.translate(212, 180);
     final shelterCard = RRect.fromRectAndRadius(
@@ -1785,7 +1786,7 @@ class _AwarePainter extends CustomPainter {
         size: 11,
         weight: FontWeight.w800);
     _drawText(canvas,
-        text: 'Cave Â· 1.2 km',
+        text: 'Cave  1.2 km',
         topLeft: const Offset(44, 30),
         color: TT.text2,
         fontFamily: 'JetBrainsMono',
@@ -1801,7 +1802,7 @@ class _AwarePainter extends CustomPainter {
         letterSpacing: 0.12 * 8);
     canvas.restore();
 
-    // â”€â”€â”€ Floating storm alert (anim-up) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Floating storm alert (anim-up) -----------------------------------
     final alertEntry = _sub(0.2, 0.6);
     if (alertEntry > 0) {
       canvas.save();
@@ -1852,7 +1853,7 @@ class _AwarePainter extends CustomPainter {
       old.alertT != alertT;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• SCENE 5 Â· SOS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// =========================== SCENE 5 - SOS ================================
 // Pulsing red beacon orb with three concentric ripples, transmitting label,
 // and dispatched-rescue chip.
 
@@ -1922,7 +1923,7 @@ class _SOSPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Three concentric ripples â€” radius 60 -> 160, opacity 0.9 -> 0.
+    // Three concentric ripples - radius 60 -> 160, opacity 0.9 -> 0.
     for (final t in [ripple1, ripple2, ripple3]) {
       final r = 60 + 100 * t;
       final op = (0.9 - 0.9 * t).clamp(0.0, 1.0);
@@ -1997,7 +1998,7 @@ class _SOSPainter extends CustomPainter {
       canvas.save();
       canvas.translate(0, (1 - topT) * 6);
       _drawText(canvas,
-          text: 'TRANSMITTING Â· 00:14',
+          text: 'TRANSMITTING  00:14',
           center: const Offset(206, 40),
           color: TT.text3.withOpacity(topT),
           fontFamily: 'JetBrainsMono',
@@ -2005,7 +2006,7 @@ class _SOSPainter extends CustomPainter {
           weight: FontWeight.w800,
           letterSpacing: 0.18 * 9);
       _drawText(canvas,
-          text: 'N 47.6062Â° Â· W 122.3321Â°',
+          text: 'N 47.6062  W 122.3321',
           center: const Offset(206, 56),
           color: TT.text.withOpacity(topT),
           fontFamily: 'JetBrainsMono',
@@ -2064,7 +2065,7 @@ class _SOSPainter extends CustomPainter {
           size: 10.5,
           weight: FontWeight.w800);
       _drawText(canvas,
-          text: 'ETA 4 MIN Â· 620 m NW',
+          text: 'ETA 4 MIN  620 m NW',
           topLeft: const Offset(-58, 4),
           color: TT.amber.withOpacity(chipT),
           fontFamily: 'JetBrainsMono',
@@ -2083,7 +2084,7 @@ class _SOSPainter extends CustomPainter {
       old.ripple3 != ripple3;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ PAINT HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// =============================== PAINT HELPERS ============================
 
 const double _twoPi = math.pi * 2;
 
