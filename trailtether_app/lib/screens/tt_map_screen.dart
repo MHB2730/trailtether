@@ -26,6 +26,8 @@ import '../services/offline_map_service.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
+import 'recorded_trails_screen.dart';
+import 'trail_detail_screen.dart';
 
 class TTMapScreen extends StatefulWidget {
   final bool embedded;
@@ -165,10 +167,24 @@ class _TTMapScreenState extends State<TTMapScreen>
       delegate: _TrailSearchDelegate(trails),
     );
     if (picked == null || !mounted) return;
-    _focusTrail(picked);
+    // Push trail detail so users can review the route, elevation, and reviews
+    // before committing — the detail screen's "START HIKE" CTA pops back and
+    // wires the trail into RecordingProvider. If the user just wants to see
+    // where it is on the map, they can dismiss the sheet and the focusTrail()
+    // call below still moves the camera to the route's bounds.
+    _focusTrail(picked, withSnackbar: false);
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TrailDetailScreen(
+        trail: picked,
+        onNavigateToMap: () {
+          // Already on the Map tab — popping back to here is enough; no
+          // additional tab switch is needed.
+        },
+      ),
+    ));
   }
 
-  void _focusTrail(Trail trail) {
+  void _focusTrail(Trail trail, {bool withSnackbar = true}) {
     if (trail.coords.isEmpty) return;
     if (trail.coords.length == 1) {
       final c = trail.coords.first;
@@ -184,6 +200,7 @@ class _TTMapScreenState extends State<TTMapScreen>
         padding: const EdgeInsets.fromLTRB(40, 120, 40, 240),
       ),
     );
+    if (!withSnackbar) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -248,6 +265,16 @@ class _TTMapScreenState extends State<TTMapScreen>
                 onTap: () {
                   Navigator.of(sheetCtx).pop();
                   setState(() => _useMiles = !_useMiles);
+                },
+              ),
+              _MenuRow(
+                icon: Icons.alt_route_outlined,
+                label: 'My recorded trails',
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const RecordedTrailsScreen(),
+                  ));
                 },
               ),
               _MenuRow(

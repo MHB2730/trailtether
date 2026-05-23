@@ -246,8 +246,11 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
     final currentUid = auth.uid ?? '';
     final members =
         _buildMembers(team: team, locations: tracking.teamLocations, currentUid: currentUid);
-    final memberCount =
-        (team == null) ? 0 : (team.memberCount > 0 ? team.memberCount : team.members.length);
+    // Always trust team.members.length over team.memberCount. The cached
+    // memberCount column on Supabase can lag behind the actual roster when
+    // joins/removals happen between trigger runs, which previously caused the
+    // hero pill to read "3" while the Members tab showed 4 rows.
+    final memberCount = (team == null) ? 0 : team.members.length;
     final activeCount =
         members.where((m) => m.status != _MemberStatus.offGrid).length;
     final totalDistanceMi = (team?.totalDistanceKm ?? 0) * 0.621371;

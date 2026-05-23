@@ -8,6 +8,9 @@ build/
 **/build/
 out/
 
+# On-device walk-through screenshots (not part of source)
+walkthrough/
+
 # Flutter / Dart
 .dart_tool/
 **/.dart_tool/
