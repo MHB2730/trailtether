@@ -22,6 +22,7 @@ import '../providers/hike_history_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/units_provider.dart';
 import '../services/auth_service.dart';
+import '../widgets/design/tt_achievement_medallion.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import 'privacy_policy_screen.dart';
@@ -1275,21 +1276,16 @@ class _AchievementsSection extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (_, i) {
                     final d = rows[i];
-                    final tint = d.unlocked ? d.color : TT.text3;
                     return TTCard(
                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                       child: Row(
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: tint.withOpacity(0.14),
-                              border: Border.all(color: tint, width: 2),
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(d.icon, size: 18, color: tint),
+                          TTAchievementMedallion(
+                            icon: d.icon,
+                            color: d.color,
+                            unlocked: d.unlocked,
+                            progress: d.unlocked ? 1.0 : 0.0,
+                            size: 56,
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -1385,25 +1381,21 @@ class _AchievementBadge extends StatelessWidget {
 
   void _showDetail(BuildContext context) {
     final unlocked = data.unlocked;
-    final tintColor = unlocked ? data.color : TT.text3;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: TT.surf,
         title: Row(
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: tintColor.withOpacity(0.14),
-                border: Border.all(color: tintColor, width: 2),
-              ),
-              alignment: Alignment.center,
-              child: Icon(data.icon, size: 18, color: tintColor),
+            TTAchievementMedallion(
+              icon: data.icon,
+              color: data.color,
+              unlocked: data.unlocked,
+              progress: data.unlocked ? 1.0 : 0.0,
+              size: 80,
+              large: true,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Text(
                 data.label,
@@ -1474,54 +1466,15 @@ class _AchievementBadge extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: data.unlocked
-                      ? data.color.withOpacity(0.12)
-                      : TT.bg3,
-                  border: Border.all(
-                    color: data.unlocked ? data.color : TT.line2,
-                    width: 2,
-                  ),
-                  boxShadow: data.unlocked
-                      ? [
-                          BoxShadow(
-                            color: data.color.withOpacity(0.22),
-                            blurRadius: 12,
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Icon(
-                  data.icon,
-                  size: 18,
-                  color: data.unlocked ? data.color : TT.text3,
-                ),
-              ),
-              if (!data.unlocked)
-                Positioned(
-                  right: -2,
-                  bottom: -2,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: TT.bg2,
-                      border: Border.all(color: TT.line2, width: 1),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.lock, size: 9, color: TT.text3),
-                  ),
-                ),
-            ],
+          // Animated hex topo medallion — matches the design's
+          // TopoMedallion (radar ping, switchback trail draw-in,
+          // summit pulse, ember magma fill on locked-with-progress).
+          TTAchievementMedallion(
+            icon: data.icon,
+            color: data.color,
+            unlocked: data.unlocked,
+            progress: data.unlocked ? 1.0 : 0.0,
+            size: 56,
           ),
           const SizedBox(height: 8),
           Text(
