@@ -60,6 +60,12 @@ class _MissionControlTabState extends State<MissionControlTab> {
   // Periodic rebuild so "Xm ago" labels and live/recent/stale colors stay accurate
   // even when no new Realtime update has arrived.
   Timer? _tickTimer;
+  // Safety-net polling timer. If the Realtime websocket drops, takes a long
+  // time to negotiate after a fresh auth token, or silently misses an event,
+  // the map would otherwise sit stale until the user navigates away and back.
+  // Re-running the team_member_locations query every 15s catches every miss
+  // without flooding the DB.
+  Timer? _safetyRefreshTimer;
 
   @override
   void initState() {
@@ -71,6 +77,10 @@ class _MissionControlTabState extends State<MissionControlTab> {
     _fetchExistingZones();
     _tickTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) setState(() {});
+    });
+    _safetyRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
+      _loadInitialData();
     });
   }
 
@@ -128,6 +138,7 @@ class _MissionControlTabState extends State<MissionControlTab> {
   @override
   void dispose() {
     _tickTimer?.cancel();
+    _safetyRefreshTimer?.cancel();
     _trackingChannel?.unsubscribe();
     _incidentChannel?.unsubscribe();
     _gpxSub?.cancel();

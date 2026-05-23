@@ -102,12 +102,27 @@ class TeamTrackingProvider extends ChangeNotifier {
     final bool isRecording = p.isRecording;
     final bool posChanged =
         _recordingProvider?.currentPosition != p.currentPosition;
+    // Detect the moment Start is pressed. The proxy fires on every
+    // RecordingProvider notify, but only this transition matters for
+    // pushing an instant publish to the PC — without it, the base-camp
+    // map waits up to one 5s tick (often longer if realtime is slow to
+    // hand off) before the hiker first appears, which the user reads as
+    // "the PC didn't see me go live".
+    final bool justStartedRecording = !wasRecording && isRecording;
 
     _recordingProvider = p;
 
     if (_shouldTrack) {
       if (!_isTracking) {
         _startTracking();
+      } else if (justStartedRecording) {
+        // Recording was already being tracked (e.g. via selected team) but
+        // the user has now pressed Start. Force an immediate publish so the
+        // PC sees status flip from 'active' to 'recording' within ~1s
+        // instead of waiting for the periodic timer.
+        LoggerService.log('TRACKING',
+            'Recording started — forcing immediate publish');
+        _reportNow();
       } else if ((isRecording || _liveSharingEnabled) && posChanged) {
         // Feed live data immediately but throttle to avoid DB spam (max once per 3s)
         final now = DateTime.now();
