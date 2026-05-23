@@ -2355,13 +2355,29 @@ class _SunToolState extends State<_SunTool> {
     if (_refreshing) return;
     setState(() => _refreshing = true);
     try {
-      final perm = await Geolocator.checkPermission();
+      // 1. Are location services even on at the OS level?
+      final servicesOn = await Geolocator.isLocationServiceEnabled();
+      if (!servicesOn) {
+        // Bounce the user out to Android's Location Services settings.
+        await Geolocator.openLocationSettings();
+        throw Exception('Location services are turned off');
+      }
+      // 2. Check + request permission. If the user permanently denied
+      //    previously, requestPermission() will short-circuit back to
+      //    deniedForever without re-prompting — we have to send them to
+      //    the app settings screen so they can grant it manually.
+      var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
-        final next = await Geolocator.requestPermission();
-        if (next == LocationPermission.denied ||
-            next == LocationPermission.deniedForever) {
-          throw Exception('Location permission required');
-        }
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.deniedForever) {
+        await Geolocator.openAppSettings();
+        throw Exception(
+          'Location permission permanently denied. Enable it in the app settings page, then come back.',
+        );
+      }
+      if (perm == LocationPermission.denied) {
+        throw Exception('Location permission required');
       }
       final p = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
