@@ -786,7 +786,7 @@ class _CompassDialState extends State<_CompassDial> with SingleTickerProviderSta
   late final AnimationController _ctl =
       AnimationController(vsync: this, duration: const Duration(seconds: 7))..repeat();
 
-  static const double _size = 220;
+  static const double _size = 240;
 
   @override
   void dispose() {
@@ -838,7 +838,10 @@ class _CompassDialState extends State<_CompassDial> with SingleTickerProviderSta
                 ? 0.0
                 : math.sin(_ctl.value * 2 * math.pi) * 1.5;
             return CustomPaint(
-              painter: _CompassPainter(bearing: widget.bearing + wiggle),
+              painter: _CompassPainter(
+                bearing: widget.bearing + wiggle,
+                animationT: _ctl.value,
+              ),
             );
           },
         ),
@@ -847,125 +850,567 @@ class _CompassDialState extends State<_CompassDial> with SingleTickerProviderSta
   }
 }
 
+/// Faithful Flutter port of `screens/tools.jsx#CompassDial`.
+///
+/// Layered tactical compass — brushed bezel + corner bolts, mil-tick
+/// outer ring, top lubber line, inner dial face with reticle, 72 degree
+/// ticks (major/mid/minor), cardinal + intercardinal labels, rotating
+/// heading wedge, continuously-sweeping radar cone, 3D needle with
+/// gradient north/dim south, hub gem, HUD heading badge at top, and
+/// four HUD corner brackets framing the whole thing.
+///
+/// The dial is rendered in its own 240×240 viewBox; geometry is scaled
+/// to the actual draw size. All static layers (bezel, ticks, labels,
+/// brackets, hub) and the wiggle-driven needle reuse pre-computed paths.
 class _CompassPainter extends CustomPainter {
   final double bearing;
-  _CompassPainter({required this.bearing});
+  final double animationT; // 0..1, drives the radar sweep
+  _CompassPainter({required this.bearing, required this.animationT});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    final r = size.width / 2;
+    // Scale the 240-unit design grid down to whatever size we were given.
+    final scale = size.width / 240.0;
+    canvas.save();
+    canvas.scale(scale);
 
-    // Outer disc gradient + rim.
-    final discPaint = Paint()
+    const center = Offset(120, 120);
+
+    // ── Ambient ember glow behind the dial ─────────────────────────────
+    final ambient = Paint()
+      ..color = const Color(0x12FF6A2C)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8);
+    canvas.drawCircle(center, 125, ambient);
+
+    // ── OUTER BEZEL — brushed-metal ring ──────────────────────────────
+    final bezelOuter = Paint()
       ..shader = const RadialGradient(
-        colors: [Color(0xFF0D1116), Color(0xFF06080B)],
-      ).createShader(Rect.fromCircle(center: c, radius: r));
-    canvas.drawCircle(c, r - 10, discPaint);
-    final rim = Paint()
-      ..color = TT.line2
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawCircle(c, r - 10, rim);
+        center: Alignment(0, -0.3),
+        radius: 0.65,
+        colors: [Color(0xFF454C58), Color(0xFF1C2127), Color(0xFF06080B)],
+        stops: [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: 118));
+    canvas.drawCircle(center, 118, bezelOuter);
+    // Outer dark rim + bright inner highlight
     canvas.drawCircle(
-      c, r - 24,
+      center,
+      118,
       Paint()
-        ..color = TT.line
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+        ..strokeWidth = 1
+        ..color = const Color(0xB3000000),
+    );
+    canvas.drawCircle(
+      center,
+      116,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0x38FFFFFF),
+    );
+    // Machined grooves
+    canvas.drawCircle(
+      center,
+      111,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.7
+        ..color = const Color(0xFF3A4150),
+    );
+    canvas.drawCircle(
+      center,
+      109,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8
+        ..color = const Color(0xB3000000),
     );
 
-    // Rotate the whole rose by -heading so the cardinal letters and ticks
-    // physically align with magnetic compass directions. The needle below is
-    // drawn AFTER the restore() so it stays fixed pointing up.
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(-bearing * math.pi / 180);
-
-    // Tick marks every 7.5 degrees: 48 total, every 12th = major, every 4th = mid.
-    for (var i = 0; i < 48; i++) {
-      final ang = (i * 7.5 - 90) * math.pi / 180;
-      final major = i % 12 == 0;
-      final mid = i % 4 == 0;
-      final r1 = r - 14;
-      final r2 = major ? r - 30 : (mid ? r - 24 : r - 20);
-      final p = Paint()
-        ..color = major ? TT.ember2 : (mid ? TT.text2 : TT.text4)
-        ..strokeWidth = major ? 2 : (mid ? 1.2 : 0.8)
-        ..strokeCap = StrokeCap.round;
+    // ── Bezel bolts at NE / SE / SW / NW ──────────────────────────────
+    for (final deg in const [45.0, 135.0, 225.0, 315.0]) {
+      final rad = (deg - 90) * math.pi / 180;
+      final bx = 120 + math.cos(rad) * 113;
+      final by = 120 + math.sin(rad) * 113;
+      canvas.drawCircle(
+        Offset(bx, by),
+        3.2,
+        Paint()..color = const Color(0xFF0A0C0F),
+      );
+      canvas.drawCircle(
+        Offset(bx, by),
+        3.2,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.5
+          ..color = const Color(0xFF5A6470),
+      );
       canvas.drawLine(
-        Offset(math.cos(ang) * r1, math.sin(ang) * r1),
-        Offset(math.cos(ang) * r2, math.sin(ang) * r2),
-        p,
+        Offset(bx - 1.8, by),
+        Offset(bx + 1.8, by),
+        Paint()
+          ..color = const Color(0xFF3A4150)
+          ..strokeWidth = 0.6,
       );
     }
 
-    // Cardinal labels: N (ember), E S W (muted). Drawn relative to origin
-    // because the canvas has been translated above.
-    _drawText(canvas, 'N', Offset(0, -r + 28), TT.ember, 14, FontWeight.w900);
-    _drawText(canvas, 'E', Offset(r - 36, 0), TT.text2, 11, FontWeight.w800);
-    _drawText(canvas, 'S', Offset(0, r - 25), TT.text2, 11, FontWeight.w800);
-    _drawText(canvas, 'W', Offset(-r + 36, 0), TT.text2, 11, FontWeight.w800);
+    // ── OUTER MIL-TICK RING — 64 ticks ─────────────────────────────────
+    for (var i = 0; i < 64; i++) {
+      final ang = (i * 5.625 - 90) * math.pi / 180;
+      final r1 = 107.0;
+      final r2 = i % 8 == 0 ? 102.0 : 104.5;
+      final isMajor = i % 8 == 0;
+      canvas.drawLine(
+        Offset(120 + math.cos(ang) * r1, 120 + math.sin(ang) * r1),
+        Offset(120 + math.cos(ang) * r2, 120 + math.sin(ang) * r2),
+        Paint()
+          ..color = isMajor ? const Color(0xFF98A1AC) : const Color(0xFF3D454D)
+          ..strokeWidth = 0.6,
+      );
+    }
 
-    canvas.restore();
-
-    // Heading indicator wedge — a short 12-degree ember beam that always points
-    // straight up at the direction the user is facing.
-    final sectorPath = Path()..moveTo(c.dx, c.dy);
-    final wedgeRect = Rect.fromCircle(center: c, radius: r - 22);
-    sectorPath.arcTo(wedgeRect, -math.pi / 2 - 6 * math.pi / 180,
-        12 * math.pi / 180, false);
-    sectorPath.close();
-    canvas.drawPath(
-      sectorPath,
-      Paint()..color = const Color(0x29FF6A2C),
-    );
-
-    // Fixed needle — ember tip up (= the heading the user is facing).
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    final needleN = Path()
-      ..moveTo(0, -(r - 36))
-      ..lineTo(6, 0)
-      ..lineTo(0, 6)
-      ..lineTo(-6, 0)
+    // ── TOP LUBBER LINE — orange triangle pointing into the dial ──────
+    final lubberGlow = Paint()
+      ..color = TT.ember
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    final lubberOuter = Path()
+      ..moveTo(120, -2)
+      ..lineTo(113, 12)
+      ..lineTo(127, 12)
       ..close();
-    final needleS = Path()
-      ..moveTo(0, r - 36)
-      ..lineTo(6, 0)
-      ..lineTo(0, -6)
-      ..lineTo(-6, 0)
+    canvas.drawPath(lubberOuter, lubberGlow);
+    final lubberInner = Path()
+      ..moveTo(120, 2)
+      ..lineTo(116, 11)
+      ..lineTo(124, 11)
       ..close();
-    canvas.drawPath(needleN, Paint()..color = TT.ember);
-    canvas.drawPath(needleS, Paint()..color = TT.text4);
-    canvas.restore();
+    canvas.drawPath(lubberInner, Paint()..color = TT.ember2);
 
-    // Pivot.
+    // ── INNER DIAL FACE ───────────────────────────────────────────────
+    final facePaint = Paint()
+      ..shader = const RadialGradient(
+        center: Alignment(0, -0.1),
+        radius: 0.6,
+        colors: [Color(0xFF11161C), Color(0xFF07090C), Color(0xFF03060A)],
+        stops: [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: 96));
+    canvas.drawCircle(center, 96, facePaint);
     canvas.drawCircle(
-      c, 6,
-      Paint()..color = TT.emberInk,
-    );
-    canvas.drawCircle(
-      c, 6,
+      center,
+      96,
       Paint()
-        ..color = TT.ember2
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 1.5
+        ..color = const Color(0xB3000000),
     );
-    canvas.drawCircle(c, 2, Paint()..color = TT.ember2);
-  }
+    canvas.drawCircle(
+      center,
+      94,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.6
+        ..color = const Color(0x0AFFFFFF),
+    );
 
-  void _drawText(Canvas canvas, String text, Offset center, Color color, double size, FontWeight w) {
+    // Subtle ember reticle inside the face (vertical + horizontal lines)
+    final reticle = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6
+      ..color = const Color(0x1FFF6A2C);
+    canvas.drawLine(const Offset(50, 120), const Offset(92, 120), reticle);
+    canvas.drawLine(const Offset(148, 120), const Offset(190, 120), reticle);
+    canvas.drawLine(const Offset(120, 50), const Offset(120, 92), reticle);
+    canvas.drawLine(const Offset(120, 148), const Offset(120, 190), reticle);
+
+    // Dashed micro-arc rings inside the face
+    _drawDashedCircle(canvas, center, 56,
+        const Color(0x0FFFFFFF), 2, 4);
+    _drawDashedCircle(canvas, center, 40,
+        const Color(0x0FFFFFFF), 1, 5);
+
+    // ── COMPASS ROSE (rotates with bearing) ───────────────────────────
+    canvas.save();
+    canvas.translate(120, 120);
+    canvas.rotate(-bearing * math.pi / 180);
+
+    // 72 degree tick marks
+    for (var i = 0; i < 72; i++) {
+      final ang = (i * 5 - 90) * math.pi / 180;
+      final major = i % 6 == 0; // every 30°
+      final mid = !major && i % 2 == 0; // every 10°
+      const r1 = 90.0;
+      final r2 = major ? 76.0 : (mid ? 82.0 : 86.0);
+      canvas.drawLine(
+        Offset(math.cos(ang) * r1, math.sin(ang) * r1),
+        Offset(math.cos(ang) * r2, math.sin(ang) * r2),
+        Paint()
+          ..color = major
+              ? TT.ember2
+              : (mid ? const Color(0xFF98A1AC) : const Color(0xFF3D454D))
+          ..strokeWidth = major ? 1.8 : (mid ? 1 : 0.7)
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    // Cardinal letters
+    _drawCardinal(canvas, 'N', 0, 14, FontWeight.w900, TT.ember, main: true);
+    _drawCardinal(canvas, 'E', 90, 14, FontWeight.w900, const Color(0xFFCFD5DD));
+    _drawCardinal(canvas, 'S', 180, 14, FontWeight.w900, const Color(0xFFCFD5DD));
+    _drawCardinal(canvas, 'W', 270, 14, FontWeight.w900, const Color(0xFFCFD5DD));
+
+    // Intercardinal labels (smaller, dimmer)
+    _drawIntercardinal(canvas, 'NE', 45);
+    _drawIntercardinal(canvas, 'SE', 135);
+    _drawIntercardinal(canvas, 'SW', 225);
+    _drawIntercardinal(canvas, 'NW', 315);
+
+    canvas.restore();
+
+    // ── HEADING WEDGE — two nested orange sectors at top (12° + 6°) ──
+    // Drawn in world space (after the rose rotation is undone) so it
+    // always points UP at where the user is facing.
+    _drawHeadingWedge(canvas);
+
+    // ── RADAR SWEEP — rotating gradient cone (4.2 s loop) ────────────
+    canvas.save();
+    canvas.translate(120, 120);
+    final sweepAngle = (animationT * 360 * (7 / 4.2)) % 360;
+    canvas.rotate(sweepAngle * math.pi / 180);
+    final sweepRect = Rect.fromCircle(center: Offset.zero, radius: 96);
+    final sweepPath = Path()
+      ..moveTo(0, 0)
+      ..lineTo(0, -96)
+      ..arcTo(sweepRect, -math.pi / 2, 50 * math.pi / 180, false)
+      ..close();
+    final sweepPaint = Paint()
+      ..shader = const RadialGradient(
+        colors: [
+          Color(0x80FF8A4D),
+          Color(0x2EFF6A2C),
+          Color(0x00FF6A2C),
+        ],
+        stops: [0.0, 0.5, 1.0],
+      ).createShader(sweepRect);
+    canvas.drawPath(sweepPath, sweepPaint);
+    canvas.drawLine(
+      Offset.zero,
+      const Offset(0, -96),
+      Paint()
+        ..color = TT.ember2.withOpacity(0.55)
+        ..strokeWidth = 0.8,
+    );
+    canvas.restore();
+
+    // ── Glass reflection band over the face ──────────────────────────
+    final glassPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color(0x24FFFFFF),
+          Color(0x05FFFFFF),
+          Color(0x00FFFFFF),
+        ],
+        stops: [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromCenter(
+          center: const Offset(120, 80), width: 156, height: 64));
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: const Offset(120, 80), width: 156, height: 64),
+      glassPaint,
+    );
+
+    // ── 3D NEEDLE — always points UP (toward the heading) ────────────
+    // (No bearing rotation here — the rose rotates beneath the needle
+    // so the needle's tip is always at world-up = current heading.)
+    final dropShadow = Paint()
+      ..color = const Color(0xB3000000)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8);
+    final shadowNeedle = Path()
+      ..moveTo(120, 28)
+      ..lineTo(132, 122)
+      ..lineTo(120, 132)
+      ..lineTo(108, 122)
+      ..close();
+    canvas.drawPath(shadowNeedle, dropShadow);
+
+    // North half — right side (lit) gradient + left side (shaded) flat
+    final northRight = Path()
+      ..moveTo(120, 28)
+      ..lineTo(130, 120)
+      ..lineTo(120, 124)
+      ..close();
+    final northRightPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFFFE0C7), Color(0xFFFF8A4D), Color(0xFFA83812)],
+        stops: [0.0, 0.25, 1.0],
+      ).createShader(const Rect.fromLTWH(110, 28, 22, 100));
+    canvas.drawPath(northRight, northRightPaint);
+
+    final northLeft = Path()
+      ..moveTo(120, 28)
+      ..lineTo(110, 120)
+      ..lineTo(120, 124)
+      ..close();
+    canvas.drawPath(
+      northLeft,
+      Paint()..color = const Color(0xFFA83812),
+    );
+
+    // Subtle highlight stripe down the needle's centre seam
+    canvas.drawLine(
+      const Offset(120, 30),
+      const Offset(121, 122),
+      Paint()
+        ..color = const Color(0x8CFFFFFF)
+        ..strokeWidth = 0.7,
+    );
+
+    // South half — muted graphite
+    final southRight = Path()
+      ..moveTo(120, 212)
+      ..lineTo(130, 120)
+      ..lineTo(120, 124)
+      ..close();
+    final southRightPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF5A6470), Color(0xFF1C2127)],
+      ).createShader(const Rect.fromLTWH(110, 120, 22, 100));
+    canvas.drawPath(southRight, southRightPaint);
+
+    final southLeft = Path()
+      ..moveTo(120, 212)
+      ..lineTo(110, 120)
+      ..lineTo(120, 124)
+      ..close();
+    canvas.drawPath(
+      southLeft,
+      Paint()..color = const Color(0xFF1C2127),
+    );
+
+    // Tip glow at the needle's north point
+    final tipGlow = Paint()
+      ..color = const Color(0xFFFFD5C4)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    canvas.drawCircle(const Offset(120, 28), 2.4, tipGlow);
+    canvas.drawCircle(
+      const Offset(120, 28),
+      2.4,
+      Paint()..color = const Color(0xFFFFD5C4),
+    );
+
+    // ── CENTER HUB — 3D gem ──────────────────────────────────────────
+    canvas.drawCircle(center, 12, Paint()..color = const Color(0xFF0A0C0F));
+    canvas.drawCircle(
+      center,
+      12,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0xFF3A4150),
+    );
+    final hubInner = Paint()
+      ..shader = const RadialGradient(
+        center: Alignment(0, -0.3),
+        radius: 0.65,
+        colors: [Color(0xFF454C58), Color(0xFF1C2127), Color(0xFF06080B)],
+        stops: [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: 9));
+    canvas.drawCircle(center, 9, hubInner);
+    canvas.drawCircle(
+      center,
+      6,
+      Paint()..color = const Color(0xFF1A0D04),
+    );
+    canvas.drawCircle(
+      center,
+      6,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = TT.ember2,
+    );
+    canvas.drawCircle(center, 2.4, Paint()..color = TT.ember);
+    // Highlight glint
+    canvas.drawOval(
+      Rect.fromCenter(center: const Offset(118, 117), width: 6.4, height: 2.8),
+      Paint()..color = const Color(0x59FFFFFF),
+    );
+
+    // ── HUD heading badge near top of bezel ──────────────────────────
+    final badgeRect = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(98, 9, 44, 16),
+      const Radius.circular(3.5),
+    );
+    canvas.drawRRect(badgeRect, Paint()..color = const Color(0xFF0A0C0F));
+    canvas.drawRRect(
+      badgeRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9
+        ..color = TT.ember,
+    );
+    final headingText = '${bearing.round() % 360}°';
     final tp = TextPainter(
-      text: TextSpan(text: text, style: TT.body(size: size, w: w, color: color)),
+      text: TextSpan(
+        text: headingText,
+        style: TT.mono(size: 10, color: TT.ember2, letterSpacing: 0.08 * 10),
+      ),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
+    )..layout(minWidth: 44);
+    tp.paint(canvas, Offset(98, 11));
+
+    // ── HUD corner brackets (tactical reticle frame) ─────────────────
+    final bracket = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..color = TT.ember2.withOpacity(0.9);
+    for (final corner in const [
+      [8.0, 8.0, 1.0, 1.0],
+      [232.0, 8.0, -1.0, 1.0],
+      [8.0, 232.0, 1.0, -1.0],
+      [232.0, 232.0, -1.0, -1.0],
+    ]) {
+      final x = corner[0];
+      final y = corner[1];
+      final dx = corner[2];
+      final dy = corner[3];
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(x + 12 * dx, y),
+        bracket,
+      );
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(x, y + 12 * dy),
+        bracket,
+      );
+    }
+
+    canvas.restore();
+  }
+
+  void _drawDashedCircle(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color color,
+    double dash,
+    double gap,
+  ) {
+    final circumference = 2 * math.pi * radius;
+    final segments = (circumference / (dash + gap)).floor();
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5
+      ..color = color;
+    for (var i = 0; i < segments; i++) {
+      final a0 = (i * (dash + gap)) / radius;
+      final a1 = a0 + (dash / radius);
+      final path = Path()
+        ..addArc(
+          Rect.fromCircle(center: center, radius: radius),
+          a0,
+          a1 - a0,
+        );
+      canvas.drawPath(path, p);
+    }
+  }
+
+  void _drawHeadingWedge(Canvas canvas) {
+    // Two nested wedges — outer light, inner brighter. Always at top.
+    canvas.save();
+    canvas.translate(120, 120);
+
+    final outerWedge = Path()
+      ..moveTo(0, 0)
+      ..lineTo(-12, -92)
+      ..arcTo(
+        Rect.fromCircle(center: Offset.zero, radius: 95),
+        -math.pi / 2 - 7 * math.pi / 180,
+        14 * math.pi / 180,
+        false,
+      )
+      ..close();
+    canvas.drawPath(
+      outerWedge,
+      Paint()..color = const Color(0x1FFF6A2C),
+    );
+
+    final innerWedge = Path()
+      ..moveTo(0, 0)
+      ..lineTo(-6, -92)
+      ..arcTo(
+        Rect.fromCircle(center: Offset.zero, radius: 95),
+        -math.pi / 2 - 3.5 * math.pi / 180,
+        7 * math.pi / 180,
+        false,
+      )
+      ..close();
+    canvas.drawPath(
+      innerWedge,
+      Paint()..color = const Color(0x2EFF6A2C),
+    );
+
+    canvas.restore();
+  }
+
+  void _drawCardinal(
+    Canvas canvas,
+    String letter,
+    double deg,
+    double size,
+    FontWeight weight,
+    Color color, {
+    bool main = false,
+  }) {
+    final rad = (deg - 90) * math.pi / 180;
+    const r = 64.0;
+    final x = math.cos(rad) * r;
+    final y = math.sin(rad) * r;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: letter,
+        style: TT.body(size: size, w: weight, color: color)
+            .copyWith(letterSpacing: 0.04 * size),
+      ),
+      textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+    tp.paint(canvas, Offset(x - tp.width / 2, y - tp.height / 2));
+    if (main) {
+      // Tiny ember dot above the N for orientation cue
+      final dotGlow = Paint()
+        ..color = TT.ember
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+      canvas.drawCircle(Offset(x, y - 14), 2.4, dotGlow);
+      canvas.drawCircle(Offset(x, y - 14), 2.4, Paint()..color = TT.ember);
+    }
+  }
+
+  void _drawIntercardinal(Canvas canvas, String label, double deg) {
+    final rad = (deg - 90) * math.pi / 180;
+    const r = 68.0;
+    final x = math.cos(rad) * r;
+    final y = math.sin(rad) * r;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TT.body(size: 8, w: FontWeight.w700, color: const Color(0xFF5A6470))
+            .copyWith(letterSpacing: 0.1 * 8),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(x - tp.width / 2, y - tp.height / 2));
   }
 
   @override
-  bool shouldRepaint(_CompassPainter old) => old.bearing != bearing;
+  bool shouldRepaint(_CompassPainter old) =>
+      old.bearing != bearing || old.animationT != animationT;
 }
 
 // ──────────────────────────── LEVEL ─────────────────────────────────────────

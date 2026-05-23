@@ -29,6 +29,30 @@ class WeatherProvider extends ChangeNotifier {
   WeatherData? _currentWeather;
   WeatherData? get currentWeather => _currentWeather;
 
+  /// True when the active forecast points at snow conditions over the
+  /// next 24 h. Drives the Drakensberg snow-hero swap on the Home
+  /// screen. Conservative — requires either:
+  ///   • a WMO snow code (71-77 snowfall, 85-86 snow showers), OR
+  ///   • forecast minimum below 0 °C with any precipitation (a strong
+  ///     proxy when the source returns rain codes for sleet/hail mixes
+  ///     that are functionally snow at Berg elevations).
+  /// Returns false when no weather data has loaded yet — the dark
+  /// (no-snow) hero is the safer default.
+  bool get isSnowingInDrakensberg {
+    final w = _currentWeather;
+    if (w == null) return false;
+    // WMO snow codes (per Open-Meteo's reference table).
+    bool isSnowCode(int code) =>
+        (code >= 71 && code <= 77) || code == 85 || code == 86;
+    if (isSnowCode(w.weatherCode)) return true;
+    for (final d in w.daily.take(2)) {
+      if (isSnowCode(d.weatherCode)) return true;
+      // Below-freezing forecast with any precip → treat as snow.
+      if (d.tempMin <= 0 && d.precipitation > 0.2) return true;
+    }
+    return false;
+  }
+
   WeatherProvider() {
     _loadLocal();
   }

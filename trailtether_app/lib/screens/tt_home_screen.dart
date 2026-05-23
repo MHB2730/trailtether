@@ -112,18 +112,32 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
     final body = Stack(
       children: [
         // ── Full-page hero image background ────────────────────────────────
-        // Sits behind every other layer. The photo fills the entire home
-        // tab; the scrim gradient below keeps the upcoming/weather/last-hike
-        // cards legible without hiding the image entirely. errorBuilder
-        // falls back to the solid TT body colour if the asset hasn't been
-        // bundled yet so the screen never shows a Flutter exception banner.
+        // Sits behind every other layer. Swaps between the dark
+        // "no-snow" hero and the snowy daytime hero based on real
+        // Drakensberg weather (WeatherProvider.isSnowingInDrakensberg).
+        // AnimatedSwitcher crossfades the two images over 600 ms so the
+        // change is smooth, not a hard cut.
         Positioned.fill(
-          child: Image.asset(
-            'assets/icon/hero_mountain.png',
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
-            filterQuality: FilterQuality.medium,
-            errorBuilder: (_, __, ___) => Container(color: TT.bg),
+          child: Consumer<WeatherProvider>(
+            builder: (_, weather, __) {
+              final snow = weather.isSnowingInDrakensberg;
+              final asset = snow
+                  ? 'assets/icon/hero_snow.png'
+                  : 'assets/icon/hero_mountain.png';
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 600),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: Image.asset(
+                  asset,
+                  key: ValueKey<String>(asset),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (_, __, ___) => Container(color: TT.bg),
+                ),
+              );
+            },
           ),
         ),
         // Scrim — kept light at the top so the peak / orange trail stays
