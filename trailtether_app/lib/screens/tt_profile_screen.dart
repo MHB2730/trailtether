@@ -18,6 +18,9 @@ import '../providers/profile_provider.dart';
 import '../services/auth_service.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
+import 'privacy_policy_screen.dart';
+import 'safety_center_screen.dart';
+import 'profile_tab.dart' as legacy;
 import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
@@ -151,11 +154,55 @@ class _TTProfileScreenState extends State<TTProfileScreen>
     }
   }
 
-  void _stub(String label) {
+  void _pushScreen(Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+
+  Future<void> _toggleUnits() async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = prefs.getString('tt_units') ?? 'imperial';
+    final next = current == 'imperial' ? 'metric' : 'imperial';
+    await prefs.setString('tt_units', next);
+    if (!mounted) return;
+    setState(() {}); // Rebuild to refresh the "Imperial" / "Metric" label
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Units: ${next == 'imperial' ? 'Imperial (ft / mi)' : 'Metric (m / km)'}',
+            style: TT.body(size: 13, color: TT.text)),
+        backgroundColor: TT.surf,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteHistory() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Text('Delete all hike history?', style: TT.title(17)),
+        content: Text(
+            'This wipes every recorded hike on this device. Cannot be undone.',
+            style: TT.body(size: 13, color: TT.text2)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Delete',
+                style: TT.body(size: 13, color: TT.red, w: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await context.read<HikeHistoryProvider>().clear();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$label — coming soon',
+        content: Text('Hike history cleared',
             style: TT.body(size: 13, color: TT.text)),
         backgroundColor: TT.surf,
         behavior: SnackBarBehavior.floating,
@@ -179,7 +226,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                 trailing: [
                   TTIconBtn(
                       icon: Icons.settings_outlined,
-                      onTap: () => _stub('Settings')),
+                      onTap: () => _pushScreen(const legacy.ProfileTab())),
                 ],
               ),
               Expanded(
@@ -188,7 +235,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                   children: [
                     _ProfileHeader(
                         animation: _headerCtl,
-                        onEditBio: () => _stub('Edit profile')),
+                        onEditBio: () => _pushScreen(const legacy.ProfileTab())),
                     const SizedBox(height: 14),
                     const _StatTilesRow(),
                     const SizedBox(height: 22),
@@ -203,14 +250,14 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           label: 'Edit profile',
                           sub: 'Name, bio, photo',
                           trailing: _SettingTrailing.chevron(),
-                          onTap: () => _stub('Edit profile'),
+                          onTap: () => _pushScreen(const legacy.ProfileTab()),
                         ),
                         _SettingRowData(
                           icon: Icons.shield_outlined,
                           label: 'Privacy & data',
                           sub: 'No data sold · No ads',
                           trailing: _SettingTrailing.chevron(),
-                          onTap: () => _stub('Privacy & data'),
+                          onTap: () => _pushScreen(const PrivacyPolicyScreen()),
                         ),
                         _SettingRowData(
                           icon: Icons.phone_outlined,
@@ -218,7 +265,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: _emergencyContactsSub(context),
                           trailing: _SettingTrailing.value(
                               '${context.watch<ProfileProvider>().profile.contacts.length}'),
-                          onTap: () => _stub('Emergency contacts'),
+                          onTap: () => _pushScreen(const SafetyCenterScreen()),
                         ),
                       ],
                     ),
@@ -271,7 +318,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           label: 'Units',
                           sub: 'Imperial · ft / mi',
                           trailing: _SettingTrailing.value('Imperial'),
-                          onTap: () => _stub('Units'),
+                          onTap: _toggleUnits,
                         ),
                       ],
                     ),
@@ -286,7 +333,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: _hikeHistorySub(context),
                           danger: true,
                           trailing: _SettingTrailing.chevron(),
-                          onTap: () => _stub('Delete hike history'),
+                          onTap: _confirmDeleteHistory,
                         ),
                         _SettingRowData(
                           icon: Icons.logout,

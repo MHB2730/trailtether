@@ -52,7 +52,7 @@ class _AppShellState extends State<AppShell> {
             const TTMapScreen(embedded: true),
             const TTToolsScreen(embedded: true),
             const TTCommunityScreen(embedded: true),
-            const TTTeamScreen(embedded: true),
+            TTTeamScreen(embedded: true, onNavigate: _goTo),
             const TTProfileScreen(embedded: true),
           ],
         ),

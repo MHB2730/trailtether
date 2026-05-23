@@ -38,7 +38,7 @@ import '../widgets/design/tt_elev_chart.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
 import '../widgets/design/tt_topo.dart';
-import 'tt_sos_screen.dart';
+import 'sos_screen.dart';
 
 class TTHomeScreen extends StatefulWidget {
   final bool embedded;
@@ -412,8 +412,11 @@ class _HomeQuickActions extends StatelessWidget {
         icon: Icons.radio_button_checked,
         label: 'SOS',
         color: TT.red,
+        // Route to the real SOS screen (LocationService + IncidentService
+        // + 5-second hold to trigger) — never to a visual mock. SOS is
+        // safety-critical and must work end-to-end.
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const TTSOSScreen()),
+          MaterialPageRoute(builder: (_) => const SosScreen()),
         ),
       ),
     ];
