@@ -746,6 +746,7 @@ class _TrailMap extends StatelessWidget {
           userAgentPackageName: kTileUserAgent,
           tileProvider: OfflineMapService.tileProvider(),
           maxZoom: kMapTileStyles[3].maxZoom,
+          retinaMode: kHighDensity(context),
         ),
         if (pts.length >= 2)
           PolylineLayer(

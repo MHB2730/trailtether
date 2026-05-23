@@ -478,6 +478,7 @@ class _TrackPreviewMap extends StatelessWidget {
           urlTemplate: kTileUrl,
           userAgentPackageName: kTileUserAgent,
           maxZoom: 19,
+          retinaMode: kHighDensity(context),
         ),
         PolylineLayer(
           polylines: [

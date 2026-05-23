@@ -959,6 +959,7 @@ class _RouteCursorMiniMapState extends State<_RouteCursorMiniMap> {
                   tileProvider: OfflineMapService.tileProvider(),
                   userAgentPackageName: 'com.trailtether.app',
                   maxZoom: style.maxZoom,
+                  retinaMode: kHighDensity(context),
                 ),
                 // Trail polyline — ember glow underneath, sharp ember on top.
                 PolylineLayer(polylines: [

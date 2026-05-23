@@ -1279,6 +1279,7 @@ class _LiveMap extends StatelessWidget {
           userAgentPackageName: kTileUserAgent,
           tileProvider: OfflineMapService.tileProvider(),
           maxZoom: style.maxZoom,
+          retinaMode: kHighDensity(context),
         ),
         if (rec.targetTrail != null)
           PolylineLayer(

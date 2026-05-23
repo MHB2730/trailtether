@@ -148,6 +148,7 @@ class _TrailMapWidgetState extends State<TrailMapWidget> {
       tileProvider: OfflineMapService.tileProvider(),
       userAgentPackageName: 'com.trailtether.app',
       maxZoom: style.maxZoom,
+      retinaMode: kHighDensity(context),
     );
 
     final recordingProv = context.watch<RecordingProvider>();

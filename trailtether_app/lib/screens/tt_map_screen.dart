@@ -967,6 +967,7 @@ class _MapView extends StatelessWidget {
                 tileProvider: OfflineMapService.tileProvider(),
                 userAgentPackageName: 'com.trailtether.app',
                 maxZoom: tileMaxZoom,
+                retinaMode: kHighDensity(context),
               ),
               PolylineLayer(polylines: polylines),
               // Accommodation pins (hotels, lodges, camps) — always on.

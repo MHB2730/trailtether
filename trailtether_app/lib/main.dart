@@ -77,9 +77,13 @@ void main() async {
     LoggerService.error('SYSTEM', 'Deep link init failed', stack);
   }
 
-  // 5. Set orientation/UI overlay
+  // 5. Set orientation/UI overlay.
+  // immersiveSticky hides the status + nav bars; swiping in from the
+  // top or bottom edge surfaces them briefly then auto-hides again.
+  // This gives the map / hero photo every pixel of the screen — true
+  // full-screen — without the user losing access to system gestures.
   unawaited(SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]));
-  unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+  unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,

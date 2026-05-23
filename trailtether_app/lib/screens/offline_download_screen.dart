@@ -86,6 +86,7 @@ class _OfflineDownloadScreenState extends State<OfflineDownloadScreen> {
                       urlTemplate: kTileUrl,
                       userAgentPackageName: kTileUserAgent,
                       maxZoom: 19, // OSM limit
+                      retinaMode: kHighDensity(context),
                     ),
                     if (effectiveBounds != null)
                       PolylineLayer(

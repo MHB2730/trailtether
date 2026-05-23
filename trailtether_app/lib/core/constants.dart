@@ -76,6 +76,13 @@ const _kMapTilerEnabled = kMapTilerKey != '';
 String mapTilerUrl(String style) =>
     'https://api.maptiler.com/maps/$style/{z}/{x}/{y}.png?key=$kMapTilerKey';
 
+/// True when the device's pixel ratio is high enough that 256×256 raster
+/// tiles look blurry without 2× sampling. Passed as `retinaMode` to every
+/// flutter_map TileLayer so Esri / OSM / OpenTopoMap render sharp on
+/// modern phones (DPR ~2.6–3.5).
+bool kHighDensity(BuildContext context) =>
+    MediaQuery.of(context).devicePixelRatio > 1.5;
+
 class MapTileStyle {
   final String label;
   final String url;

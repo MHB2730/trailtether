@@ -584,6 +584,7 @@ class _RouteMap extends StatelessWidget {
           userAgentPackageName: kTileUserAgent,
           tileProvider: OfflineMapService.tileProvider(),
           maxZoom: kMapTileStyles[3].maxZoom,
+          retinaMode: kHighDensity(context),
         ),
         if (hike.points.isNotEmpty) SpeedPathLayer(points: hike.points),
         if (route.isNotEmpty)
