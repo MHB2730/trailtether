@@ -10,6 +10,7 @@ import '../../models/gpx_track.dart';
 import '../../models/trail.dart';
 import '../../providers/static_data_provider.dart';
 import '../../providers/gpx_provider.dart';
+import '../../providers/units_provider.dart';
 import '../../services/gpx_service.dart';
 import '../../services/logger_service.dart';
 
@@ -272,6 +273,7 @@ class _AdminTrailsTabState extends State<AdminTrailsTab>
   }
 
   void _showTrailDetails(Trail trail) {
+    final units = Provider.of<UnitsProvider>(context, listen: false);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -292,9 +294,9 @@ class _AdminTrailsTabState extends State<AdminTrailsTab>
             mainAxisSize: MainAxisSize.min,
             children: [
               _detailRow(
-                  'Distance', '${trail.distanceKm.toStringAsFixed(2)} km'),
-              _detailRow('Ascent', '+${trail.elevationGainM} m'),
-              _detailRow('Descent', '-${trail.elevationDescentM} m'),
+                  'Distance', units.formatDistance(trail.distanceKm, decimals: 2)),
+              _detailRow('Ascent', '+${units.formatElevation(trail.elevationGainM.toDouble())}'),
+              _detailRow('Descent', '-${units.formatElevation(trail.elevationDescentM.toDouble())}'),
               _detailRow(
                   'Elevation Range', '${trail.minEle}m – ${trail.maxEle}m'),
               _detailRow('Difficulty', trail.difficulty),
@@ -452,6 +454,7 @@ class _AdminTrailsTabState extends State<AdminTrailsTab>
   /// Tab 1: Shows all trails from the local JSON assets with full stats
   Widget _buildLocalTrailsList() {
     final dataProv = Provider.of<StaticDataProvider>(context);
+    final units = Provider.of<UnitsProvider>(context);
     final trails = dataProv.allTrails;
 
     if (trails.isEmpty) {
@@ -487,12 +490,12 @@ class _AdminTrailsTabState extends State<AdminTrailsTab>
                       style: const TextStyle(
                           color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
-                DataCell(Text('${trail.distanceKm.toStringAsFixed(1)} km',
+                DataCell(Text(units.formatDistance(trail.distanceKm),
                     style: const TextStyle(color: Colors.white70))),
-                DataCell(Text('+${trail.elevationGainM} m',
+                DataCell(Text('+${units.formatElevation(trail.elevationGainM.toDouble())}',
                     style: const TextStyle(
                         color: Colors.greenAccent, fontSize: 12))),
-                DataCell(Text('-${trail.elevationDescentM} m',
+                DataCell(Text('-${units.formatElevation(trail.elevationDescentM.toDouble())}',
                     style: const TextStyle(
                         color: Colors.redAccent, fontSize: 12))),
                 DataCell(Text('${trail.minEle}–${trail.maxEle}m',
@@ -534,6 +537,7 @@ class _AdminTrailsTabState extends State<AdminTrailsTab>
 
   /// Tab 2: Shows user-uploaded GPX files from Supabase
   Widget _buildGpxUploadsTable() {
+    final units = Provider.of<UnitsProvider>(context);
     if (_gpxUploads.isEmpty) {
       return Center(
         child: Column(
@@ -592,7 +596,7 @@ class _AdminTrailsTabState extends State<AdminTrailsTab>
                         trail['author_name'] ??
                         'System',
                     style: const TextStyle(color: Colors.white70))),
-                DataCell(Text('${trail['distance_km'] ?? 0} km',
+                DataCell(Text(units.formatDistance(((trail['distance_km'] ?? 0) as num).toDouble()),
                     style: const TextStyle(color: Colors.white70))),
                 DataCell(Text(trail['difficulty'] ?? 'Moderate',
                     style: const TextStyle(color: Colors.white70))),

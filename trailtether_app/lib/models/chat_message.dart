@@ -174,6 +174,22 @@ class ChatMessage {
     final todoRaw = m['todo_data'] ?? m['todo'];
     final pollRaw = m['poll_data'] ?? m['poll'];
 
+    // Guard against JSONB columns coming back as something other than a
+    // Map (e.g. a stringified payload, a list, or an old empty array). We
+    // attempt a safe coercion and drop the todo/poll if it isn't structured.
+    ChatTodo? todo;
+    if (todoRaw is Map) {
+      try {
+        todo = ChatTodo.fromMap(Map<String, dynamic>.from(todoRaw));
+      } catch (_) {/* malformed todo — skip */}
+    }
+    ChatPoll? poll;
+    if (pollRaw is Map) {
+      try {
+        poll = ChatPoll.fromMap(Map<String, dynamic>.from(pollRaw));
+      } catch (_) {/* malformed poll — skip */}
+    }
+
     return ChatMessage(
       id: id,
       senderId: m['sender_id'] as String? ?? m['senderId'] as String? ?? '',
@@ -182,12 +198,8 @@ class ChatMessage {
       text: text,
       timestamp: ts,
       type: type,
-      todo: todoRaw != null
-          ? ChatTodo.fromMap(todoRaw as Map<String, dynamic>)
-          : null,
-      poll: pollRaw != null
-          ? ChatPoll.fromMap(pollRaw as Map<String, dynamic>)
-          : null,
+      todo: todo,
+      poll: poll,
       roomId: m['room_id'] as String? ?? m['roomId'] as String? ?? '',
     );
   }

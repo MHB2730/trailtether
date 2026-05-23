@@ -126,17 +126,31 @@ class Trail {
   // ── Factory ────────────────────────────────────────────────────────
 
   factory Trail.fromJson(Map<String, dynamic> json) {
-    final rawCoords = json['coords'] as List<dynamic>;
-    final rawProfile = json['profile'] as List<dynamic>?;
+    // Required structural keys default to empty lists rather than throwing
+    // so a single malformed row (missing coords / profile, or with stringly-
+    // typed numbers) renders as a degenerate trail instead of disappearing
+    // the whole row. The caller (TrailService.loadTrails) has a try/catch
+    // for outright corrupt rows; this layer handles "mostly-good" rows.
+    final rawCoords = (json['coords'] is List)
+        ? json['coords'] as List<dynamic>
+        : const <dynamic>[];
+    final rawProfile = (json['profile'] is List)
+        ? json['profile'] as List<dynamic>
+        : null;
 
-    final coords = rawCoords.map((c) {
-      final list = c as List<dynamic>;
-      return TrailCoord(
-        (list[0] as num).toDouble(),
-        (list[1] as num).toDouble(),
-        list.length > 2 ? (list[2] as num).toDouble() : 0.0,
-      );
-    }).toList();
+    final coords = <TrailCoord>[];
+    for (final c in rawCoords) {
+      if (c is! List || c.length < 2) continue;
+      final rawLat = c[0];
+      final rawLon = c[1];
+      if (rawLat is! num || rawLon is! num) continue;
+      final rawEle = c.length > 2 ? c[2] : 0;
+      coords.add(TrailCoord(
+        rawLat.toDouble(),
+        rawLon.toDouble(),
+        (rawEle is num) ? rawEle.toDouble() : 0.0,
+      ));
+    }
 
     // ── Route Path Smoothing ───────────────────────────────────────────
     // 1. Simplify (RDP) to remove redundant noise while keeping the shape
@@ -185,13 +199,14 @@ class Trail {
     // ── Build elevation profile ───────────────────────────────────────────
     List<ElevationPoint> profile;
     if (rawProfile != null && rawProfile.isNotEmpty) {
-      profile = rawProfile.map((p) {
-        final pair = p as List<dynamic>;
-        return ElevationPoint(
-          (pair[0] as num).toDouble(),
-          (pair[1] as num).toDouble(),
-        );
-      }).toList();
+      profile = <ElevationPoint>[];
+      for (final p in rawProfile) {
+        if (p is! List || p.length < 2) continue;
+        final rawDist = p[0];
+        final rawElev = p[1];
+        if (rawDist is! num || rawElev is! num) continue;
+        profile.add(ElevationPoint(rawDist.toDouble(), rawElev.toDouble()));
+      }
     } else if (has3d) {
       // Downsample to ≤ 200 points, always including the last point.
       // Indices reference processedCoords, not raw coords — length differs
@@ -214,8 +229,12 @@ class Trail {
     // Threshold of 1.0 m filters residual noise after smoothing.
     int elevGain = 0;
     int elevDescent = 0;
-    int minEleVal = (json['minEle'] as num).toInt();
-    int maxEleVal = (json['maxEle'] as num).toInt();
+    int minEleVal = (json['minEle'] is num)
+        ? (json['minEle'] as num).toInt()
+        : 0;
+    int maxEleVal = (json['maxEle'] is num)
+        ? (json['maxEle'] as num).toInt()
+        : 0;
 
     if (has3d) {
       double gain = 0;
@@ -242,8 +261,10 @@ class Trail {
       minEleVal = lo.round();
       maxEleVal = hi.round();
     } else {
-      // Fall back to JSON values when no 3D coords
-      elevGain = (json['elevationGainM'] as num).toInt();
+      // Fall back to JSON values when no 3D coords. Default to 0 when the
+      // upstream row omits elevationGainM entirely so we never explode here.
+      final rawGain = json['elevationGainM'];
+      elevGain = (rawGain is num) ? rawGain.toInt() : 0;
       elevDescent = elevGain; // best estimate when no coord data
     }
 
@@ -263,20 +284,28 @@ class Trail {
     //   else                             → Extreme
     //
     // Special case: if gain < 50 m the route is essentially flat → Easy.
-    final distKm = (json['distanceKm'] as num).toDouble();
+    final distKm = (json['distanceKm'] is num)
+        ? (json['distanceKm'] as num).toDouble()
+        : 0.0;
+    final estTime = (json['estTimeHours'] is num)
+        ? (json['estTimeHours'] as num).toDouble()
+        : 0.0;
     final difficulty = _computeDifficulty(distKm, elevGain);
 
     return Trail(
-      id: json['id'] as String,
-      name: json['name'] as String,
+      // id / name are required to render the row at all; we still default
+      // rather than throw so a row with a missing key shows up as a
+      // recognisable placeholder instead of breaking the surrounding list.
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Unnamed trail',
       distanceKm: distKm,
       elevationGainM: elevGain,
       elevationDescentM: elevDescent,
-      estTimeHours: (json['estTimeHours'] as num).toDouble(),
+      estTimeHours: estTime,
       difficulty: difficulty,
       minEle: minEleVal,
       maxEle: maxEleVal,
-      description: json['description'] as String? ?? '',
+      description: json['description']?.toString() ?? '',
       coords: processedCoords,
       profile: profile,
     );

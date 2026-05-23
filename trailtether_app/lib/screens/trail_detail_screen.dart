@@ -17,14 +17,22 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// latlong2 exports a generic `Path<T>` that shadows the `dart:ui` `Path`
+// used by CustomPainter elsewhere in this file, so we hide it on import.
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' hide Path;
+
+import '../core/constants.dart';
 import '../core/design_tokens.dart';
 import '../models/cave_waypoint.dart';
 import '../models/trail.dart';
+import '../services/offline_map_service.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/community_provider.dart';
 import '../providers/recording_provider.dart';
 import '../providers/review_provider.dart';
 import '../providers/static_data_provider.dart';
+import '../providers/units_provider.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_elev_chart.dart';
@@ -34,6 +42,7 @@ import '../widgets/design/tt_segmented.dart';
 import '../widgets/design/tt_topo.dart';
 import '../widgets/review/review_card.dart';
 import '../widgets/review/review_summary_bar.dart';
+import 'cave_detail_sheet.dart';
 import 'reviews_screen.dart';
 import 'safety_center_screen.dart';
 
@@ -86,10 +95,11 @@ class _TrailDetailScreenState extends State<TrailDetailScreen> {
   }
 
   Future<void> _share() {
+    final units = context.read<UnitsProvider>();
     return Share.share(
       'Check out ${widget.trail.name} on Trailtether: '
-      '${widget.trail.distanceKm.toStringAsFixed(1)} km, '
-      '${widget.trail.elevationGainM} m gain.',
+      '${units.formatDistance(widget.trail.distanceKm)}, '
+      '${units.formatElevation(widget.trail.elevationGainM.toDouble())} gain.',
     );
   }
 
@@ -119,7 +129,11 @@ class _TrailDetailScreenState extends State<TrailDetailScreen> {
       builder: (_, scrollCtrl) => ClipRRect(
         borderRadius:
             const BorderRadius.vertical(top: Radius.circular(TT.rXl)),
-        child: Container(
+        // Material ancestor is required for Text to render without Flutter's
+        // yellow "missing-Material" debug underline. A bare Container in the
+        // DraggableScrollableSheet builder doesn't provide one, so every
+        // label inside the sheet was rendering with a yellow squiggle.
+        child: Material(
           color: TT.bg,
           child: Stack(
             children: [
@@ -218,6 +232,7 @@ class _TrailDetailScreenState extends State<TrailDetailScreen> {
     );
   }
 
+
   static bool _isPeak(Trail t) {
     final n = t.name.toLowerCase();
     return n.contains('peak') ||
@@ -294,7 +309,10 @@ class _HeroArea extends StatelessWidget {
                       size: 12,
                       w: FontWeight.w900,
                       color: TT.text,
-                    ).copyWith(letterSpacing: 0.18 * 12),
+                    ).copyWith(
+                      letterSpacing: 0.18 * 12,
+                      decoration: TextDecoration.none,
+                    ),
                   ),
                 ),
               ),
@@ -484,14 +502,16 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
+    final descentDisplay = units.elevationFromM(trail.elevationDescentM.toDouble()).round();
     return Row(
       children: [
         Expanded(
           child: _StatTile(
             label: 'DISTANCE',
             from: 0,
-            to: trail.distanceKm,
-            formatter: (v) => '${v.toStringAsFixed(1)} km',
+            to: units.distanceFromKm(trail.distanceKm),
+            formatter: (v) => '${v.toStringAsFixed(1)} ${units.distanceUnit}',
             ember: true,
           ),
         ),
@@ -500,9 +520,9 @@ class _StatsRow extends StatelessWidget {
           child: _StatTile(
             label: 'ELEV +/−',
             from: 0,
-            to: trail.elevationGainM.toDouble(),
+            to: units.elevationFromM(trail.elevationGainM.toDouble()),
             formatter: (v) =>
-                '${v.toInt()}/${trail.elevationDescentM} m',
+                '${v.toInt()}/$descentDisplay ${units.elevationUnit}',
           ),
         ),
         const SizedBox(width: 10),
@@ -730,16 +750,61 @@ class _ActionChip extends StatelessWidget {
 
 // ── Elevation card ────────────────────────────────────────────────────────
 
-class _ElevationCard extends StatelessWidget {
+class _ElevationCard extends StatefulWidget {
   final Trail trail;
   const _ElevationCard({required this.trail});
 
   @override
+  State<_ElevationCard> createState() => _ElevationCardState();
+}
+
+class _ElevationCardState extends State<_ElevationCard> {
+  StaticDataProvider? _staticData;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Capture the provider while we still have a live context — using
+    // context.read in dispose() is unsafe because the element may already
+    // be deactivated by the time the dispose runs.
+    _staticData = context.read<StaticDataProvider>();
+  }
+
+  @override
+  void dispose() {
+    // Drop the cursor when the card is torn down so a re-open of any other
+    // trail doesn't briefly show a stale cursor before the user touches it.
+    _staticData?.clearProfileCursor();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final samples =
-        trail.profile.isEmpty ? null : trail.profile.map((p) => p.elevationM).toList();
+    final units = context.watch<UnitsProvider>();
+    final trail = widget.trail;
+    final coords = trail.coords;
+    final hasProfile = trail.profile.isNotEmpty;
+    final samples = hasProfile
+        ? trail.profile.map((p) => p.elevationM).toList()
+        : null;
     final peakLabel =
-        '${trail.distanceKm.toStringAsFixed(1)} km · ${trail.elevationGainM} m';
+        '${units.formatDistance(trail.distanceKm)} · ${units.formatElevation(trail.elevationGainM.toDouble())}';
+    final range = (trail.maxEle - trail.minEle).abs().toDouble();
+
+    // Translate a chart sample index back to a TrailCoord. The chart works on
+    // the elevation-profile samples but the cursor needs to land on a real
+    // coordinate, so we interpolate proportionally into the coord list.
+    void onChartCursor(int? idx) {
+      final prov = context.read<StaticDataProvider>();
+      if (idx == null || coords.isEmpty || samples == null) {
+        prov.clearProfileCursor();
+        return;
+      }
+      final t = idx / (samples.length - 1).clamp(1, double.infinity);
+      final mapped = (t * (coords.length - 1)).round().clamp(0, coords.length - 1);
+      prov.setProfileCursor(coords[mapped]);
+    }
+
     return TTCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       child: Column(
@@ -754,13 +819,268 @@ class _ElevationCard extends StatelessWidget {
                       color: TT.ember,
                       letterSpacing: 1.4)),
               Text(
-                'RANGE ${(trail.maxEle - trail.minEle).abs()} M',
+                'RANGE ${units.formatElevation(range).toUpperCase()}',
                 style: TT.mono(size: 10, color: TT.text3),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          TTBigElevChart(samples: samples, peakLabel: peakLabel),
+          const SizedBox(height: 6),
+          // Inline mini-map preview. Shows the route silhouette plus a moving
+          // cursor as the user drags across the elevation chart below — so the
+          // user can see *where on the route* the steep section actually sits.
+          if (coords.length >= 2)
+            _RouteCursorMiniMap(trail: trail)
+          else
+            const SizedBox(height: 4),
+          if (coords.length >= 2) const SizedBox(height: 8),
+          Selector<StaticDataProvider, int?>(
+            selector: (_, p) {
+              final cursor = p.profileCursor;
+              if (cursor == null || samples == null) return null;
+              // Reverse-map the cursor coord back to a sample index. The
+              // cursor and the chart speak in different lists (coords vs
+              // profile samples) but should stay perfectly synced.
+              final idx = coords.indexOf(cursor);
+              if (idx < 0) return null;
+              final t = idx / (coords.length - 1).clamp(1, double.infinity);
+              return (t * (samples.length - 1)).round();
+            },
+            builder: (_, cursorIdx, __) => TTBigElevChart(
+              samples: samples,
+              peakLabel: peakLabel,
+              elevationUnit: units.elevationUnit,
+              onCursor: hasProfile ? onChartCursor : null,
+              cursorIndex: cursorIdx,
+            ),
+          ),
+          if (hasProfile) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Drag across the chart to see where the route gets tough.',
+              style: TT.mono(size: 9.5, color: TT.text3, letterSpacing: 0.06 * 9.5),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact map preview showing the full trail outline on real satellite
+/// tiles, plus a moving pin at the current `StaticDataProvider.profileCursor`.
+/// As the user drags across the elevation chart, the pin tracks across the
+/// satellite imagery so they can see *what kind of terrain* the steep
+/// section actually crosses — not just an abstract polyline.
+///
+/// User interaction is locked off (no pan/zoom) so the mini-map stays
+/// framed on the route while drag gestures pass through to the chart.
+class _RouteCursorMiniMap extends StatefulWidget {
+  final Trail trail;
+  const _RouteCursorMiniMap({required this.trail});
+
+  @override
+  State<_RouteCursorMiniMap> createState() => _RouteCursorMiniMapState();
+}
+
+class _RouteCursorMiniMapState extends State<_RouteCursorMiniMap> {
+  final MapController _mapCtrl = MapController();
+  bool _didFit = false;
+
+  void _fitToTrail() {
+    final coords = widget.trail.coords;
+    if (coords.length < 2 || !mounted) return;
+    try {
+      _mapCtrl.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds(
+            LatLng(widget.trail.minLat, widget.trail.minLon),
+            LatLng(widget.trail.maxLat, widget.trail.maxLon),
+          ),
+          padding: const EdgeInsets.all(20),
+        ),
+      );
+      _didFit = true;
+    } catch (_) {
+      // Map not yet laid out — try again on the next frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _fitToTrail();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final trail = widget.trail;
+    if (trail.coords.length < 2) {
+      return const SizedBox(height: 140);
+    }
+
+    // Use the Satellite tile style (Esri World Imagery) so the user can see
+    // the actual terrain the route crosses. Falls back to the first available
+    // style if the satellite entry isn't present in this build.
+    final satStyleIdx = kMapTileStyles
+        .indexWhere((s) => s.label.toLowerCase().contains('sat'));
+    final style = kMapTileStyles[satStyleIdx >= 0 ? satStyleIdx : 0];
+
+    final routePts = trail.coords.map((c) => LatLng(c.lat, c.lon)).toList();
+    final startLL = routePts.first;
+    final endLL = routePts.last;
+
+    return SizedBox(
+      height: 160,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(TT.rSm),
+        child: Stack(
+          children: [
+            // Real flutter_map underlay. We listen to onMapReady to do the
+            // initial fit because fitCamera before the map has a size will
+            // silently no-op.
+            FlutterMap(
+              mapController: _mapCtrl,
+              options: MapOptions(
+                initialCenter: LatLng(
+                  (trail.minLat + trail.maxLat) / 2,
+                  (trail.minLon + trail.maxLon) / 2,
+                ),
+                initialZoom: 12,
+                minZoom: 4,
+                maxZoom: 18,
+                backgroundColor: const Color(0xFF06080B),
+                // Disable user interaction — pan/zoom would compete with
+                // the elevation-chart drag gesture sitting directly below.
+                interactionOptions: const InteractionOptions(flags: 0),
+                onMapReady: () {
+                  if (!_didFit) _fitToTrail();
+                },
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: style.url,
+                  tileProvider: OfflineMapService.tileProvider(),
+                  userAgentPackageName: 'com.trailtether.app',
+                  maxZoom: style.maxZoom,
+                ),
+                // Trail polyline — ember glow underneath, sharp ember on top.
+                PolylineLayer(polylines: [
+                  Polyline(
+                    points: routePts,
+                    color: const Color(0x66FF6A2C),
+                    strokeWidth: 6,
+                    strokeCap: StrokeCap.round,
+                    strokeJoin: StrokeJoin.round,
+                  ),
+                  Polyline(
+                    points: routePts,
+                    color: TT.ember,
+                    strokeWidth: 2.5,
+                    strokeCap: StrokeCap.round,
+                    strokeJoin: StrokeJoin.round,
+                  ),
+                ]),
+                // Start / end dots so the user knows which way the route runs.
+                MarkerLayer(
+                  rotate: true,
+                  markers: [
+                    Marker(
+                      point: startLL,
+                      width: 14,
+                      height: 14,
+                      child: const _RouteEndDot(color: TT.green),
+                    ),
+                    Marker(
+                      point: endLL,
+                      width: 14,
+                      height: 14,
+                      child: const _RouteEndDot(color: TT.amber),
+                    ),
+                  ],
+                ),
+                // Cursor pin — driven by StaticDataProvider.profileCursor so
+                // it moves in real time as the user drags the chart.
+                Consumer<StaticDataProvider>(
+                  builder: (_, prov, __) {
+                    final cursor = (prov.selectedTrail?.id == trail.id ||
+                            prov.selectedTrail == null)
+                        ? prov.profileCursor
+                        : null;
+                    if (cursor == null) return const SizedBox.shrink();
+                    return MarkerLayer(
+                      rotate: true,
+                      markers: [
+                        Marker(
+                          point: LatLng(cursor.lat, cursor.lon),
+                          width: 28,
+                          height: 28,
+                          child: const _RouteCursorPin(),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+            // Subtle inner border so the panel reads as a card rather than a
+            // raw map cut-out.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(TT.rSm),
+                    border: Border.all(color: TT.line, width: 1),
+                  ),
+                ),
+              ),
+            ),
+            // Attribution stays mandatory for the tile provider.
+            Positioned(
+              right: 4,
+              bottom: 2,
+              child: IgnorePointer(
+                child: Text(
+                  style.attribution,
+                  style: TT.mono(size: 7.5, color: Colors.white70),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteEndDot extends StatelessWidget {
+  final Color color;
+  const _RouteEndDot({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(color: color.withOpacity(0.5), blurRadius: 6),
+        ],
+      ),
+    );
+  }
+}
+
+class _RouteCursorPin extends StatelessWidget {
+  const _RouteCursorPin();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: TT.ember,
+        border: Border.all(color: Colors.white, width: 2.5),
+        boxShadow: const [
+          BoxShadow(color: Color(0xCCFF6A2C), blurRadius: 16, spreadRadius: 2),
+          BoxShadow(color: Color(0x66000000), blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
     );
@@ -858,47 +1178,58 @@ class _CavesCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ...caves.take(5).map((c) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: TT.emberSoft,
-                        borderRadius: BorderRadius.circular(TT.rSm),
-                      ),
-                      child: Icon(
-                        c.isShelter
-                            ? Icons.cabin
-                            : Icons.terrain,
-                        size: 14,
-                        color: TT.ember,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            c.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TT.body(
-                                size: 13,
-                                w: FontWeight.w700,
-                                color: TT.text),
+                padding: const EdgeInsets.only(bottom: 4),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(TT.rSm),
+                  onTap: () => CaveDetailSheet.show(context, c),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 6),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 30,
+                          height: 30,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: TT.emberSoft,
+                            borderRadius: BorderRadius.circular(TT.rSm),
                           ),
-                          Text(
-                            '${c.elevationM.toInt()} m · ${c.isShelter ? 'shelter' : 'cave'}',
-                            style: TT.mono(size: 10.5, color: TT.text3),
+                          child: Icon(
+                            c.isShelter ? Icons.cabin : Icons.terrain,
+                            size: 14,
+                            color: TT.ember,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                c.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TT.body(
+                                    size: 13,
+                                    w: FontWeight.w700,
+                                    color: TT.text),
+                              ),
+                              Builder(builder: (ctx) {
+                                final units = ctx.watch<UnitsProvider>();
+                                return Text(
+                                  '${units.formatElevation(c.elevationM)} · ${c.isShelter ? 'shelter' : 'cave'}',
+                                  style: TT.mono(size: 10.5, color: TT.text3),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right,
+                            size: 16, color: TT.text3),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               )),
           if (caves.length > 5)

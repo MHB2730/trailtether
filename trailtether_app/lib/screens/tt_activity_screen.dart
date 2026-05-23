@@ -13,6 +13,7 @@ import '../core/design_tokens.dart';
 import '../models/saved_hike.dart';
 import '../providers/auth_provider.dart';
 import '../providers/hike_history_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/health_connect_service.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
@@ -224,10 +225,14 @@ class _FeaturedHike extends StatelessWidget {
     }
 
     final h = latest!;
+    final units = context.watch<UnitsProvider>();
     final name = h.name;
     final date = DateFormat('MMM d, y').format(h.startedAt).toUpperCase();
-    final dist = (h.distanceKm * 0.621371).toStringAsFixed(1);
-    final ascent = NumberFormat.decimalPattern().format((h.ascentM * 3.28084).round());
+    final dist = units.distanceFromKm(h.distanceKm).toStringAsFixed(1);
+    final distUnit = units.distanceUnit;
+    final ascent = NumberFormat.decimalPattern()
+        .format(units.elevationFromM(h.ascentM.toDouble()).round());
+    final elevUnit = units.elevationUnit;
     final samples = h.points.length > 4 ? h.points.map((p) => p.altitude).toList() : null;
 
     void openDetail() => Navigator.push(
@@ -252,7 +257,7 @@ class _FeaturedHike extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(name, style: TT.title(17, letterSpacing: -0.01 * 17)),
                     const SizedBox(height: 4),
-                    Text('$date · $dist mi · ↑ $ascent FT',
+                    Text('$date · $dist $distUnit · ↑ $ascent ${elevUnit.toUpperCase()}',
                         style: TT.mono(size: 10.5, color: TT.text3)),
                   ],
                 ),
@@ -261,7 +266,7 @@ class _FeaturedHike extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          TTBigElevChart(samples: samples, peakLabel: '$dist mi · $ascent ft'),
+          TTBigElevChart(samples: samples, peakLabel: '$dist $distUnit · $ascent $elevUnit', elevationUnit: elevUnit),
         ],
       ),
     );
@@ -436,16 +441,17 @@ class _StatGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final totDistKm = hikes.fold<double>(0, (a, h) => a + h.distanceKm);
     final totDur = hikes.fold<int>(0, (a, h) => a + h.durationSeconds);
     final totGain = hikes.fold<int>(0, (a, h) => a + h.ascentM);
     final totSteps = hikes.fold<int>(0, (a, h) => a + (h.distanceKm * 1312).round()); // rough
 
     final tiles = [
-      _Tile(icon: Icons.place_outlined,     label: 'Distance',  value: (totDistKm * 0.621371).toStringAsFixed(1), unit: 'mi'),
+      _Tile(icon: Icons.place_outlined,     label: 'Distance',  value: units.distanceFromKm(totDistKm).toStringAsFixed(1), unit: units.distanceUnit),
       _Tile(icon: Icons.schedule,            label: 'Duration',  value: _formatDuration(totDur),                   unit: null),
-      _Tile(icon: Icons.explore_outlined,    label: 'Avg Pace',  value: _avgPace(totDur, totDistKm),               unit: '/mi'),
-      _Tile(icon: Icons.arrow_upward,        label: 'Elev Gain', value: NumberFormat.decimalPattern().format((totGain * 3.28084).round()), unit: 'ft', ember: true),
+      _Tile(icon: Icons.explore_outlined,    label: 'Avg Pace',  value: units.formatPace(totDur, totDistKm),       unit: units.paceUnit),
+      _Tile(icon: Icons.arrow_upward,        label: 'Elev Gain', value: NumberFormat.decimalPattern().format(units.elevationFromM(totGain.toDouble()).round()), unit: units.elevationUnit, ember: true),
       _Tile(icon: Icons.local_fire_department_outlined, label: 'Calories',  value: NumberFormat.decimalPattern().format((totDistKm * 116.7).round()), unit: 'kcal'),
       _Tile(icon: Icons.directions_walk,     label: 'Steps',     value: NumberFormat.decimalPattern().format(totSteps), unit: null),
     ];
@@ -467,14 +473,6 @@ class _StatGrid extends StatelessWidget {
         );
       },
     );
-  }
-
-  String _avgPace(int totSec, double totKm) {
-    if (totKm <= 0) return '--';
-    final secPerMile = totSec / (totKm * 0.621371);
-    final m = (secPerMile ~/ 60);
-    final s = (secPerMile % 60).round().toString().padLeft(2, '0');
-    return '$m:$s';
   }
 
   String _formatDuration(int totalSeconds) {
@@ -638,10 +636,12 @@ class _ActivityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final date = DateFormat('MMM d').format(hike.startedAt);
-    final dist = '${(hike.distanceKm * 0.621371).toStringAsFixed(1)} mi';
+    final dist = '${units.distanceFromKm(hike.distanceKm).toStringAsFixed(1)} ${units.distanceUnit}';
     final gain =
-        '+${NumberFormat.decimalPattern().format((hike.ascentM * 3.28084).round())}';
+        '+${NumberFormat.decimalPattern().format(units.elevationFromM(hike.ascentM.toDouble()).round())}';
+    final elevUnit = units.elevationUnit;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => Navigator.push(
@@ -696,7 +696,7 @@ class _ActivityRow extends StatelessWidget {
                     children: [
                       Text(dist, style: TT.numStyle(size: 13, w: FontWeight.w800)),
                       const SizedBox(height: 3),
-                      Text('$gain ft',
+                      Text('$gain $elevUnit',
                           style: TT.mono(size: 10.5, color: TT.ember, w: FontWeight.w700)),
                     ],
                   ),
@@ -767,7 +767,9 @@ class _MyHikes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totDistMi = hikes.fold<double>(0, (a, h) => a + h.distanceKm * 0.621371);
+    final units = context.watch<UnitsProvider>();
+    final totDistKm = hikes.fold<double>(0, (a, h) => a + h.distanceKm);
+    final totDistDisplay = units.distanceFromKm(totDistKm);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
@@ -797,11 +799,11 @@ class _MyHikes extends StatelessWidget {
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       TTCountUp(
-                        text: totDistMi.toStringAsFixed(0),
+                        text: totDistDisplay.toStringAsFixed(0),
                         style: TT.numStyle(size: 30, color: TT.ember, letterSpacing: -0.02 * 30),
                       ),
                       const SizedBox(width: 3),
-                      Text('mi', style: TT.body(size: 14, color: TT.text2)),
+                      Text(units.distanceUnit, style: TT.body(size: 14, color: TT.text2)),
                     ],
                   ),
                   const SizedBox(height: 2),
@@ -845,6 +847,7 @@ class _HikeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final dur = Duration(seconds: hike.durationSeconds);
     final durText = '${dur.inHours}:${(dur.inMinutes % 60).toString().padLeft(2, '0')}:${(dur.inSeconds % 60).toString().padLeft(2, '0')}';
     return GestureDetector(
@@ -900,10 +903,10 @@ class _HikeRow extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('${(hike.distanceKm * 0.621371).toStringAsFixed(1)} mi',
+                      Text('${units.distanceFromKm(hike.distanceKm).toStringAsFixed(1)} ${units.distanceUnit}',
                           style: TT.numStyle(size: 13, w: FontWeight.w800)),
                       const SizedBox(height: 3),
-                      Text('+${NumberFormat.decimalPattern().format((hike.ascentM * 3.28084).round())} ft',
+                      Text('+${NumberFormat.decimalPattern().format(units.elevationFromM(hike.ascentM.toDouble()).round())} ${units.elevationUnit}',
                           style: TT.mono(size: 10.5, color: TT.ember, w: FontWeight.w700)),
                     ],
                   ),

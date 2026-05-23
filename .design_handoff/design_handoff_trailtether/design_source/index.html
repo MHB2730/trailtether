@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trailtether — Mobile Designs</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    /* Trailtether palette — graphite / ember orange */
+    --tt-bg:        #07090c;
+    --tt-bg-2:      #0b0e12;
+    --tt-bg-3:      #0f1318;
+
+    --tt-surf:      #131820;
+    --tt-surf-2:    #1a2029;
+    --tt-surf-3:    #232a35;
+
+    --tt-line:      rgba(255,255,255,0.055);
+    --tt-line-2:    rgba(255,255,255,0.10);
+    --tt-line-3:    rgba(255,255,255,0.16);
+
+    --tt-text:      #eef1f4;
+    --tt-text-2:    #98a1ac;
+    --tt-text-3:    #5a6470;
+    --tt-text-4:    #3d454d;
+
+    /* Burnt ember */
+    --tt-ember:     #ff6a2c;
+    --tt-ember-2:   #ff8a4d;
+    --tt-ember-3:   #ffb486;
+    --tt-ember-dim: rgba(255,106,44,0.14);
+    --tt-ember-soft:rgba(255,106,44,0.06);
+    --tt-ember-glow:0 0 28px rgba(255,106,44,0.45);
+
+    --tt-blue:      #5aa1d6;
+    --tt-green:     #4cc38a;
+    --tt-amber:     #f2a93b;
+    --tt-red:       #e63d2e;
+
+    --tt-font:      'Manrope', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --tt-mono:      'JetBrains Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
+
+    --tt-r-sm: 8px;
+    --tt-r-md: 12px;
+    --tt-r-lg: 16px;
+    --tt-r-xl: 22px;
+
+    --tt-shadow-card: 0 8px 24px -12px rgba(0,0,0,0.6), 0 2px 6px -2px rgba(0,0,0,0.4);
+    --tt-shadow-ember: 0 10px 30px -8px rgba(255,106,44,0.45);
+  }
+
+  html, body { background: #15181d; }
+  body { margin: 0; font-family: var(--tt-font); color: var(--tt-text); -webkit-font-smoothing: antialiased; }
+
+  /* ----------- Phone frame ----------- */
+  .phone {
+    width: 412px; height: 892px;
+    background: #06070a;
+    border-radius: 48px;
+    padding: 10px;
+    position: relative;
+    box-shadow:
+      inset 0 0 0 1.5px #2a2f36,
+      inset 0 0 0 3px #0a0c0f,
+      inset 0 0 0 4.5px #1a1d22,
+      0 30px 80px -20px rgba(0,0,0,0.7);
+    font-family: var(--tt-font);
+    color: var(--tt-text);
+  }
+  .phone::before {
+    content: ''; position: absolute; right: -2px; top: 200px;
+    width: 2px; height: 80px; background: #2a2f36; border-radius: 2px;
+  }
+  .phone::after {
+    content: ''; position: absolute; left: -2px; top: 170px;
+    width: 2px; height: 130px; background: #2a2f36; border-radius: 2px;
+  }
+  .phone .screen {
+    width: 100%; height: 100%;
+    border-radius: 40px;
+    background: var(--tt-bg);
+    overflow: hidden;
+    position: relative;
+    display: flex; flex-direction: column;
+    isolation: isolate;
+  }
+  .phone .punchhole {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #050608;
+    z-index: 100;
+    box-shadow: inset 0 0 0 1px #1a1d22;
+  }
+
+  /* ambient ember backdrop */
+  .phone .screen::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(800px 600px at 90% -10%, rgba(255,106,44,0.10), transparent 50%),
+      radial-gradient(700px 500px at -20% 110%, rgba(255,106,44,0.06), transparent 50%);
+    pointer-events: none; z-index: 0;
+    animation: ambient 14s ease-in-out infinite alternate;
+  }
+  @keyframes ambient {
+    0%   { transform: translate3d(0,0,0) scale(1); opacity: 0.85; }
+    100% { transform: translate3d(0,-12px,0) scale(1.08); opacity: 1; }
+  }
+
+  /* ----------- Status bar ----------- */
+  .tt-status {
+    height: 38px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 22px 0;
+    font: 600 13px/1 var(--tt-font);
+    color: var(--tt-text);
+    flex: 0 0 auto;
+    position: relative; z-index: 2;
+  }
+  .tt-status .left { font-feature-settings: 'tnum'; }
+  .tt-status .right { display: flex; align-items: center; gap: 6px; }
+
+  /* ----------- App bar ----------- */
+  .tt-appbar {
+    padding: 12px 18px 14px;
+    display: flex; align-items: center; gap: 10px;
+    position: relative; z-index: 2;
+  }
+  .tt-appbar h1 {
+    margin: 0;
+    font: 800 22px/1.1 var(--tt-font);
+    letter-spacing: -0.015em;
+  }
+  .tt-appbar .sub {
+    margin-top: 4px;
+    font: 600 10.5px var(--tt-mono);
+    color: var(--tt-text-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .tt-appbar .sub b { color: var(--tt-text-2); font-weight: 700; }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--tt-line);
+    color: var(--tt-text);
+    display: grid; place-items: center;
+    cursor: pointer; flex: 0 0 auto;
+    transition: background 200ms ease, border-color 200ms ease, transform 200ms ease;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.06); border-color: var(--tt-line-2); }
+  .icon-btn:active { transform: scale(0.96); }
+  .icon-btn.ember {
+    background: var(--tt-ember-dim);
+    border-color: rgba(255,106,44,0.32);
+    color: var(--tt-ember);
+  }
+
+  /* ----------- Body & nav ----------- */
+  .tt-body {
+    flex: 1 1 auto;
+    display: flex; flex-direction: column;
+    min-height: 0;
+    position: relative; z-index: 1;
+  }
+  .tt-scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  .tt-scroll::-webkit-scrollbar { display: none; }
+
+  /* Bottom nav */
+  .tt-bottomnav {
+    height: 84px; flex: 0 0 auto;
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    background: rgba(8,10,14,0.85);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--tt-line);
+    position: relative;
+    z-index: 3;
+  }
+  .tt-bottomnav .item {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px;
+    font: 700 9.5px var(--tt-font);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--tt-text-3); cursor: pointer;
+    padding-bottom: 18px;
+    position: relative;
+    transition: color 250ms ease;
+  }
+  .tt-bottomnav .item:hover { color: var(--tt-text-2); }
+  .tt-bottomnav .item.active { color: var(--tt-ember); }
+  .tt-bottomnav .item.active .pip {
+    background: var(--tt-ember);
+    box-shadow: 0 0 12px rgba(255,106,44,0.7);
+  }
+  .tt-bottomnav .pip {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 28px; height: 3px; border-radius: 2px; background: transparent;
+    transition: background 250ms ease, box-shadow 250ms ease;
+  }
+  .tt-bottomnav .gesture {
+    position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+    width: 130px; height: 4px; border-radius: 2px; background: var(--tt-text-2);
+    opacity: 0.45;
+  }
+
+  /* ----------- Cards / primitives ----------- */
+  .glass {
+    background: rgba(13,17,22,0.72);
+    backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid var(--tt-line-2);
+    border-radius: var(--tt-r-md);
+  }
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0)) , var(--tt-surf);
+    border: 1px solid var(--tt-line);
+    border-radius: var(--tt-r-lg);
+    box-shadow: var(--tt-shadow-card);
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 9px; border-radius: 999px;
+    font: 700 9.5px var(--tt-mono);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    border: 1px solid var(--tt-line-2);
+    color: var(--tt-text-2);
+    background: rgba(255,255,255,0.025);
+  }
+  .pill.ember {
+    color: var(--tt-ember);
+    background: var(--tt-ember-dim);
+    border-color: rgba(255,106,44,0.35);
+  }
+  .pill.live::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--tt-green);
+    box-shadow: 0 0 8px var(--tt-green);
+    animation: pulse 1.6s infinite ease-in-out;
+  }
+  .pill.danger {
+    color: var(--tt-red);
+    background: rgba(230,61,46,0.10);
+    border-color: rgba(230,61,46,0.35);
+  }
+
+  /* ----------- Motion utilities ----------- */
+
+  /* Card / row entry */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translate3d(0, 14px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.92); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .anim-up   { animation: fadeUp 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .anim-in   { animation: fadeIn 600ms ease both; }
+  .anim-pop  { animation: scaleIn 650ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+  /* draw a path along its length */
+  @keyframes drawLine {
+    from { stroke-dashoffset: var(--len, 1000); }
+    to   { stroke-dashoffset: 0; }
+  }
+  .draw-line {
+    stroke-dasharray: var(--len, 1000);
+    stroke-dashoffset: var(--len, 1000);
+    animation: drawLine 1800ms cubic-bezier(0.6, 0.2, 0.2, 1) 200ms forwards;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,106,44,0.5); }
+    50%      { box-shadow: 0 0 0 8px rgba(255,106,44,0); }
+  }
+  @keyframes ringRipple {
+    0%   { transform: scale(0.7); opacity: 0.9; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes countUp {
+    from { opacity: 0; transform: translate3d(0, 6px, 0); filter: blur(2px); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); }
+  }
+  .count-up { animation: countUp 800ms cubic-bezier(0.2,0.7,0.2,1) both; }
+
+  /* helpers */
+  .mono { font-family: var(--tt-mono); }
+  .stat-label {
+    font: 700 10px var(--tt-font);
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--tt-text-3);
+  }
+  .divider { height: 1px; background: var(--tt-line); }
+
+  /* number that animates */
+  .num {
+    font-family: var(--tt-mono);
+    font-feature-settings: 'tnum';
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ----------- Topo motif overlay ----------- */
+  .topo-overlay {
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600' viewBox='0 0 600 600'><g fill='none' stroke='%23ffffff' stroke-opacity='0.04' stroke-width='1'><path d='M0,300 Q150,200 300,260 T600,240'/><path d='M0,340 Q150,250 300,300 T600,290'/><path d='M0,380 Q150,300 300,340 T600,340'/><path d='M0,420 Q150,350 300,380 T600,390'/><path d='M0,260 Q150,160 300,220 T600,200'/><path d='M0,220 Q150,120 300,180 T600,160'/><path d='M0,180 Q150,80 300,140 T600,120'/></g></svg>");
+    background-size: 600px 600px;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  /* tab switcher segmented control */
+  .segmented {
+    position: relative;
+    display: flex;
+    padding: 4px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--tt-line);
+    border-radius: 12px;
+  }
+  .segmented .seg {
+    flex: 1;
+    padding: 9px 14px;
+    border-radius: 9px;
+    font: 700 12px var(--tt-font);
+    color: var(--tt-text-3);
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
+    transition: color 250ms ease;
+  }
+  .segmented .seg.active { color: var(--tt-ember); }
+  .segmented .indicator {
+    position: absolute;
+    top: 4px; bottom: 4px;
+    border-radius: 9px;
+    background: var(--tt-ember-dim);
+    border: 1px solid rgba(255,106,44,0.32);
+    transition: left 350ms cubic-bezier(0.2,0.7,0.2,1), width 350ms cubic-bezier(0.2,0.7,0.2,1);
+    box-shadow: inset 0 0 12px rgba(255,106,44,0.18);
+    z-index: 1;
+  }
+
+  /* Press-able rows */
+  .pressable {
+    transition: transform 200ms ease, background 200ms ease, border-color 200ms ease;
+  }
+  .pressable:hover { border-color: var(--tt-line-2); }
+  .pressable:active { transform: scale(0.985); }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="screens/shared.jsx"></script>
+<script type="text/babel" src="screens/welcome.jsx"></script>
+<script type="text/babel" src="screens/home.jsx"></script>
+<script type="text/babel" src="screens/maps.jsx"></script>
+<script type="text/babel" src="screens/tools.jsx"></script>
+<script type="text/babel" src="screens/community.jsx"></script>
+<script type="text/babel" src="screens/team.jsx"></script>
+<script type="text/babel" src="screens/profile.jsx"></script>
+<script type="text/babel" src="screens/stats.jsx"></script>
+<script type="text/babel" src="screens/trails.jsx"></script>
+<script type="text/babel" src="screens/trail-detail.jsx"></script>
+<script type="text/babel" src="screens/safety.jsx"></script>
+<script type="text/babel" src="screens/sos.jsx"></script>
+<script type="text/babel" src="screens/settings.jsx"></script>
+<script type="text/babel" src="screens/notifications.jsx"></script>
+<script type="text/babel" src="screens/history.jsx"></script>
+<script type="text/babel" src="screens/achievements.jsx"></script>
+<script type="text/babel" src="screens/edit-profile.jsx"></script>
+<script type="text/babel" src="screens/plan-route.jsx"></script>
+<script type="text/babel" src="screens/sign-in.jsx"></script>
+<script type="text/babel" src="screens/search.jsx"></script>
+<script type="text/babel" src="screens/forecast.jsx"></script>
+
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+function App() {
+  // Easter-egg tweak: when t.snow is true, the Home hero swaps to the
+  // snowed-in mountain image. Mirrors the global TT_STATE.snow flag that
+  // every screen can read via useTT().
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "snow": true
+  }/*EDITMODE-END*/;
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // Keep the global state in sync with the tweak value
+  React.useEffect(() => {
+    setTT('snow', !!t.snow);
+  }, [t.snow]);
+
+  return (
+    <>
+      <DesignCanvas>
+        <DCSection id="entry" title="Entry" subtitle="First-run welcome and sign-in">
+          <DCArtboard id="welcome" label="00 · Welcome"  width={412} height={892}><ScreenWelcome /></DCArtboard>
+          <DCArtboard id="signin"  label="00b · Sign In" width={412} height={892}><ScreenSignIn  /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="main-tabs" title="Main Tabs" subtitle="The 6 core tabs of the app shell">
+          <DCArtboard id="home"      label="01 · Home"       width={412} height={892}><ScreenHome      /></DCArtboard>
+          <DCArtboard id="maps"      label="02 · Map"        width={412} height={892}><ScreenMaps      /></DCArtboard>
+          <DCArtboard id="tools"     label="03 · Tools"      width={412} height={892}><ScreenTools     /></DCArtboard>
+          <DCArtboard id="community" label="04 · Community"  width={412} height={892}><ScreenCommunity /></DCArtboard>
+          <DCArtboard id="teams"     label="05 · Teams"      width={412} height={892}><ScreenTeam      /></DCArtboard>
+          <DCArtboard id="profile"   label="06 · Profile"    width={412} height={892}><ScreenProfile   /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="trails" title="Trails" subtitle="Browse trails and dive into an interactive detail view">
+          <DCArtboard id="trails-list"  label="07 · Trails List"   width={412} height={892}><ScreenTrails       /></DCArtboard>
+          <DCArtboard id="trail-detail" label="08 · Trail Detail"  width={412} height={892}><ScreenTrailDetail  /></DCArtboard>
+          <DCArtboard id="plan-route"   label="09 · Plan Route"    width={412} height={892}><ScreenPlanRoute    /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="data" title="Activity & Data" subtitle="Per-user history, stats, achievements and weather">
+          <DCArtboard id="stats"         label="10 · Activity"        width={412} height={892}><ScreenStats        /></DCArtboard>
+          <DCArtboard id="history"       label="11 · Hike History"    width={412} height={892}><ScreenHistory      /></DCArtboard>
+          <DCArtboard id="achievements"  label="12 · Achievements"    width={412} height={892}><ScreenAchievements /></DCArtboard>
+          <DCArtboard id="forecast"      label="13 · 7-Day Forecast"  width={412} height={892}><ScreenForecast     /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="safety-flow" title="Safety & Emergency" subtitle="Tether plans and the SOS path">
+          <DCArtboard id="safety" label="14 · Safety"     width={412} height={892}><ScreenSafety /></DCArtboard>
+          <DCArtboard id="sos"    label="15 · SOS Active" width={412} height={892}><ScreenSOS    /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="utility" title="Utility" subtitle="Notifications, search, edit profile and full settings">
+          <DCArtboard id="notifications" label="16 · Notifications" width={412} height={892}><ScreenNotifications /></DCArtboard>
+          <DCArtboard id="search"        label="17 · Search"        width={412} height={892}><ScreenSearch        /></DCArtboard>
+          <DCArtboard id="edit-profile"  label="18 · Edit Profile"  width={412} height={892}><ScreenEditProfile   /></DCArtboard>
+          <DCArtboard id="settings"      label="19 · Settings"      width={412} height={892}><ScreenSettings      /></DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Easter eggs">
+        <TweakSection label="Drakensberg conditions" />
+        <TweakToggle
+          label="Snow predicted"
+          value={!!t.snow}
+          onChange={(v) => setTweak('snow', v)}
+        />
+        <div style={{ fontSize:10.5, lineHeight:1.4, color:'rgba(41,38,27,0.6)', marginTop:2 }}>
+          Flip this on to swap the Home hero to the snowed-in mountain. In production this auto-flips when the forecast contains snow.
+        </div>
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

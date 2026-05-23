@@ -66,7 +66,10 @@ class AppStateProvider extends ChangeNotifier {
   SafetyPlan? _activeSafetyPlan;
   bool _loading = true;
   ThemeMode _themeMode = ThemeMode.dark;
-  bool _showAccommodation = false;
+  // Accommodation pins are first-class on the map alongside trails and caves,
+  // so this defaults to ON. Users can still hide them from the map layers
+  // sheet — that flips the SharedPreferences value below.
+  bool _showAccommodation = true;
 
   Set<String> get favoriteTrailIds => _favoriteTrailIds;
   Set<String> get completedTrailIds => _completedTrailIds;
@@ -98,7 +101,7 @@ class AppStateProvider extends ChangeNotifier {
       'system' => ThemeMode.system,
       _ => ThemeMode.dark,
     };
-    _showAccommodation = prefs.getBool(_showAccommodationKey) ?? false;
+    _showAccommodation = prefs.getBool(_showAccommodationKey) ?? true;
     final rawPlan = prefs.getString(_safetyPlanKey);
     if (rawPlan != null && rawPlan.isNotEmpty) {
       try {

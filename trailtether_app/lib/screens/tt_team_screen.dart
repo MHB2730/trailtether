@@ -16,6 +16,7 @@ import '../models/team.dart';
 import '../providers/auth_provider.dart' as ap;
 import '../providers/team_provider.dart';
 import '../providers/team_tracking_provider.dart';
+import '../providers/units_provider.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_count_up.dart';
@@ -38,6 +39,9 @@ class _TeamMemberVM {
   final String subStatus; // e.g. "Sunrise Camp" or "Online"
   final _MemberStatus status;
   final int? batteryPct; // null when not available
+  /// Active connectivity bucket reported by the member's phone:
+  /// `'wifi' | 'mobile' | 'none'`, or `null` when never reported.
+  final String? connectivity;
   final String lastSeen; // mono short text
   final double mapX; // 0..1
   final double mapY; // 0..1
@@ -51,6 +55,7 @@ class _TeamMemberVM {
     required this.subStatus,
     required this.status,
     required this.batteryPct,
+    required this.connectivity,
     required this.lastSeen,
     required this.mapX,
     required this.mapY,
@@ -189,7 +194,12 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
         photoUrl: m.photoUrl,
         subStatus: subStatus,
         status: status,
-        batteryPct: null, // backend does not yet supply battery
+        // Battery + connectivity flow in from the team_member_locations row
+        // (populated by TeamTrackingProvider on every report tick). Both
+        // stay null when this member hasn't broadcast yet OR is running
+        // an older build that doesn't ship the vitals payload.
+        batteryPct: loc?.batteryPct,
+        connectivity: loc?.connectivity,
         lastSeen: lastSeen,
         mapX: mapX,
         mapY: mapY,
@@ -242,6 +252,7 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
     final tp = context.watch<TeamProvider>();
     final tracking = context.watch<TeamTrackingProvider>();
     final auth = context.watch<ap.AuthProvider>();
+    final units = context.watch<UnitsProvider>();
     final team = tp.selectedTeam;
     final currentUid = auth.uid ?? '';
     final members =
@@ -253,7 +264,9 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
     final memberCount = (team == null) ? 0 : team.members.length;
     final activeCount =
         members.where((m) => m.status != _MemberStatus.offGrid).length;
-    final totalDistanceMi = (team?.totalDistanceKm ?? 0) * 0.621371;
+    final totalDistance =
+        units.distanceFromKm(team?.totalDistanceKm ?? 0);
+    final totalDistanceUnit = units.distanceUnit;
     final mapMembers = members.take(4).toList();
 
     final body = Stack(
@@ -297,7 +310,8 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                                 child: _SummaryRow(
                                   members: memberCount,
                                   active: activeCount,
-                                  distanceMi: totalDistanceMi,
+                                  distance: totalDistance,
+                                  distanceUnit: totalDistanceUnit,
                                   onTap: () => _openDetail(context, team),
                                 ),
                               ),
@@ -520,12 +534,14 @@ class _EmberCta extends StatelessWidget {
 class _SummaryRow extends StatelessWidget {
   final int members;
   final int active;
-  final double distanceMi;
+  final double distance;
+  final String distanceUnit;
   final VoidCallback? onTap;
   const _SummaryRow({
     required this.members,
     required this.active,
-    required this.distanceMi,
+    required this.distance,
+    required this.distanceUnit,
     this.onTap,
   });
 
@@ -556,8 +572,8 @@ class _SummaryRow extends StatelessWidget {
           child: _StatTile(
             icon: Icons.place_outlined,
             label: 'Distance',
-            value: distanceMi.toStringAsFixed(1),
-            unit: 'mi',
+            value: distance.toStringAsFixed(1),
+            unit: distanceUnit,
             onTap: onTap,
           ),
         ),
@@ -1573,10 +1589,20 @@ class _MemberDetailSheet extends StatelessWidget {
                       : '${member.lastSeen} ago',
                   mono: true),
               _DetailRow(
-                icon: Icons.battery_full,
+                icon: _batteryIconFor(battery),
                 label: 'BATTERY',
                 value: battery != null ? '$battery%' : 'Not reported',
                 mono: true,
+                // Tint the row red when the phone is on its last legs so a
+                // command-centre user spots it without scanning every member.
+                color: battery != null && battery <= 15 ? TT.red : null,
+              ),
+              _DetailRow(
+                icon: _connectivityIconFor(member.connectivity),
+                label: 'SIGNAL',
+                value: _connectivityLabelFor(member.connectivity),
+                mono: true,
+                color: member.connectivity == 'none' ? TT.red : null,
               ),
               _DetailRow(
                 icon: Icons.schedule,
@@ -1620,15 +1646,21 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
   final bool mono;
+  /// Optional accent for the icon + value when a row carries a warning
+  /// (e.g. battery <=15%, signal == 'none').
+  final Color? color;
   const _DetailRow({
     required this.icon,
     required this.label,
     required this.value,
     this.mono = false,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = color ?? TT.text2;
+    final valueColor = color ?? TT.text;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -1637,12 +1669,16 @@ class _DetailRow extends StatelessWidget {
             width: 26,
             height: 26,
             decoration: BoxDecoration(
-              color: const Color(0x08FFFFFF),
-              border: Border.all(color: TT.line2, width: 1),
+              color: color == null
+                  ? const Color(0x08FFFFFF)
+                  : color!.withOpacity(0.12),
+              border: Border.all(
+                  color: color == null ? TT.line2 : color!.withOpacity(0.5),
+                  width: 1),
               borderRadius: BorderRadius.circular(7),
             ),
             alignment: Alignment.center,
-            child: Icon(icon, size: 14, color: TT.text2),
+            child: Icon(icon, size: 14, color: accent),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1656,8 +1692,8 @@ class _DetailRow extends StatelessWidget {
                 Text(
                   value,
                   style: mono
-                      ? TT.mono(size: 12.5, color: TT.text, w: FontWeight.w800)
-                      : TT.body(size: 13, w: FontWeight.w700),
+                      ? TT.mono(size: 12.5, color: valueColor, w: FontWeight.w800)
+                      : TT.body(size: 13, w: FontWeight.w700, color: valueColor),
                 ),
               ],
             ),
@@ -1665,5 +1701,45 @@ class _DetailRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ─────────────────────── Vitals helpers ─────────────────────────────────
+
+IconData _batteryIconFor(int? pct) {
+  if (pct == null) return Icons.battery_unknown_outlined;
+  if (pct >= 95) return Icons.battery_full;
+  if (pct >= 80) return Icons.battery_6_bar;
+  if (pct >= 60) return Icons.battery_5_bar;
+  if (pct >= 45) return Icons.battery_4_bar;
+  if (pct >= 30) return Icons.battery_3_bar;
+  if (pct >= 15) return Icons.battery_2_bar;
+  if (pct > 0) return Icons.battery_1_bar;
+  return Icons.battery_alert;
+}
+
+IconData _connectivityIconFor(String? c) {
+  switch (c) {
+    case 'wifi':
+      return Icons.wifi;
+    case 'mobile':
+      return Icons.signal_cellular_alt;
+    case 'none':
+      return Icons.signal_cellular_off;
+    default:
+      return Icons.signal_cellular_null;
+  }
+}
+
+String _connectivityLabelFor(String? c) {
+  switch (c) {
+    case 'wifi':
+      return 'Wi-Fi';
+    case 'mobile':
+      return 'Mobile data';
+    case 'none':
+      return 'No signal';
+    default:
+      return 'Not reported';
   }
 }

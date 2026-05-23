@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/gpx_provider.dart';
+import '../../providers/units_provider.dart';
 import '../../core/constants.dart';
 import '../../models/team.dart';
 import '../../models/trail.dart';
@@ -882,6 +883,7 @@ class _MissionControlTabState extends State<MissionControlTab> {
   }
 
   Widget _buildHikerCard(TeamMemberLocation loc) {
+    final units = Provider.of<UnitsProvider>(context);
     final Color dotColor = loc.isLive
         ? const Color(0xFF22C55E)
         : loc.isRecent
@@ -971,7 +973,7 @@ class _MissionControlTabState extends State<MissionControlTab> {
             Row(
               children: [
                 _miniStat(
-                    Icons.speed, '${speedKmh.toStringAsFixed(1)} km/h'),
+                    Icons.speed, units.formatSpeed(speedKmh)),
                 const SizedBox(width: 12),
                 _miniStat(Icons.terrain, '${loc.altitude.round()}m'),
                 const SizedBox(width: 12),

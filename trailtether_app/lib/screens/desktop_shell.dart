@@ -7,6 +7,7 @@ import 'home_tab.dart';
 import 'tools_tab.dart';
 import 'chat_tab.dart';
 import 'teams_tab.dart';
+import 'admin/admin_shell.dart';
 import 'admin/mission_control_tab.dart';
 import 'admin/diagnostic_console.dart';
 import '../../providers/team_provider.dart';
@@ -32,63 +33,79 @@ class _MainDesktopShellState extends State<MainDesktopShell> {
     }
   }
 
-  late final List<_DesktopTab> _tabs = [
-    _DesktopTab(
-      label: 'Home',
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home,
-      builder: (context) => HomeTab(onNavigate: (index) {
-        // Map HomeTab indices to unified Desktop indices
-        int target = 0;
-        if (index == 1 || index == 2) {
-          target = 1; // Map/Trails -> Command Center
-        } else if (index == 3) {
-          target = 2; // Tools -> Tools
-        } else if (index == 4) {
-          target = 3; // Chat -> Community
-        } else if (index == 5) {
-          target = 4; // Teams -> Teams
-        } else if (index == 6) {
-          target = 1; // Profile (Redirect to Command for now)
-        }
-        setState(() => _selectedIndex = target);
-      }),
-    ),
-    _DesktopTab(
-      label: 'Command Center',
-      icon: Icons.track_changes_rounded,
-      selectedIcon: Icons.track_changes,
-      builder: (context) => const MissionControlTab(),
-    ),
-    _DesktopTab(
-      label: 'Tools & GPX',
-      icon: Icons.explore_outlined,
-      selectedIcon: Icons.explore,
-      builder: (context) => const ToolsTab(),
-    ),
-    _DesktopTab(
-      label: 'Community Hub',
-      icon: Icons.public_outlined,
-      selectedIcon: Icons.public,
-      builder: (context) => const ChatTab(),
-    ),
-    _DesktopTab(
-      label: 'Field Teams',
-      icon: Icons.group_outlined,
-      selectedIcon: Icons.group,
-      builder: (context) => const TeamsTab(),
-    ),
-    _DesktopTab(
-      label: 'System Logs',
-      icon: Icons.terminal_outlined,
-      selectedIcon: Icons.terminal,
-      builder: (context) => const DiagnosticConsole(),
-    ),
-  ];
+  /// Build the desktop nav list. The "System Admin" entry is only emitted when
+  /// the signed-in user has `profiles.is_admin = true` server-side, so non-admin
+  /// users never see the admin console or its 9 sub-tabs.
+  List<_DesktopTab> _buildTabs({required bool isAdmin}) => [
+        _DesktopTab(
+          label: 'Home',
+          icon: Icons.home_outlined,
+          selectedIcon: Icons.home,
+          builder: (context) => HomeTab(onNavigate: (index) {
+            // Map HomeTab indices to unified Desktop indices
+            int target = 0;
+            if (index == 1 || index == 2) {
+              target = 1; // Map/Trails -> Command Center
+            } else if (index == 3) {
+              target = 2; // Tools -> Tools
+            } else if (index == 4) {
+              target = 3; // Chat -> Community
+            } else if (index == 5) {
+              target = 4; // Teams -> Teams
+            } else if (index == 6) {
+              target = 1; // Profile (Redirect to Command for now)
+            }
+            setState(() => _selectedIndex = target);
+          }),
+        ),
+        _DesktopTab(
+          label: 'Command Center',
+          icon: Icons.track_changes_rounded,
+          selectedIcon: Icons.track_changes,
+          builder: (context) => const MissionControlTab(),
+        ),
+        _DesktopTab(
+          label: 'Tools & GPX',
+          icon: Icons.explore_outlined,
+          selectedIcon: Icons.explore,
+          builder: (context) => const ToolsTab(),
+        ),
+        _DesktopTab(
+          label: 'Community Hub',
+          icon: Icons.public_outlined,
+          selectedIcon: Icons.public,
+          builder: (context) => const ChatTab(),
+        ),
+        _DesktopTab(
+          label: 'Field Teams',
+          icon: Icons.group_outlined,
+          selectedIcon: Icons.group,
+          builder: (context) => const TeamsTab(),
+        ),
+        _DesktopTab(
+          label: 'System Logs',
+          icon: Icons.terminal_outlined,
+          selectedIcon: Icons.terminal,
+          builder: (context) => const DiagnosticConsole(),
+        ),
+        if (isAdmin)
+          _DesktopTab(
+            label: 'System Admin',
+            icon: Icons.admin_panel_settings_outlined,
+            selectedIcon: Icons.admin_panel_settings,
+            builder: (context) => const AdminShell(),
+          ),
+      ];
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final tabs = _buildTabs(isAdmin: auth.isAdmin);
+    // Defend against an admin being demoted mid-session while the Admin tab is
+    // selected — clamp the index so the build never reads past the end.
+    if (_selectedIndex >= tabs.length) {
+      _selectedIndex = 0;
+    }
 
     return Scaffold(
       backgroundColor: kColorBg,
@@ -174,11 +191,11 @@ class _MainDesktopShellState extends State<MainDesktopShell> {
                         Expanded(
                           child: ListView.separated(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _tabs.length,
+                            itemCount: tabs.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 4),
                             itemBuilder: (context, index) {
-                              final tab = _tabs[index];
+                              final tab = tabs[index];
                               final isSelected = _selectedIndex == index;
 
                               return InkWell(
@@ -320,7 +337,7 @@ class _MainDesktopShellState extends State<MainDesktopShell> {
               Expanded(
                 child: Container(
                   color: Colors.transparent,
-                  child: _tabs[_selectedIndex].builder(context),
+                  child: tabs[_selectedIndex].builder(context),
                 ),
               ),
             ],

@@ -301,7 +301,7 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                               _SignInRow(onTap: widget.onDone),
                               const SizedBox(height: 16),
                               Text(
-                                'FREE   NO ADS   BUILT IN CAPE TOWN',
+                                'FREE   NO ADS',
                                 textAlign: TextAlign.center,
                                 style: TT.mono(
                                   size: 9.5,

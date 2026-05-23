@@ -419,7 +419,7 @@ class _StatBadge extends StatelessWidget {
   }
 }
 
-// â”€â”€ Empty / placeholder states â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Empty / placeholder states ─────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override

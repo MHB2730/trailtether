@@ -32,6 +32,7 @@ import '../providers/safety_provider.dart';
 import '../providers/static_data_provider.dart';
 import '../providers/team_provider.dart';
 import '../providers/team_tracking_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/offline_map_service.dart';
 import '../services/weather_service.dart';
 import '../widgets/design/tt_app_bar.dart';
@@ -538,6 +539,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     final rec = context.watch<RecordingProvider>();
+    final units = context.watch<UnitsProvider>();
     final topPad = MediaQuery.of(context).padding.top;
     final botPad = MediaQuery.of(context).padding.bottom;
 
@@ -723,9 +725,9 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       child: _LiveStat(
                         label: 'ALTITUDE',
                         value: rec.points.isNotEmpty
-                            ? rec.points.last.altitude.toInt().toString()
+                            ? units.elevationFromM(rec.points.last.altitude).toInt().toString()
                             : '0',
-                        unit: 'm',
+                        unit: units.elevationUnit,
                         icon: Icons.terrain,
                         accent: TT.blue,
                       ),
@@ -735,9 +737,9 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       child: _LiveStat(
                         label: 'PACE',
                         value: rec.points.isNotEmpty
-                            ? (rec.points.last.speed * 3.6).toStringAsFixed(1)
+                            ? units.formatSpeed(rec.points.last.speed * 3.6, withUnit: false)
                             : '0.0',
-                        unit: 'km/h',
+                        unit: units.speedUnit,
                         icon: Icons.speed,
                         accent: TT.amber,
                       ),
@@ -746,8 +748,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                     Expanded(
                       child: _LiveStat(
                         label: 'DISTANCE',
-                        value: rec.distanceKm.toStringAsFixed(2),
-                        unit: 'km',
+                        value: units.formatDistance(rec.distanceKm, decimals: 2, withUnit: false),
+                        unit: units.distanceUnit,
                         icon: Icons.straighten,
                         accent: TT.green,
                       ),

@@ -28,15 +28,15 @@ import '../providers/hike_history_provider.dart';
 import '../providers/recording_provider.dart';
 import '../providers/safety_provider.dart';
 import '../providers/team_provider.dart';
+import '../providers/units_provider.dart';
 import '../providers/weather_provider.dart';
 import '../services/team_service.dart';
-import '../widgets/design/tt_ambient.dart';
+import '../services/weather_service.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_elev_chart.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
-import '../widgets/design/tt_topo.dart';
 import 'create_hike_plan_screen.dart';
 import 'hike_history_screen.dart' show HikeDetailScreen;
 import 'hike_plan_detail_screen.dart';
@@ -111,8 +111,30 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
     final onNavigate = widget.onNavigate;
     final body = Stack(
       children: [
-        const Positioned.fill(child: TTAmbient()),
-        const Positioned.fill(child: TTTopoBackdrop(opacity: 0.5)),
+        // ── Full-page hero image background ────────────────────────────────
+        // Sits behind every other layer. The photo fills the entire home
+        // tab; the scrim gradient below keeps the upcoming/weather/last-hike
+        // cards legible without hiding the image entirely. errorBuilder
+        // falls back to the solid TT body colour if the asset hasn't been
+        // bundled yet so the screen never shows a Flutter exception banner.
+        Positioned.fill(
+          child: Image.asset(
+            'assets/icon/hero_home.png',
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, __, ___) => Container(color: TT.bg),
+          ),
+        ),
+        // Scrim — kept light at the top so the peak / orange trail stays
+        // visible behind the brand row + greeting, then ramps to nearly-
+        // opaque body colour below so cards have a calm background to sit
+        // on. The topo backdrop is removed entirely (the image is now the
+        // backdrop), and TTAmbient is dropped so its ember bloom doesn't
+        // fight the orange trail in the photo.
+        const Positioned.fill(
+          child: IgnorePointer(child: _HomeBackgroundScrim()),
+        ),
         SafeArea(
           top: !widget.embedded,
           bottom: false,
@@ -137,6 +159,38 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
 
     if (widget.embedded) return Material(color: TT.bg, child: body);
     return Scaffold(backgroundColor: TT.bg, body: body);
+  }
+}
+
+/// Layered scrim that sits over the home page's hero photo. Light at the top
+/// (the peak / orange trail stay visible), heavy at the bottom (cards stay
+/// readable on the solid body colour). Pulled out as a separate widget so
+/// the gradient stops are in one place if we want to tweak the falloff.
+class _HomeBackgroundScrim extends StatelessWidget {
+  const _HomeBackgroundScrim();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            // Top 10%: only a faint tint so the peak silhouette reads.
+            Color(0x4007090C),
+            // Mid-band: slightly heavier so the WELCOME BACK / name overlay
+            // stays high-contrast.
+            Color(0x9907090C),
+            // From ~60% down the page: nearly opaque body colour so the
+            // cards underneath get a calm dark background to land on.
+            Color(0xF207090C),
+            TT.bg,
+          ],
+          stops: [0.0, 0.45, 0.65, 1.0],
+        ),
+      ),
+    );
   }
 }
 
@@ -181,40 +235,15 @@ class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixi
     final auth = context.watch<ap.AuthProvider>();
     final firstName = _firstName(auth);
 
+    // The full-page hero image is rendered by the parent screen as a true
+    // page-background layer; this hero block stays as a transparent
+    // 260-tall region so the brand row + greeting sit over the most
+    // dramatic part of the photo (the peak / glowing trail) without
+    // re-drawing the image and double-darkening it.
     return SizedBox(
       height: 260,
       child: Stack(
         children: [
-          // v3.1: real photographic hero (assets/icon/hero_mountains.jpg)
-          // replaces the painted mountain illustration per the brand handoff.
-          Positioned.fill(
-            child: Image.asset(
-              'assets/icon/hero_mountains.jpg',
-              fit: BoxFit.cover,
-              alignment: const Alignment(0, -0.4),
-              filterQuality: FilterQuality.medium,
-            ),
-          ),
-          // Dark-to-body gradient for legibility + ember side glow.
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x8C07090C),
-                      Color(0x4007090C),
-                      Color(0x8007090C),
-                      TT.bg,
-                    ],
-                    stops: [0.0, 0.35, 0.75, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
           // Top brand row
           Positioned(
             top: 14,
@@ -1047,6 +1076,12 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
   late final AnimationController _entryCtl =
       AnimationController(vsync: this, duration: TT.dSlow);
 
+  // Active location + day. Both default to "first" so cold-start renders
+  // today's forecast for whichever location was saved first (Royal Natal
+  // by default — see WeatherProvider's seed list).
+  int _locationIndex = 0;
+  int _selectedDayIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -1064,21 +1099,95 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
     super.dispose();
   }
 
+  /// Hand off to the location-search dialog and, if the user picks something,
+  /// persist it, fetch its forecast, and snap the chips strip to the new
+  /// entry. Skipped silently when the dialog is dismissed.
+  Future<void> _addLocation() async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => const _AddWeatherLocationDialog(),
+    );
+    if (result == null || !mounted) return;
+    final wp = context.read<WeatherProvider>();
+    await wp.addLocation(
+      result['name'] as String,
+      (result['lat'] as num).toDouble(),
+      (result['lon'] as num).toDouble(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _locationIndex = wp.locations.length - 1;
+      _selectedDayIndex = 0;
+    });
+    unawaited(wp.fetchWeatherForLocation(_locationIndex));
+  }
+
+  Future<void> _confirmRemoveLocation(int index) async {
+    final wp = context.read<WeatherProvider>();
+    if (wp.locations.length <= 1) return;
+    final name = wp.locations[index]['name'] as String? ?? 'this location';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Text('Remove location?',
+            style: TT.body(size: 16, w: FontWeight.w800)),
+        content: Text('Drop "$name" from your weather list?',
+            style: TT.body(size: 13, color: TT.text2)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child:
+                Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: Text('Remove',
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await wp.removeLocation(index);
+    if (!mounted) return;
+    setState(() {
+      if (_locationIndex >= wp.locations.length) _locationIndex = 0;
+      _selectedDayIndex = 0;
+    });
+    unawaited(wp.fetchWeatherForLocation(_locationIndex));
+  }
+
   @override
   Widget build(BuildContext context) {
     final wp = context.watch<WeatherProvider>();
     final weather = wp.currentWeather;
+
+    // Clamp indices so a location being removed by another tab can't crash
+    // us mid-build.
+    if (wp.locations.isEmpty) {
+      _locationIndex = 0;
+    } else if (_locationIndex >= wp.locations.length) {
+      _locationIndex = wp.locations.length - 1;
+    }
     final locationName = wp.locations.isNotEmpty
-        ? (wp.locations.first['name'] as String? ?? 'DRAKENSBERG')
+        ? (wp.locations[_locationIndex]['name'] as String? ?? 'DRAKENSBERG')
         : 'DRAKENSBERG';
+
+    if (weather != null) {
+      if (_selectedDayIndex < 0 ||
+          _selectedDayIndex >= weather.daily.length) {
+        _selectedDayIndex = 0;
+      }
+    }
 
     // Tap-to-refresh handler. Skipped while a fetch is already in flight so we
     // don't queue overlapping network calls; otherwise re-runs the multi-source
-    // aggregator for the first stored location.
+    // aggregator for the currently selected location.
     final canRefresh = !wp.loading && wp.locations.isNotEmpty;
     void refresh() {
       if (!canRefresh) return;
-      unawaited(wp.fetchWeatherForLocation(0));
+      unawaited(wp.fetchWeatherForLocation(_locationIndex));
     }
 
     return Padding(
@@ -1101,6 +1210,23 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Location chips — switch between saved spots, long-press to
+              // remove, or tap the + chip to search-add a new one.
+              _LocationChipsStrip(
+                locations: wp.locations,
+                selectedIndex: _locationIndex,
+                onSelect: (i) {
+                  if (i == _locationIndex) return;
+                  setState(() {
+                    _locationIndex = i;
+                    _selectedDayIndex = 0;
+                  });
+                  unawaited(wp.fetchWeatherForLocation(i));
+                },
+                onRemove: _confirmRemoveLocation,
+                onAdd: _addLocation,
+              ),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1142,18 +1268,420 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
                   rayCtl: _rayCtl,
                   cloudCtl: _cloudCtl,
                 ),
+              // ── 7-day forecast strip ─────────────────────────────────
+              if (weather != null && weather.daily.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('7-DAY FORECAST',
+                    style: TT.label(
+                      size: 10.5,
+                      color: TT.text3,
+                      letterSpacing: 0.16 * 10.5,
+                    )),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 118,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: weather.daily.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) => _TTDayCard(
+                      day: weather.daily[i],
+                      isToday: i == 0,
+                      selected: i == _selectedDayIndex,
+                      onTap: () =>
+                          setState(() => _selectedDayIndex = i),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.only(top: 10),
                 decoration: const BoxDecoration(
                   border: Border(top: BorderSide(color: TT.line, width: 1)),
                 ),
-                child: _HourStrip(weather: weather),
+                // Hourly strip is now day-aware — shows the selected day's
+                // hourly slices, not just "next 5 from now".
+                child: _HourStrip(
+                  weather: weather,
+                  dayIndex: _selectedDayIndex,
+                ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// ────────────────────────── LOCATION CHIPS STRIP ────────────────────────────
+
+class _LocationChipsStrip extends StatelessWidget {
+  final List<Map<String, dynamic>> locations;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+  final ValueChanged<int> onRemove;
+  final VoidCallback onAdd;
+  const _LocationChipsStrip({
+    required this.locations,
+    required this.selectedIndex,
+    required this.onSelect,
+    required this.onRemove,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Total chips = saved locations + one "+ Add" chip at the end.
+    final total = locations.length + 1;
+    return SizedBox(
+      height: 30,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: total,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (_, i) {
+          if (i == locations.length) {
+            return _AddLocationChip(onTap: onAdd);
+          }
+          final name = locations[i]['name'] as String? ?? 'Spot';
+          final isSelected = i == selectedIndex;
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onSelect(i),
+            onLongPress:
+                locations.length > 1 ? () => onRemove(i) : null,
+            child: AnimatedContainer(
+              duration: TT.dFast,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: isSelected ? TT.emberSoft : TT.surf2,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: isSelected ? TT.ember : TT.line2,
+                  width: isSelected ? 1.4 : 1,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                name,
+                style: TT.body(
+                  size: 11.5,
+                  w: FontWeight.w800,
+                  color: isSelected ? TT.ember : TT.text2,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AddLocationChip extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddLocationChip({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0x14FF6A2C),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0x4DFF6A2C), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add, size: 13, color: TT.ember),
+            const SizedBox(width: 4),
+            Text(
+              'ADD',
+              style: TT
+                  .body(size: 10.5, w: FontWeight.w800, color: TT.ember)
+                  .copyWith(letterSpacing: 0.12 * 10.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────── TT-themed DAY CARD ──────────────────────────────
+
+class _TTDayCard extends StatelessWidget {
+  final DailyForecast day;
+  final bool isToday;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TTDayCard({
+    required this.day,
+    required this.isToday,
+    required this.selected,
+    required this.onTap,
+  });
+
+  Color _condColor(HikingCondition c) {
+    switch (c) {
+      case HikingCondition.good:
+        return TT.green;
+      case HikingCondition.caution:
+        return TT.amber;
+      case HikingCondition.bad:
+        return TT.red;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
+    final cond = day.hikingCondition;
+    final accent = _condColor(cond);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: TT.dFast,
+        width: 78,
+        padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: selected ? accent.withOpacity(0.14) : TT.surf2,
+          borderRadius: BorderRadius.circular(TT.rMd),
+          border: Border.all(
+            color: selected ? accent : TT.line2,
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              isToday ? 'TODAY' : DateFormat('EEE').format(day.date).toUpperCase(),
+              style: TT.mono(
+                size: 10,
+                color: isToday ? TT.ember : TT.text2,
+                w: FontWeight.w800,
+              ).copyWith(letterSpacing: 0.08 * 10),
+            ),
+            Text(weatherEmoji(day.weatherCode),
+                style: const TextStyle(fontSize: 22)),
+            Text(
+              '${units.temperatureFromC(day.tempMax).round()}°/${units.temperatureFromC(day.tempMin).round()}°',
+              style: TT.body(size: 11, w: FontWeight.w800, color: TT.text),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.water_drop,
+                    color: Color(0xFF6FB6FF), size: 9),
+                const SizedBox(width: 2),
+                Text(
+                  '${day.precipProbability}%',
+                  style: TT.mono(size: 9, color: const Color(0xFF6FB6FF)),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                cond.label.toUpperCase(),
+                style: TT.mono(
+                  size: 8.5,
+                  color: accent,
+                  w: FontWeight.w800,
+                ).copyWith(letterSpacing: 0.1 * 8.5),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────── ADD-LOCATION DIALOG ─────────────────────────────
+
+class _AddWeatherLocationDialog extends StatefulWidget {
+  const _AddWeatherLocationDialog();
+
+  @override
+  State<_AddWeatherLocationDialog> createState() =>
+      _AddWeatherLocationDialogState();
+}
+
+class _AddWeatherLocationDialogState extends State<_AddWeatherLocationDialog> {
+  final TextEditingController _ctrl = TextEditingController();
+  Timer? _debounce;
+  List<Map<String, dynamic>> _results = const [];
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 450), _search);
+  }
+
+  Future<void> _search() async {
+    final q = _ctrl.text.trim();
+    if (q.length < 2) {
+      setState(() {
+        _results = const [];
+        _loading = false;
+      });
+      return;
+    }
+    setState(() => _loading = true);
+    final res = await WeatherService.searchLocation(q);
+    if (!mounted) return;
+    setState(() {
+      _results = res;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: TT.surf,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(TT.rLg),
+        side: const BorderSide(color: TT.line2, width: 1),
+      ),
+      title: Text('Add weather location',
+          style: TT.body(size: 16, w: FontWeight.w800)),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              // visiblePassword keyboardType disables the Android keyboard's
+              // spellcheck underline + autocorrect so "Drakensberg" doesn't
+              // get auto-replaced into something else.
+              keyboardType: TextInputType.visiblePassword,
+              cursorColor: TT.ember,
+              style: TT.body(size: 14, color: TT.text),
+              onSubmitted: (_) => _search(),
+              onChanged: _onChanged,
+              decoration: InputDecoration(
+                hintText: 'e.g. Cathedral Peak, Mont Aux Sources',
+                hintStyle: TT.body(size: 13, color: TT.text3),
+                filled: true,
+                fillColor: TT.bg3,
+                prefixIcon: const Icon(Icons.search,
+                    color: TT.text3, size: 18),
+                suffixIcon: _ctrl.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close,
+                            color: TT.text3, size: 16),
+                        onPressed: () {
+                          _ctrl.clear();
+                          setState(() {
+                            _results = const [];
+                            _loading = false;
+                          });
+                        },
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(TT.rMd),
+                  borderSide: const BorderSide(color: TT.line2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(TT.rMd),
+                  borderSide: const BorderSide(color: TT.line2),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(TT.rMd),
+                  borderSide: const BorderSide(color: TT.ember, width: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _loading
+                  ? const Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: TT.ember,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    )
+                  : _results.isEmpty
+                      ? Center(
+                          child: Text(
+                            _ctrl.text.trim().length < 2
+                                ? 'Type at least 2 characters'
+                                : 'No matches yet',
+                            style: TT.body(size: 13, color: TT.text3),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: _results.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(color: TT.line, height: 1),
+                          itemBuilder: (_, i) {
+                            final r = _results[i];
+                            final name = r['name']?.toString() ?? 'Spot';
+                            final lat = (r['lat'] as num?)?.toDouble() ?? 0;
+                            final lon = (r['lon'] as num?)?.toDouble() ?? 0;
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                              title: Text(
+                                name,
+                                style: TT.body(
+                                    size: 13.5, w: FontWeight.w800),
+                              ),
+                              subtitle: Text(
+                                '${lat.toStringAsFixed(3)}, ${lon.toStringAsFixed(3)}',
+                                style: TT.mono(size: 10.5, color: TT.text3),
+                              ),
+                              trailing: const Icon(
+                                Icons.add_circle_outline,
+                                color: TT.ember,
+                                size: 18,
+                              ),
+                              onTap: () => Navigator.pop(context, r),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child:
+              Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
+        ),
+      ],
     );
   }
 }
@@ -1228,10 +1756,13 @@ class _WeatherBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final cur = weather.current;
-    final tempInt = cur.temperature.round();
+    final tempInt = units.temperatureFromC(cur.temperature).round();
+    final tempSymbol = units.isImperial ? 'F' : 'C';
     final condition = weatherDescription(cur.weatherCode).toUpperCase();
-    final wind = cur.windSpeed.round();
+    final wind = units.speedFromKmh(cur.windSpeed).round();
+    final windUnit = units.speedUnit;
     final score = _hikeScore(weather);
     final scoreColor = score >= 7
         ? TT.green
@@ -1278,7 +1809,7 @@ class _WeatherBody extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      'C',
+                      tempSymbol,
                       style: TT.body(
                         size: 14,
                         color: TT.text2,
@@ -1290,7 +1821,7 @@ class _WeatherBody extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '$condition · WIND $wind km/h',
+                '$condition · WIND $wind $windUnit',
                 style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
                     .copyWith(letterSpacing: 0.05 * 11),
                 maxLines: 1,
@@ -1359,11 +1890,13 @@ int _hikeScore(WeatherData weather) {
 
 class _HourStrip extends StatelessWidget {
   final WeatherData? weather;
-  const _HourStrip({required this.weather});
+  final int dayIndex;
+  const _HourStrip({required this.weather, this.dayIndex = 0});
 
   @override
   Widget build(BuildContext context) {
-    final entries = _buildEntries();
+    final units = context.watch<UnitsProvider>();
+    final entries = _buildEntries(units);
     return Row(
       children: List.generate(entries.length, (i) {
         final h = entries[i];
@@ -1394,7 +1927,7 @@ class _HourStrip extends StatelessWidget {
     );
   }
 
-  List<_HourEntry> _buildEntries() {
+  List<_HourEntry> _buildEntries(UnitsProvider units) {
     final w = weather;
     if (w == null || w.hourly.isEmpty) {
       // Skeleton: 5 dashes that match the design layout when no data exists.
@@ -1406,15 +1939,19 @@ class _HourStrip extends StatelessWidget {
         _HourEntry('--', '--', _WxKind.cloud),
       ];
     }
-    final now = DateTime.now();
-    // Step every 3 hours from "now" forward to fill 5 columns.
-    final slices = w.hourly.where((h) => !h.time.isBefore(now)).toList();
+
+    // Day-aware picks. If the user has selected a future day, show that
+    // day's 5 representative hours (sunrise-ish through evening); if it's
+    // today (or no selection), step forward from "now" so the user sees
+    // what's coming next.
+    final dayHours = w.hoursForDay(dayIndex);
+    final pool = dayHours.isNotEmpty ? dayHours : w.hourly;
     final picks = <HourlySlice>[];
-    if (slices.isEmpty) {
-      picks.addAll(w.hourly.take(5));
-    } else {
-      final start = slices.first.time;
-      for (final s in slices) {
+    if (dayIndex <= 0) {
+      final now = DateTime.now();
+      final forward = pool.where((h) => !h.time.isBefore(now)).toList();
+      final start = forward.isNotEmpty ? forward.first.time : pool.first.time;
+      for (final s in (forward.isNotEmpty ? forward : pool)) {
         if (picks.isEmpty) {
           picks.add(s);
         } else {
@@ -1423,12 +1960,25 @@ class _HourStrip extends StatelessWidget {
         }
         if (picks.length >= 5) break;
       }
+    } else {
+      // Future day — pick the 5 most useful daylight hours (06, 09, 12, 15, 18).
+      const desired = [6, 9, 12, 15, 18];
+      for (final hour in desired) {
+        for (final s in pool) {
+          if (s.time.hour == hour) {
+            picks.add(s);
+            break;
+          }
+        }
+      }
+      if (picks.isEmpty) picks.addAll(pool.take(5));
     }
+
     if (picks.isEmpty) return const [];
     return picks
         .map((s) => _HourEntry(
               DateFormat('HH').format(s.time),
-              '${s.temperature.round()}°',
+              '${units.temperatureFromC(s.temperature).round()}°',
               _kindFor(s),
             ))
         .toList();
@@ -1689,6 +2239,7 @@ class _LastHikeEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1729,7 +2280,7 @@ class _LastHikeEmpty extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        const TTBigElevChart(peakLabel: 'No data yet'),
+        TTBigElevChart(peakLabel: 'No data yet', elevationUnit: units.elevationUnit),
       ],
     );
   }
@@ -1741,14 +2292,17 @@ class _LastHikeContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final distMi = (hike.distanceKm * 0.621371).toStringAsFixed(1);
+    final units = context.watch<UnitsProvider>();
+    final distStr = units.distanceFromKm(hike.distanceKm).toStringAsFixed(1);
+    final distUnit = units.distanceUnit;
     final dur = Duration(seconds: hike.durationSeconds);
     final durText =
         '${dur.inHours}:${(dur.inMinutes % 60).toString().padLeft(2, '0')}:${(dur.inSeconds % 60).toString().padLeft(2, '0')}';
     final dateStr = DateFormat('MMM d').format(hike.startedAt).toUpperCase();
-    final ascentFt =
-        NumberFormat.decimalPattern().format((hike.ascentM * 3.28084).round());
-    final peakLabel = '$distMi mi · $ascentFt ft';
+    final ascentVal = NumberFormat.decimalPattern()
+        .format(units.elevationFromM(hike.ascentM.toDouble()).round());
+    final elevUnit = units.elevationUnit;
+    final peakLabel = '$distStr $distUnit · $ascentVal $elevUnit';
 
     // Calories: ~117 kcal per mile (rough but matches activity screen heuristic).
     final kcal = NumberFormat.decimalPattern()
@@ -1779,7 +2333,7 @@ class _LastHikeContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '$dateStr · $distMi mi · $durText',
+                    '$dateStr · $distStr $distUnit · $durText',
                     style:
                         TT.mono(size: 10.5, color: TT.text3, w: FontWeight.w600)
                             .copyWith(letterSpacing: 0.04 * 10.5),
@@ -1805,14 +2359,14 @@ class _LastHikeContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        TTBigElevChart(samples: samples, peakLabel: peakLabel),
+        TTBigElevChart(samples: samples, peakLabel: peakLabel, elevationUnit: elevUnit),
         const SizedBox(height: 8),
         Row(
           children: [
             _StatChip(
               leading: '↑',
-              value: ascentFt,
-              unit: 'ft',
+              value: ascentVal,
+              unit: elevUnit,
               valueColor: TT.ember,
             ),
             const SizedBox(width: 14),

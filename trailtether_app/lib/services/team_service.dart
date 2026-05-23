@@ -157,6 +157,11 @@ class TeamService {
   // ── Team Tracking ──
 
   /// Reports current user location to the team tracking table.
+  ///
+  /// [batteryPct] / [connectivity] are passed straight to the new columns
+  /// added in the `add_battery_and_connectivity_to_team_member_locations`
+  /// migration. Both stay null when the caller can't read them (e.g.
+  /// emulator), so the team-member sheet falls back gracefully.
   static Future<void> reportLocation({
     required String uid,
     required String displayName,
@@ -168,6 +173,8 @@ class TeamService {
     String? teamId,
     String? hikeId,
     String? status,
+    int? batteryPct,
+    String? connectivity,
   }) async {
     // Pin the upsert to the `uid` unique constraint. Without this, Supabase
     // upsert falls back to the table's primary key (`id`, auto-generated) and
@@ -184,6 +191,8 @@ class TeamService {
       'team_id': teamId,
       'hike_id': hikeId,
       'status': status,
+      'battery_pct': batteryPct,
+      'connectivity': connectivity,
     }, onConflict: 'uid');
   }
 

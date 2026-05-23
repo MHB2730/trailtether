@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../models/gpx_track.dart';
 import '../providers/gpx_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/auth_service.dart';
 import '../services/gpx_service.dart';
 
@@ -336,6 +337,7 @@ class _TrackTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -364,7 +366,7 @@ class _TrackTile extends StatelessWidget {
                         fontWeight: FontWeight.w600)),
                 Text(
                   [
-                    '${track.distanceKm.toStringAsFixed(1)} km',
+                    units.formatDistance(track.distanceKm),
                     '${track.points.length} pts',
                     if (track.difficulty.isNotEmpty) track.difficulty,
                     if (track.authorName.isNotEmpty) '· ${track.authorName}',

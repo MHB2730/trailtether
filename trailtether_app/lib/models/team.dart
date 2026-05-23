@@ -69,12 +69,26 @@ class Team {
   });
 
   factory Team.fromMap(Map<String, dynamic> d) {
-    final rawMembers = (d['members'] as List<dynamic>? ?? [])
-        .map((m) => TeamMember.fromMap(m as Map<String, dynamic>))
-        .toList();
-    final rawUids = (d['member_uids'] as List<dynamic>? ?? [])
-        .map((e) => e.toString())
-        .toList();
+    // Drop individual malformed member entries rather than throwing — keeps
+    // the rest of the team visible if Supabase serialised a single bad row.
+    final rawMembers = <TeamMember>[];
+    final rawMembersList = d['members'];
+    if (rawMembersList is List) {
+      for (final m in rawMembersList) {
+        if (m is! Map) continue;
+        try {
+          rawMembers.add(
+              TeamMember.fromMap(Map<String, dynamic>.from(m)));
+        } catch (_) {/* skip corrupt row */}
+      }
+    }
+    final rawUids = <String>[];
+    final rawUidsList = d['member_uids'];
+    if (rawUidsList is List) {
+      for (final e in rawUidsList) {
+        rawUids.add(e.toString());
+      }
+    }
     return Team(
       id: d['id'] as String? ?? '',
       name: d['name'] as String? ?? '',
@@ -303,6 +317,12 @@ class TeamMemberLocation {
   final String? hikeId;
   final String? teamId;
   final String? status; // 'started', 'arrived', 'ok', 'help', 'recording'
+  /// Phone battery level 0–100. `null` when the source phone couldn't read
+  /// it (e.g. emulator) or when the row pre-dates the battery rollout.
+  final int? batteryPct;
+  /// Active connectivity bucket: `'wifi' | 'mobile' | 'none'`. `null` when
+  /// unknown, same caveat as [batteryPct].
+  final String? connectivity;
 
   const TeamMemberLocation({
     required this.uid,
@@ -316,10 +336,17 @@ class TeamMemberLocation {
     this.hikeId,
     this.teamId,
     this.status,
+    this.batteryPct,
+    this.connectivity,
   });
 
   factory TeamMemberLocation.fromMap(Map<String, dynamic> m) {
     try {
+      final batteryRaw = m['battery_pct'];
+      final battery = batteryRaw is num
+          ? batteryRaw.round().clamp(0, 100).toInt()
+          : null;
+      final connRaw = m['connectivity']?.toString();
       return TeamMemberLocation(
         uid: m['uid']?.toString() ?? '',
         displayName: m['display_name']?.toString() ?? 'Hiker',
@@ -336,6 +363,8 @@ class TeamMemberLocation {
         hikeId: m['hike_id']?.toString(),
         teamId: m['team_id']?.toString(),
         status: m['status']?.toString(),
+        batteryPct: battery,
+        connectivity: (connRaw == null || connRaw.isEmpty) ? null : connRaw,
       );
     } catch (e) {
       debugPrint('TeamMemberLocation.fromMap error: $e');
@@ -361,6 +390,8 @@ class TeamMemberLocation {
         'hike_id': hikeId,
         'team_id': teamId,
         'status': status,
+        'battery_pct': batteryPct,
+        'connectivity': connectivity,
       };
 
   /// Seconds since the last position update.

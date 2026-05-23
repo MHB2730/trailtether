@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import 'hike_plan_detail_screen.dart';
 import 'sos_screen.dart';
 import 'live_tracking_screen.dart';
 
@@ -15,6 +16,7 @@ import '../providers/auth_provider.dart' as ap;
 import '../providers/team_provider.dart';
 import '../services/team_service.dart';
 import '../services/weather_service.dart';
+import '../providers/units_provider.dart';
 import '../providers/weather_provider.dart';
 import '../providers/hike_history_provider.dart';
 import '../models/saved_hike.dart';
@@ -332,51 +334,97 @@ class _UpcomingHikes extends StatelessWidget {
 
     return Column(
       children: upcoming
-          .map((plan) => Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      kColorOrange.withOpacity(0.15),
-                      Colors.transparent
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
+          .map((plan) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Material(
+                  color: Colors.transparent,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: kColorOrange.withOpacity(0.2)),
-                ),
-                child: ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  leading: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: kColorOrange.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: kColorOrange.withOpacity(0.5)),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => _openPlan(context, plan),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            kColorOrange.withOpacity(0.15),
+                            Colors.transparent
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        border:
+                            Border.all(color: kColorOrange.withOpacity(0.2)),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        leading: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: kColorOrange.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: kColorOrange.withOpacity(0.5)),
+                          ),
+                          child: const Icon(Icons.terrain,
+                              color: kColorOrange, size: 28),
+                        ),
+                        title: Text(plan.trailName,
+                            style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800)),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                              plan.extras.time.isNotEmpty
+                                  ? '${DateFormat('EEEE, MMM d').format(plan.hikeDate)} @ ${plan.extras.time}'
+                                  : DateFormat('EEEE, MMM d')
+                                      .format(plan.hikeDate),
+                              style: GoogleFonts.outfit(
+                                  color: kColorOrange.withOpacity(0.8),
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        trailing: Icon(Icons.chevron_right,
+                            color: Colors.white.withOpacity(0.6)),
+                      ),
                     ),
-                    child: const Icon(Icons.terrain,
-                        color: kColorOrange, size: 28),
-                  ),
-                  title: Text(plan.trailName,
-                      style: GoogleFonts.outfit(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800)),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                        plan.extras.time.isNotEmpty
-                            ? '${DateFormat('EEEE, MMM d').format(plan.hikeDate)} @ ${plan.extras.time}'
-                            : DateFormat('EEEE, MMM d').format(plan.hikeDate),
-                        style: GoogleFonts.outfit(
-                            color: kColorOrange.withOpacity(0.8),
-                            fontWeight: FontWeight.w600)),
                   ),
                 ),
               ))
           .toList(),
+    );
+  }
+
+  void _openPlan(BuildContext context, HikePlan plan) {
+    HapticFeedback.mediumImpact();
+    final teams = context.read<TeamProvider>().teams;
+    Team? team;
+    for (final t in teams) {
+      if (t.id == plan.teamId) {
+        team = t;
+        break;
+      }
+    }
+    if (team == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'This plan\'s team is no longer in your list.',
+            style: GoogleFonts.outfit(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF1E1E1E),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HikePlanDetailScreen(plan: plan, team: team!),
+      ),
     );
   }
 }
@@ -653,6 +701,7 @@ class _CurrentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = weather.current;
+    final units = context.watch<UnitsProvider>();
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -694,13 +743,13 @@ class _CurrentCard extends StatelessWidget {
                         color: Colors.white24, fontSize: 10)),
               ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('${c.temperature.round()}°',
+            Text('${units.temperatureFromC(c.temperature).round()}°',
                 style: GoogleFonts.outfit(
                     color: Colors.white,
                     fontSize: 72,
                     fontWeight: FontWeight.w900,
                     height: 1)),
-            Text('Feels like ${c.feelsLike.round()}°C',
+            Text('Feels like ${units.formatTemperature(c.feelsLike)}',
                 style: GoogleFonts.outfit(
                     color: kColorOrange.withOpacity(0.8),
                     fontSize: 13,
@@ -715,7 +764,7 @@ class _CurrentCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _Metric(Icons.water_drop_outlined, '${c.humidity}%', 'HUMIDITY'),
-            _Metric(Icons.air, '${c.windSpeed.round()} km/h', 'WIND'),
+            _Metric(Icons.air, units.formatSpeed(c.windSpeed, decimals: 0), 'WIND'),
             _Metric(Icons.wb_sunny_outlined, _uvLabel(c.uvIndex), 'UV INDEX'),
             _Metric(Icons.grain, '${c.precipitation} mm', 'PRECIP'),
           ],
@@ -758,6 +807,7 @@ class _DayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cond = day.hikingCondition;
     final border = _condColor(cond);
+    final units = context.watch<UnitsProvider>();
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -783,7 +833,7 @@ class _DayCard extends StatelessWidget {
                       fontWeight: FontWeight.w700)),
               Text(weatherEmoji(day.weatherCode),
                   style: const TextStyle(fontSize: 24)),
-              Text('${day.tempMax.round()}°/${day.tempMin.round()}°',
+              Text('${units.temperatureFromC(day.tempMax).round()}°/${units.temperatureFromC(day.tempMin).round()}°',
                   style: GoogleFonts.outfit(
                       color: Colors.white,
                       fontSize: 11,
@@ -849,6 +899,7 @@ class _HourlyDetail extends StatelessWidget {
     final cond = day.hikingCondition;
     final condColor = _condColor(cond);
     final daylightH = day.daylightHours.inMinutes / 60;
+    final units = context.watch<UnitsProvider>();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -882,8 +933,9 @@ class _HourlyDetail extends StatelessWidget {
         const SizedBox(height: 12),
         Row(children: [
           _DetailStat(
-              '${day.tempMin.round()}°–${day.tempMax.round()}°C', 'Temp'),
-          _DetailStat('${day.windSpeedMax.round()} km/h', 'Max Wind'),
+              '${units.temperatureFromC(day.tempMin).round()}°–${units.formatTemperature(day.tempMax)}',
+              'Temp'),
+          _DetailStat(units.formatSpeed(day.windSpeedMax, decimals: 0), 'Max Wind'),
           _DetailStat('${day.precipSum.toStringAsFixed(1)} mm', 'Rain'),
           _DetailStat('UV ${day.uvIndexMax.toStringAsFixed(1)}', 'UV'),
         ]),
@@ -977,6 +1029,7 @@ class _HourCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isNight = h.time.hour < 6 || h.time.hour >= 19;
+    final units = context.watch<UnitsProvider>();
     return Container(
       width: 56,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
@@ -993,7 +1046,7 @@ class _HourCard extends StatelessWidget {
                 fontSize: 10,
                 fontWeight: FontWeight.w600)),
         Text(weatherEmoji(h.weatherCode), style: const TextStyle(fontSize: 18)),
-        Text('${h.temperature.round()}°',
+        Text('${units.temperatureFromC(h.temperature).round()}°',
             style: GoogleFonts.outfit(
                 color: Colors.white,
                 fontSize: 13,
@@ -1003,7 +1056,7 @@ class _HourCard extends StatelessWidget {
           Text(' ${h.precipProbability}%',
               style: GoogleFonts.outfit(color: Colors.lightBlue, fontSize: 9)),
         ]),
-        Text('${h.windSpeed.round()}km/h',
+        Text(units.formatSpeed(h.windSpeed, decimals: 0),
             style: GoogleFonts.outfit(color: Colors.white38, fontSize: 9)),
       ]),
     );
@@ -1020,24 +1073,25 @@ class _AssessmentText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final bullets = <String>[];
     if (day.tempMin < 0) {
       bullets.add(
-          '❄️ Sub-zero low (${day.tempMin.round()}°C) — extra insulation required');
+          '❄️ Sub-zero low (${units.formatTemperature(day.tempMin)}) — extra insulation required');
     } else if (day.tempMin < 5) {
       bullets.add(
-          '🥶 Cold low (${day.tempMin.round()}°C) — warm layers on ridges');
+          '🥶 Cold low (${units.formatTemperature(day.tempMin)}) — warm layers on ridges');
     }
     if (day.tempMax > 33) {
       bullets.add(
-          '🌡 High heat (${day.tempMax.round()}°C) — early start, extra water');
+          '🌡 High heat (${units.formatTemperature(day.tempMax)}) — early start, extra water');
     }
     if (day.windSpeedMax > 65) {
       bullets.add(
-          '💨 Gale-force wind (${day.windSpeedMax.round()} km/h) — exposed ridges unsafe');
+          '💨 Gale-force wind (${units.formatSpeed(day.windSpeedMax, decimals: 0)}) — exposed ridges unsafe');
     } else if (day.windSpeedMax > 40) {
       bullets.add(
-          '🌬 Strong wind (${day.windSpeedMax.round()} km/h) — caution on ridgelines');
+          '🌬 Strong wind (${units.formatSpeed(day.windSpeedMax, decimals: 0)}) — caution on ridgelines');
     }
     if (day.precipProbability > 65) {
       bullets.add(
@@ -1319,6 +1373,7 @@ class _HikeActivityItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     return GestureDetector(
       onTap: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => HikeDetailScreen(hike: hike))),
@@ -1369,8 +1424,10 @@ class _HikeActivityItem extends StatelessWidget {
               children: [
                 _ActivityMetric(
                     label: 'Distance',
-                    value: '${hike.distanceKm.toStringAsFixed(2)} km'),
-                _ActivityMetric(label: 'Elev Gain', value: '${hike.ascentM} m'),
+                    value: units.formatDistance(hike.distanceKm, decimals: 2)),
+                _ActivityMetric(
+                    label: 'Elev Gain',
+                    value: units.formatElevation(hike.ascentM.toDouble())),
                 _ActivityMetric(
                     label: 'Time',
                     value: _formatActivityDuration(hike.durationSeconds)),

@@ -9,6 +9,7 @@ import '../core/design_tokens.dart';
 import '../models/cave_waypoint.dart';
 import '../providers/static_data_provider.dart';
 import '../providers/community_provider.dart';
+import '../providers/units_provider.dart';
 import '../widgets/design/tt_pill.dart';
 
 /// Bottom sheet shown when a cave or rock-shelter waypoint is tapped on the
@@ -35,6 +36,7 @@ class CaveDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final emoji = cave.isShelter ? '🛖' : '🕳';
     final typeLabel = cave.isShelter ? 'Rock Shelter' : 'Cave';
 
@@ -89,7 +91,7 @@ class CaveDetailSheet extends StatelessWidget {
                           if (cave.elevationM > 0)
                             TTPill(
                               label:
-                                  '${cave.elevationM.round()} M',
+                                  units.formatElevation(cave.elevationM).toUpperCase(),
                               leadingIcon: Icons.height,
                             ),
                         ],
@@ -121,7 +123,7 @@ class CaveDetailSheet extends StatelessWidget {
               icon: Icons.height,
               label: 'ELEVATION',
               value: cave.elevationM > 0
-                  ? '${cave.elevationM.round()} m'
+                  ? units.formatElevation(cave.elevationM)
                   : 'Unknown',
               mono: cave.elevationM > 0,
             ),
@@ -223,7 +225,7 @@ class CaveDetailSheet extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              '${t.distanceKm.toStringAsFixed(1)} km',
+                              units.formatDistance(t.distanceKm),
                               style: TT.mono(size: 11.5, color: TT.text2),
                             ),
                             const SizedBox(width: 6),

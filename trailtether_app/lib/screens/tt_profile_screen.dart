@@ -20,6 +20,7 @@ import '../models/saved_hike.dart';
 import '../providers/auth_provider.dart' as ap;
 import '../providers/hike_history_provider.dart';
 import '../providers/profile_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/auth_service.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
@@ -91,17 +92,16 @@ class _TTProfileScreenState extends State<TTProfileScreen>
       AnimationController(vsync: this, duration: TT.dSlow)..forward();
 
   // Preference keys — every toggle here persists across launches.
+  // The units preference lives in UnitsProvider; everything else is local.
   static const _kLiveTrackingKey = 'tt_live_tracking';
   static const _kTrailWeatherKey = 'tt_trail_weather';
   static const _kOffTrailAlertsKey = 'tt_off_trail_alerts';
   static const _kHapticKey = 'tt_haptic';
-  static const _kUnitsKey = 'tt_units';
 
   bool _liveTracking = true;
   bool _hapticFeedback = true;
   bool _trailWeather = true;
   bool _offTrailAlerts = false;
-  String _units = 'imperial';
 
   @override
   void initState() {
@@ -116,14 +116,12 @@ class _TTProfileScreenState extends State<TTProfileScreen>
       final weather = prefs.getBool(_kTrailWeatherKey);
       final offTrail = prefs.getBool(_kOffTrailAlertsKey);
       final haptic = prefs.getBool(_kHapticKey);
-      final units = prefs.getString(_kUnitsKey);
       if (!mounted) return;
       setState(() {
         if (live != null) _liveTracking = live;
         if (weather != null) _trailWeather = weather;
         if (offTrail != null) _offTrailAlerts = offTrail;
         if (haptic != null) _hapticFeedback = haptic;
-        if (units != null) _units = units;
       });
     } catch (_) {
       // SharedPreferences unavailable — keep defaults.
@@ -204,18 +202,66 @@ class _TTProfileScreenState extends State<TTProfileScreen>
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
-  Future<void> _toggleUnits() async {
-    final next = _units == 'imperial' ? 'metric' : 'imperial';
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kUnitsKey, next);
-    } catch (_) {/* best effort */}
+  Future<void> _openUnitsPicker() async {
+    final units = context.read<UnitsProvider>();
+    final picked = await showModalBottomSheet<UnitSystem>(
+      context: context,
+      backgroundColor: TT.surf,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: TT.line3,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text('Choose unit system',
+                    style: TT.body(size: 16, w: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text('Distance, elevation, temperature and speed throughout '
+                    'the app will use the units you pick here.',
+                    style: TT.body(size: 12, color: TT.text3).copyWith(height: 1.4)),
+                const SizedBox(height: 14),
+                _UnitsOptionTile(
+                  selected: units.isMetric,
+                  title: 'Metric',
+                  subtitle: 'km · m · °C · km/h',
+                  onTap: () => Navigator.pop(sheetCtx, UnitSystem.metric),
+                ),
+                const SizedBox(height: 8),
+                _UnitsOptionTile(
+                  selected: units.isImperial,
+                  title: 'Imperial',
+                  subtitle: 'mi · ft · °F · mph',
+                  onTap: () => Navigator.pop(sheetCtx, UnitSystem.imperial),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked == null || !mounted) return;
+    await context.read<UnitsProvider>().setSystem(picked);
     if (!mounted) return;
-    setState(() => _units = next);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Units: ${next == 'imperial' ? 'Imperial (ft / mi)' : 'Metric (m / km)'}',
+          'Units: ${picked == UnitSystem.imperial ? 'Imperial (ft / mi / °F)' : 'Metric (m / km / °C)'}',
           style: TT.body(size: 13, color: TT.text),
         ),
         backgroundColor: TT.surf,
@@ -399,9 +445,11 @@ class _TTProfileScreenState extends State<TTProfileScreen>
 
   @override
   Widget build(BuildContext context) {
-    final unitsLabel = _units == 'imperial' ? 'Imperial' : 'Metric';
-    final unitsSub =
-        _units == 'imperial' ? 'Imperial · ft / mi' : 'Metric · m / km';
+    final units = context.watch<UnitsProvider>();
+    final unitsLabel = units.isImperial ? 'Imperial' : 'Metric';
+    final unitsSub = units.isImperial
+        ? 'Imperial · ft / mi / °F'
+        : 'Metric · m / km / °C';
 
     final body = Stack(
       children: [
@@ -511,7 +559,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           label: 'Units',
                           sub: unitsSub,
                           trailing: _SettingTrailing.value(unitsLabel),
-                          onTap: _toggleUnits,
+                          onTap: _openUnitsPicker,
                         ),
                       ],
                     ),
@@ -546,20 +594,6 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                       child: Center(
                         child: Text(
                           'TRAILTETHER v2.0',
-                          style: TT.mono(
-                            size: 9.5,
-                            color: TT.text4,
-                            letterSpacing: 0.16 * 9.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _FadeUp(
-                      delay: const Duration(milliseconds: 1660),
-                      child: Center(
-                        child: Text(
-                          'BUILT IN CAPE TOWN',
                           style: TT.mono(
                             size: 9.5,
                             color: TT.text4,
@@ -870,12 +904,14 @@ class _StatTilesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<HikeHistoryProvider>(
-      builder: (_, history, __) {
+    return Consumer2<HikeHistoryProvider, UnitsProvider>(
+      builder: (_, history, units, __) {
         final hikes = history.hikes;
         final hikeCount = hikes.length;
-        final distMi = hikes.fold<double>(0, (a, SavedHike h) => a + h.distanceKm) * 0.621371;
-        final ascentFt = (hikes.fold<int>(0, (a, SavedHike h) => a + h.ascentM) * 3.28084).round();
+        final totKm = hikes.fold<double>(0, (a, SavedHike h) => a + h.distanceKm);
+        final totAscentM = hikes.fold<int>(0, (a, SavedHike h) => a + h.ascentM).toDouble();
+        final distVal = units.distanceFromKm(totKm).round();
+        final ascentVal = units.elevationFromM(totAscentM).round();
         final peaks = hikes.fold<int>(0, (a, SavedHike h) => a + h.peaksClimbed);
 
         final tiles = <_StatTile>[
@@ -890,16 +926,16 @@ class _StatTilesRow extends StatelessWidget {
           _StatTile(
             icon: Icons.navigation_outlined,
             label: 'Distance',
-            value: distMi.round().toString(),
-            unit: 'mi',
+            value: distVal.toString(),
+            unit: units.distanceUnit,
             ember: true,
             onTap: onTapTile,
           ),
           _StatTile(
             icon: Icons.arrow_upward,
             label: 'Ascent',
-            value: _formatThousands(ascentFt),
-            unit: 'ft',
+            value: _formatThousands(ascentVal),
+            unit: units.elevationUnit,
             ember: false,
             onTap: onTapTile,
           ),
@@ -1139,11 +1175,19 @@ class _AchievementsSection extends StatelessWidget {
                         color: TT.text2,
                         letterSpacing: 0.16 * 11),
                   ),
-                  Text(
-                    'VIEW ALL →',
-                    style: TT
-                        .body(size: 10, w: FontWeight.w800, color: TT.ember)
-                        .copyWith(letterSpacing: 0.1 * 10),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _showAllAchievements(context, pp),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
+                      child: Text(
+                        'VIEW ALL →',
+                        style: TT
+                            .body(size: 10, w: FontWeight.w800, color: TT.ember)
+                            .copyWith(letterSpacing: 0.1 * 10),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1164,6 +1208,126 @@ class _AchievementsSection extends StatelessWidget {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _showAllAchievements(BuildContext context, ProfileProvider pp) {
+    // Build the full list — unlocked first, then locked, mirroring the order
+    // in ProfileProvider's catalog. If the user has no unlocked badges yet we
+    // fall back to the on-screen mock grid so the sheet is never empty.
+    final all = pp.achievements;
+    final List<_AchievementData> rows;
+    if (all.isEmpty) {
+      rows = List<_AchievementData>.from(_mockGrid);
+    } else {
+      final unlocked = all.where((a) => a.unlocked).toList();
+      final locked = all.where((a) => !a.unlocked).toList();
+      rows = [
+        ...unlocked.map(_fromAchievement),
+        ...locked.map(_fromAchievement),
+      ];
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: TT.surf,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetCtx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.55,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (_, scroll) => Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: TT.line3,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Text('All achievements',
+                        style: TT.title(18, letterSpacing: -0.01 * 18)),
+                    const Spacer(),
+                    Text('${rows.where((r) => r.unlocked).length} / ${rows.length}',
+                        style: TT.mono(size: 11, color: TT.text3)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.separated(
+                  controller: scroll,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                  itemCount: rows.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) {
+                    final d = rows[i];
+                    final tint = d.unlocked ? d.color : TT.text3;
+                    return TTCard(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: tint.withOpacity(0.14),
+                              border: Border.all(color: tint, width: 2),
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(d.icon, size: 18, color: tint),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(d.label,
+                                    style: TT.body(
+                                        size: 14,
+                                        w: FontWeight.w800,
+                                        color: d.unlocked ? TT.text : TT.text2)),
+                                const SizedBox(height: 2),
+                                Text(
+                                    d.unlocked
+                                        ? d.description
+                                        : d.requirement,
+                                    style: TT.body(
+                                            size: 12, color: TT.text3)
+                                        .copyWith(height: 1.35)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            d.unlocked
+                                ? Icons.check_circle
+                                : Icons.lock_outline,
+                            size: 16,
+                            color: d.unlocked ? TT.green : TT.text3,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -1656,6 +1820,65 @@ class _FadeUpState extends State<_FadeUp> with SingleTickerProviderStateMixin {
           ),
         );
       },
+    );
+  }
+}
+
+// ──────────────────────────── UNIT PICKER ROW ───────────────────────────────
+
+class _UnitsOptionTile extends StatelessWidget {
+  final bool selected;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _UnitsOptionTile({
+    required this.selected,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: selected ? TT.emberSoft : TT.surf2,
+          borderRadius: BorderRadius.circular(TT.rMd),
+          border: Border.all(
+            color: selected ? TT.ember : TT.line2,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              size: 20,
+              color: selected ? TT.ember : TT.text3,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TT.body(
+                          size: 14,
+                          w: FontWeight.w800,
+                          color: selected ? TT.text : TT.text2)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: TT.mono(size: 11, color: TT.text3)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

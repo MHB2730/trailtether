@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:battery_plus/battery_plus.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/runtime_config.dart';
@@ -17,6 +19,55 @@ class TeamTrackingProvider extends ChangeNotifier {
 
   RecordingProvider? _recordingProvider;
   TeamProvider? _teamProvider;
+
+  // Battery + connectivity readers. Both are cheap to instantiate but reads
+  // are async, so we cache the most recent value and refresh on each report
+  // tick rather than blocking the broadcast on a fresh read every time.
+  final Battery _battery = Battery();
+  final Connectivity _connectivity = Connectivity();
+  int? _lastBatteryPct;
+  String? _lastConnectivity;
+
+  /// Reads battery + connectivity in parallel, with a tight 1.5s ceiling so
+  /// a slow OS call never delays the GPS broadcast. Falls back to the last
+  /// known value when the read times out, returns null when nothing is yet
+  /// known.
+  Future<({int? battery, String? connectivity})> _readDeviceVitals() async {
+    Future<int?> readBattery() async {
+      try {
+        final v = await _battery.batteryLevel.timeout(
+          const Duration(milliseconds: 1500),
+        );
+        return v.clamp(0, 100);
+      } catch (_) {
+        return _lastBatteryPct;
+      }
+    }
+
+    Future<String?> readConnectivity() async {
+      try {
+        final result = await _connectivity.checkConnectivity().timeout(
+              const Duration(milliseconds: 1500),
+            );
+        // connectivity_plus 6.x returns a List<ConnectivityResult>. Pick the
+        // strongest active link so a phone on both wifi + mobile reports as
+        // wifi (the cheaper, usually-stronger link).
+        if (result.contains(ConnectivityResult.wifi)) return 'wifi';
+        if (result.contains(ConnectivityResult.ethernet)) return 'wifi';
+        if (result.contains(ConnectivityResult.mobile)) return 'mobile';
+        return 'none';
+      } catch (_) {
+        return _lastConnectivity;
+      }
+    }
+
+    final results = await Future.wait([readBattery(), readConnectivity()]);
+    final battery = results[0] as int?;
+    final conn = results[1] as String?;
+    if (battery != null) _lastBatteryPct = battery;
+    if (conn != null) _lastConnectivity = conn;
+    return (battery: battery, connectivity: conn);
+  }
 
   /// Whether the user has explicitly opened the Live Tracking screen and
   /// expects their position to be visible to the command centre / team.
@@ -231,6 +282,7 @@ class TeamTrackingProvider extends ChangeNotifier {
       final pos = _recordingProvider?.currentPosition ??
           await LocationService.currentPosition();
       if (pos != null) {
+        final vitals = await _readDeviceVitals();
         await TeamService.reportLocation(
           uid: uid,
           displayName: _displayName,
@@ -242,6 +294,8 @@ class TeamTrackingProvider extends ChangeNotifier {
           teamId: teamId,
           hikeId: _activeHike?.id,
           status: isRecording ? 'recording' : 'active',
+          batteryPct: vitals.battery,
+          connectivity: vitals.connectivity,
         );
         _lastReportAt = DateTime.now();
         LoggerService.log('TRACKING',
@@ -274,6 +328,7 @@ class TeamTrackingProvider extends ChangeNotifier {
         return;
       }
 
+      final vitals = await _readDeviceVitals();
       await TeamService.reportLocation(
         uid: uid,
         displayName: _displayName,
@@ -285,6 +340,8 @@ class TeamTrackingProvider extends ChangeNotifier {
         teamId: _activeHike!.teamId,
         hikeId: _activeHike!.id,
         status: status,
+        batteryPct: vitals.battery,
+        connectivity: vitals.connectivity,
       );
 
       if (status == 'arrived') {

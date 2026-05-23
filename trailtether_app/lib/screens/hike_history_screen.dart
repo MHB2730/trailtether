@@ -21,6 +21,7 @@ import '../core/constants.dart';
 import '../core/design_tokens.dart';
 import '../models/saved_hike.dart';
 import '../providers/hike_history_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/health_connect_service.dart';
 import '../services/offline_map_service.dart';
 import '../widgets/design/tt_ambient.dart';
@@ -145,9 +146,10 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final date = DateFormat('EEE, d MMM yyyy').format(hike.startedAt);
-    final distance = '${hike.distanceKm.toStringAsFixed(2)} km';
-    final ascent = '${hike.ascentM} m';
+    final distance = units.formatDistance(hike.distanceKm, decimals: 2);
+    final ascent = units.formatElevation(hike.ascentM.toDouble());
     final duration = _formatDuration(hike.durationSeconds);
 
     return TTCard(
@@ -411,9 +413,10 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final distance = '${hike.distanceKm.toStringAsFixed(2)} km';
-    final ascent = '${hike.ascentM} m';
-    final maxSpeed = '${hike.maxSpeedKmh.toStringAsFixed(1)} km/h';
+    final units = context.watch<UnitsProvider>();
+    final distance = units.formatDistance(hike.distanceKm, decimals: 2);
+    final ascent = units.formatElevation(hike.ascentM.toDouble());
+    final maxSpeed = units.formatSpeed(hike.maxSpeedKmh);
     final duration = _formatDuration(hike.durationSeconds);
 
     return TTCard(
@@ -621,11 +624,12 @@ class _ElevationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final altitudes =
         hike.points.length >= 4 ? hike.points.map((p) => p.altitude).toList() : null;
-    final ascentLabel = '${hike.ascentM} m ascent';
+    final ascentLabel = '${units.formatElevation(hike.ascentM.toDouble())} ascent';
     final peakLabel =
-        '${hike.distanceKm.toStringAsFixed(1)} km · $ascentLabel';
+        '${units.formatDistance(hike.distanceKm)} · $ascentLabel';
 
     return TTCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -641,7 +645,7 @@ class _ElevationCard extends StatelessWidget {
                     size: 11, color: TT.ember, letterSpacing: 0.16 * 11),
               ),
               Text(
-                'RANGE ${hike.elevationRangeM.toStringAsFixed(0)} M',
+                'RANGE ${units.formatElevation(hike.elevationRangeM).toUpperCase()}',
                 style: TT.mono(size: 10, color: TT.text3),
               ),
             ],
@@ -658,7 +662,7 @@ class _ElevationCard extends StatelessWidget {
               ),
             )
           else
-            TTBigElevChart(samples: altitudes, peakLabel: peakLabel),
+            TTBigElevChart(samples: altitudes, peakLabel: peakLabel, elevationUnit: units.elevationUnit),
         ],
       ),
     );
@@ -671,20 +675,19 @@ class _StatGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paceKm = hike.distanceKm > 0
-        ? _formatPaceMinPerKm(hike.durationSeconds, hike.distanceKm)
-        : '--';
-    final avgSpd = '${hike.averageSpeedKmh.toStringAsFixed(1)} km/h';
-    final movSpd = '${hike.movingSpeedKmh.toStringAsFixed(1)} km/h';
+    final units = context.watch<UnitsProvider>();
+    final paceKm = units.formatPace(hike.durationSeconds, hike.distanceKm);
+    final avgSpd = units.formatSpeed(hike.averageSpeedKmh);
+    final movSpd = units.formatSpeed(hike.movingSpeedKmh);
     final moving = _formatDuration(hike.movingSeconds);
     final stopped = _formatDuration(hike.stoppedSeconds);
-    final descent = '${hike.descentM} m';
-    final low = '${hike.minElevationM.toStringAsFixed(0)} m';
-    final high = '${hike.maxElevationM.toStringAsFixed(0)} m';
+    final descent = units.formatElevation(hike.descentM.toDouble());
+    final low = units.formatElevation(hike.minElevationM);
+    final high = units.formatElevation(hike.maxElevationM);
     final peaks = '${hike.peaksClimbed}';
 
     final tiles = <_StatTile>[
-      _StatTile(label: 'AVG PACE', value: paceKm, unit: '/km'),
+      _StatTile(label: 'AVG PACE', value: paceKm, unit: units.paceUnit),
       _StatTile(label: 'AVG SPD', value: avgSpd),
       _StatTile(label: 'MOVING', value: movSpd),
       _StatTile(label: 'MOVING T', value: moving),
@@ -902,12 +905,4 @@ String _formatDuration(int seconds) {
     return '${hours}h ${minutes.toString().padLeft(2, '0')}m';
   }
   return '${minutes}m ${secs.toString().padLeft(2, '0')}s';
-}
-
-String _formatPaceMinPerKm(int totalSeconds, double km) {
-  if (km <= 0 || totalSeconds <= 0) return '--';
-  final secPerKm = totalSeconds / km;
-  final m = secPerKm ~/ 60;
-  final s = (secPerKm % 60).round().toString().padLeft(2, '0');
-  return '$m:$s';
 }

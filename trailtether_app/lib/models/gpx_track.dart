@@ -102,30 +102,47 @@ class UserGpxTrack {
       };
 
   factory UserGpxTrack.fromJson(Map<String, dynamic> j) {
-    // Explicitly parse points to List<LatLng> to avoid List<dynamic> crashes
-    final List<LatLng> rawPts = (j['points'] as List? ?? [])
-        .map((p) => LatLng((p[0] as num).toDouble(), (p[1] as num).toDouble()))
-        .toList();
+    // Defensive point + elevation parse. A pair that's not a 2-element list of
+    // nums is dropped rather than throwing, so one corrupt waypoint can't
+    // crash GPX import / restore for the whole track.
+    final rawPts = <LatLng>[];
+    final rawPointsList = j['points'];
+    if (rawPointsList is List) {
+      for (final p in rawPointsList) {
+        if (p is! List || p.length < 2) continue;
+        final lat = p[0];
+        final lon = p[1];
+        if (lat is! num || lon is! num) continue;
+        rawPts.add(LatLng(lat.toDouble(), lon.toDouble()));
+      }
+    }
 
-    // Explicitly parse elevations to List<double>
-    final List<double> rawEle = (j['elevations'] as List? ?? [])
-        .map((e) => (e as num).toDouble())
-        .toList();
+    final rawEle = <double>[];
+    final rawEleList = j['elevations'];
+    if (rawEleList is List) {
+      for (final e in rawEleList) {
+        if (e is num) rawEle.add(e.toDouble());
+      }
+    }
 
     return UserGpxTrack(
-      id: j['id'] as String,
-      filename: j['filename'] as String,
-      displayName: j['displayName'] as String? ?? '',
-      authorName: j['authorName'] as String? ?? '',
-      description: j['description'] as String? ?? '',
-      difficulty: j['difficulty'] as String? ?? '',
+      id: j['id']?.toString() ?? '',
+      filename: j['filename']?.toString() ?? 'track.gpx',
+      displayName: j['displayName']?.toString() ?? '',
+      authorName: j['authorName']?.toString() ?? '',
+      description: j['description']?.toString() ?? '',
+      difficulty: j['difficulty']?.toString() ?? '',
       points: rawPts,
       elevations: rawEle,
-      distanceKm: (j['distanceKm'] as num? ?? 0.0).toDouble(),
-      elevationGainM: (j['elevationGainM'] as num? ?? 0).toInt(),
-      color: Color(j['color'] as int? ?? 0xFFFF9800),
-      sharedToCloud: j['sharedToCloud'] as bool? ?? false,
-      cloudPath: j['cloudPath'] as String?,
+      distanceKm: (j['distanceKm'] is num)
+          ? (j['distanceKm'] as num).toDouble()
+          : 0.0,
+      elevationGainM: (j['elevationGainM'] is num)
+          ? (j['elevationGainM'] as num).toInt()
+          : 0,
+      color: Color((j['color'] is int) ? j['color'] as int : 0xFFFF9800),
+      sharedToCloud: j['sharedToCloud'] == true,
+      cloudPath: j['cloudPath']?.toString(),
     );
   }
 

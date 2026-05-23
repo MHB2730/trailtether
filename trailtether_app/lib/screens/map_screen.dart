@@ -21,6 +21,7 @@ import '../providers/safety_provider.dart';
 import '../providers/gpx_provider.dart';
 import '../providers/recording_provider.dart';
 import '../providers/review_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/location_service.dart';
 import '../services/hazard_service.dart';
 import '../providers/weather_provider.dart';
@@ -797,7 +798,9 @@ class _TrailInfoCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+  Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
+    return TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: 1),
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
@@ -835,9 +838,9 @@ class _TrailInfoCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(children: [
                 _Stat(Icons.straighten,
-                    '${trail.distanceKm.toStringAsFixed(1)} km'),
+                    units.formatDistance(trail.distanceKm)),
                 const SizedBox(width: 12),
-                _Stat(Icons.trending_up, '${trail.elevationGainM} m'),
+                _Stat(Icons.trending_up, units.formatElevation(trail.elevationGainM.toDouble())),
                 const SizedBox(width: 12),
                 _Stat(Icons.schedule, trail.formattedTime(1.0)),
                 const Spacer(),
@@ -862,6 +865,7 @@ class _TrailInfoCard extends StatelessWidget {
           ),
         ),
       );
+  }
 }
 
 class _Stat extends StatelessWidget {
@@ -1090,13 +1094,19 @@ class _MeasureBanner extends StatelessWidget {
     this.onUndo,
   });
 
-  String get _distLabel {
-    if (distanceM < 1000) return '${distanceM.toStringAsFixed(0)} m';
-    return '${(distanceM / 1000).toStringAsFixed(2)} km';
+  String _distLabel(UnitsProvider units) {
+    final km = distanceM / 1000.0;
+    if (distanceM < 1000) {
+      // Use elevation formatter for short distances (m/ft) — same scale.
+      return units.formatElevation(distanceM);
+    }
+    return units.formatDistance(km, decimals: 2);
   }
 
   @override
-  Widget build(BuildContext context) => widgets.Container(
+  Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
+    return widgets.Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: const Color(0xFF00BCD4).withOpacity(0.92),
@@ -1121,7 +1131,7 @@ class _MeasureBanner extends StatelessWidget {
                   Text(
                     pointCount < 2
                         ? 'Tap the map to start measuring'
-                        : _distLabel,
+                        : _distLabel(units),
                     style: GoogleFonts.outfit(
                         color: Colors.white,
                         fontSize: 14,
@@ -1163,6 +1173,7 @@ class _MeasureBanner extends StatelessWidget {
           ],
         ),
       );
+  }
 }
 
 class _MapModeCycle extends StatelessWidget {
@@ -1223,6 +1234,7 @@ class _WeatherSummaryPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final cur = weather.currentWeather?.current;
     if (cur == null) return const SizedBox.shrink();
+    final units = context.watch<UnitsProvider>();
 
     return widgets.Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1241,7 +1253,7 @@ class _WeatherSummaryPill extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            '${cur.temperature.round()}°C',
+            units.formatTemperature(cur.temperature),
             style: GoogleFonts.outfit(
               color: kColorCream,
               fontSize: 12,

@@ -431,7 +431,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Footer micro-copy
                     Center(
                       child: Text(
-                        'FREE  ·  NO ADS  ·  BUILT IN CAPE TOWN',
+                        'FREE  ·  NO ADS',
                         textAlign: TextAlign.center,
                         style: TT.mono(
                           size: 9.5,

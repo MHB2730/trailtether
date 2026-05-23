@@ -115,7 +115,9 @@ class SavedHike {
       }
     }
     return SavedHike(
-        id: json['id'] as String,
+        // id falls back to "" rather than throwing — caller can still render
+        // the row; deleting/editing flows that genuinely need an id check it.
+        id: json['id']?.toString() ?? '',
         name: json['name'] as String? ?? 'Hike',
         startedAt: startedAt,
         endedAt: endedAt,

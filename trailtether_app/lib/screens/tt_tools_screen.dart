@@ -19,10 +19,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:torch_light/torch_light.dart';
 
 import '../core/design_tokens.dart';
+import '../providers/units_provider.dart';
 import '../core/sun_utils.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
@@ -54,11 +56,10 @@ const List<_ToolSpec> _kTools = [
 // react to the same settings without piping props through every widget.
 class _ToolPrefs extends ChangeNotifier {
   static const _kDeclination = 'tt_tool_declination_deg';
-  static const _kUseImperial = 'tt_tool_use_imperial';
   static const _kSunTime24 = 'tt_tool_sun_24h';
 
   double _declination = 0.0; // user-entered declination in degrees (east +)
-  bool _useImperial = false; // metres / feet
+  bool _useImperial = false; // mirrored from global UnitsProvider; never written
   bool _sunTime24 = true;    // 24h vs 12h sunrise/sunset readout
 
   double get declination => _declination;
@@ -68,8 +69,15 @@ class _ToolPrefs extends ChangeNotifier {
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
     _declination = p.getDouble(_kDeclination) ?? 0.0;
-    _useImperial = p.getBool(_kUseImperial) ?? false;
     _sunTime24 = p.getBool(_kSunTime24) ?? true;
+    notifyListeners();
+  }
+
+  /// Pushed in from the host widget every build so the tools UI stays in sync
+  /// with the user's global Profile → Units choice without owning its own copy.
+  void syncUnits(bool imperial) {
+    if (_useImperial == imperial) return;
+    _useImperial = imperial;
     notifyListeners();
   }
 
@@ -78,13 +86,6 @@ class _ToolPrefs extends ChangeNotifier {
     notifyListeners();
     final p = await SharedPreferences.getInstance();
     await p.setDouble(_kDeclination, v);
-  }
-
-  Future<void> setUseImperial(bool v) async {
-    _useImperial = v;
-    notifyListeners();
-    final p = await SharedPreferences.getInstance();
-    await p.setBool(_kUseImperial, v);
   }
 
   Future<void> setSunTime24(bool v) async {
@@ -132,6 +133,11 @@ class _TTToolsScreenState extends State<TTToolsScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    // Mirror the global Profile → Units selection into the tool's local
+    // ChangeNotifier so every tool sub-widget (altimeter, sun, info) sees the
+    // user's choice without managing its own duplicate switch.
+    final globalUnits = context.watch<UnitsProvider>();
+    _prefs.syncUnits(globalUnits.isImperial);
     final body = AnimatedBuilder(
       animation: _prefs,
       builder: (_, __) => Stack(
@@ -383,17 +389,23 @@ class _ToolSettingsSheetState extends State<_ToolSettingsSheet> {
             ),
             const SizedBox(height: 10),
 
-            // Units toggle
+            // Units mirror — read-only. The single source of truth lives in
+            // Profile → Units (Settings) so the user can't get into a state
+            // where the altimeter shows ft but everything else shows m.
             _SettingsRow(
               icon: Icons.straighten,
               title: 'Altitude unit',
               subtitle: widget.prefs.useImperial
-                  ? 'Showing feet'
-                  : 'Showing metres',
-              trailing: Switch.adaptive(
-                value: widget.prefs.useImperial,
-                activeColor: TT.ember,
-                onChanged: widget.prefs.setUseImperial,
+                  ? 'Showing feet · change in Profile → Units'
+                  : 'Showing metres · change in Profile → Units',
+              trailing: Text(
+                widget.prefs.useImperial ? 'FT' : 'M',
+                style: TT.mono(
+                  size: 13,
+                  color: TT.ember,
+                  letterSpacing: 0.06 * 13,
+                  w: FontWeight.w800,
+                ),
               ),
             ),
             const SizedBox(height: 10),

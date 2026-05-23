@@ -13,6 +13,7 @@ import 'tt_activity_screen.dart';
 import 'recorded_trails_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/static_data_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/logger_service.dart';
 import '../tools/useful_info_tool.dart';
 import '../tools/locations_tool.dart';
@@ -927,6 +928,7 @@ class _AltimeterToolState extends State<_AltimeterTool> {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -944,7 +946,7 @@ class _AltimeterToolState extends State<_AltimeterTool> {
           ),
           const SizedBox(height: 20),
           Text(
-            _pos == null ? '-- m' : '${_pos!.altitude.toStringAsFixed(0)} m',
+            _pos == null ? '-- ${units.elevationUnit}' : units.formatElevation(_pos!.altitude),
             style: GoogleFonts.outfit(
                 color: kColorOrange, fontSize: 42, fontWeight: FontWeight.w900),
           ),
@@ -966,10 +968,10 @@ class _AltimeterToolState extends State<_AltimeterTool> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _InfoPill(
-                    'ACCURACY', '±${_pos!.accuracy.toStringAsFixed(0)} m'),
+                    'ACCURACY', '±${units.formatElevation(_pos!.accuracy)}'),
                 const SizedBox(width: 12),
                 _InfoPill(
-                    'SPEED', '${(_pos!.speed * 3.6).toStringAsFixed(1)} km/h'),
+                    'SPEED', units.formatSpeed(_pos!.speed * 3.6)),
               ],
             ),
           ],

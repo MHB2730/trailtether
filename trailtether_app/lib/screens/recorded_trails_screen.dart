@@ -22,6 +22,7 @@ import '../models/recording_point.dart';
 import '../models/trail.dart';
 import '../providers/auth_provider.dart' as ap;
 import '../providers/recorded_trails_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/offline_map_service.dart';
 import '../services/recorded_trail_service.dart';
 import '../widgets/design/tt_ambient.dart';
@@ -215,6 +216,7 @@ class _TrailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final isMine = context.read<ap.AuthProvider>().uid == trail.userId;
     return TTCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -250,9 +252,9 @@ class _TrailRow extends StatelessWidget {
             children: [
               _MiniMetric(
                   label: 'DIST',
-                  value: '${trail.distanceKm.toStringAsFixed(2)} km'),
+                  value: units.formatDistance(trail.distanceKm, decimals: 2)),
               _Divider(),
-              _MiniMetric(label: 'ASC', value: '${trail.ascentM} m'),
+              _MiniMetric(label: 'ASC', value: units.formatElevation(trail.ascentM.toDouble())),
               _Divider(),
               _MiniMetric(
                   label: 'TIME',
@@ -793,6 +795,7 @@ class _StatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     return TTCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
@@ -811,7 +814,7 @@ class _StatsCard extends StatelessWidget {
                 _Stat(
                   width: w,
                   label: 'DISTANCE',
-                  value: '${trail.distanceKm.toStringAsFixed(2)} km',
+                  value: units.formatDistance(trail.distanceKm, decimals: 2),
                 ),
                 _Stat(
                   width: w,
@@ -821,13 +824,13 @@ class _StatsCard extends StatelessWidget {
                 _Stat(
                   width: w,
                   label: 'ASCENT',
-                  value: '${trail.ascentM} m',
+                  value: units.formatElevation(trail.ascentM.toDouble()),
                   ember: true,
                 ),
                 _Stat(
                   width: w,
                   label: 'DESCENT',
-                  value: '${trail.descentM} m',
+                  value: units.formatElevation(trail.descentM.toDouble()),
                 ),
                 _Stat(
                   width: w,
@@ -911,7 +914,8 @@ class _ElevationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final peakLabel = '${distanceKm.toStringAsFixed(1)} km · $ascentM m';
+    final units = context.watch<UnitsProvider>();
+    final peakLabel = '${units.formatDistance(distanceKm)} · ${units.formatElevation(ascentM.toDouble())}';
     return TTCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
@@ -921,7 +925,7 @@ class _ElevationCard extends StatelessWidget {
               style: TT.label(
                   size: 11, color: TT.ember, letterSpacing: 1.4)),
           const SizedBox(height: 4),
-          TTBigElevChart(samples: altitudes, peakLabel: peakLabel),
+          TTBigElevChart(samples: altitudes, peakLabel: peakLabel, elevationUnit: units.elevationUnit),
         ],
       ),
     );

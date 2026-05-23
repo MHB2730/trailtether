@@ -12,6 +12,7 @@ import '../providers/app_state_provider.dart';
 import '../providers/gpx_provider.dart';
 import '../providers/static_data_provider.dart';
 import '../providers/review_provider.dart';
+import '../providers/units_provider.dart';
 import '../widgets/trail/difficulty_badge.dart';
 import 'gpx_upload_screen.dart';
 import 'trail_detail_screen.dart';
@@ -684,6 +685,7 @@ class _TrailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppStateProvider>();
+    final units = context.watch<UnitsProvider>();
     final isFavorite = appState.isFavorite(trail.id);
     final isCompleted = appState.isCompleted(trail.id);
 
@@ -719,10 +721,15 @@ class _TrailRow extends StatelessWidget {
                         color: Colors.transparent,
                         child: Text(
                           trail.name,
+                          // `decoration: TextDecoration.none` explicitly
+                          // overrides the yellow debug underline Flutter
+                          // can draw during a Hero flight when the overlay
+                          // briefly loses the Material ancestor.
                           style: GoogleFonts.outfit(
                             color: kColorCream,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.none,
                           ),
                         ),
                       ),
@@ -757,9 +764,9 @@ class _TrailRow extends StatelessWidget {
               Row(
                 children: [
                   _Stat(Icons.straighten,
-                      '${trail.distanceKm.toStringAsFixed(1)} km'),
+                      units.formatDistance(trail.distanceKm)),
                   const SizedBox(width: 14),
-                  _Stat(Icons.trending_up, '${trail.elevationGainM} m'),
+                  _Stat(Icons.trending_up, units.formatElevation(trail.elevationGainM.toDouble())),
                   const SizedBox(width: 14),
                   _Stat(Icons.schedule, trail.formattedTime(1.0)),
                   const Spacer(),

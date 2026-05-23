@@ -17,15 +17,28 @@ import 'package:provider/provider.dart';
 
 import '../core/constants.dart';
 import '../core/design_tokens.dart';
+import '../models/accommodation.dart';
+import '../models/cave_waypoint.dart';
 import '../models/recording_point.dart';
 import '../models/trail.dart';
 import '../providers/recording_provider.dart';
 import '../providers/static_data_provider.dart';
+import '../providers/units_provider.dart';
 import '../services/location_service.dart';
 import '../services/offline_map_service.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
+import '../models/incident.dart';
+import '../providers/safety_provider.dart';
+import '../widgets/map/accommodation_marker_layer.dart';
+import '../widgets/map/cave_marker_layer.dart';
+import '../widgets/map/incident_marker_layer.dart';
+import '../widgets/map/trail_map_3d_selector.dart';
+import 'accommodation_detail_sheet.dart';
+import 'cave_detail_sheet.dart';
+import 'field_intel_sheet.dart';
+import 'incident_detail_sheet.dart';
 import 'recorded_trails_screen.dart';
 import 'trail_detail_screen.dart';
 
@@ -65,8 +78,19 @@ class _TTMapScreenState extends State<TTMapScreen>
   static const double _sheetMid = 0.52;
   static const double _sheetMax = 0.92;
 
-  // Unit toggle for distance / speed display. Tap the scale bar to flip.
-  bool _useMiles = true;
+  // Unit toggle is owned by UnitsProvider so the choice is global.
+  bool get _useMiles => context.read<UnitsProvider>().isImperial;
+
+  // "Drop a pin" mode — when true the next tap on the map opens the field-
+  // intel sheet at the tapped coordinate so the user can mark a hazard,
+  // shelter, water source, etc. Auto-clears after a single drop.
+  bool _dropPinMode = false;
+
+  // 3D mode — switches the FlutterMap view for a WebView-backed 3D scene
+  // (MapLibre GL JS rendering Esri satellite tiles over a terrain mesh).
+  // The 3D widget receives the same trails / caves / incidents stream so
+  // taps still route to the existing detail sheets.
+  bool _show3D = false;
 
   @override
   void initState() {
@@ -264,7 +288,7 @@ class _TTMapScreenState extends State<TTMapScreen>
                 label: _useMiles ? 'Show distance in km' : 'Show distance in mi',
                 onTap: () {
                   Navigator.of(sheetCtx).pop();
-                  setState(() => _useMiles = !_useMiles);
+                  context.read<UnitsProvider>().toggle();
                 },
               ),
               _MenuRow(
@@ -275,6 +299,30 @@ class _TTMapScreenState extends State<TTMapScreen>
                   Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const RecordedTrailsScreen(),
                   ));
+                },
+              ),
+              _MenuRow(
+                icon: _dropPinMode
+                    ? Icons.add_location_alt
+                    : Icons.add_location_alt_outlined,
+                label: _dropPinMode
+                    ? 'Cancel drop pin'
+                    : 'Drop pin / mark feature',
+                ember: _dropPinMode,
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  _toggleDropPinMode();
+                },
+              ),
+              _MenuRow(
+                icon: _show3D
+                    ? Icons.map_outlined
+                    : Icons.public_outlined,
+                label: _show3D ? 'Switch to 2D map' : 'Switch to 3D map',
+                ember: _show3D,
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  _toggle3D();
                 },
               ),
               _MenuRow(
@@ -337,7 +385,130 @@ class _TTMapScreenState extends State<TTMapScreen>
   }
 
   void _toggleUnits() {
-    setState(() => _useMiles = !_useMiles);
+    context.read<UnitsProvider>().toggle();
+  }
+
+  // ── Drop a pin / mark a feature ──────────────────────────────────────────
+  //
+  // Enter drop-pin mode → the next map tap opens the FieldIntelSheet so the
+  // user can record an incident, hazard, water source, etc. at that GPS.
+  // The mode auto-clears on submission OR cancellation so the user doesn't
+  // accidentally drop a second pin afterwards.
+  void _toggleDropPinMode() {
+    setState(() => _dropPinMode = !_dropPinMode);
+    if (_dropPinMode) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            backgroundColor: TT.surf,
+            content: Text(
+              'Tap the map where you want to drop a pin',
+              style: TT.body(size: 13),
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+    } else {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    }
+  }
+
+  Trail? _findNearestTrail(LatLng pos) {
+    final trails = context.read<StaticDataProvider>().allTrails;
+    Trail? nearest;
+    double bestMeters = double.infinity;
+    const slack = 0.015;
+    for (final t in trails) {
+      if (pos.latitude < t.minLat - slack ||
+          pos.latitude > t.maxLat + slack ||
+          pos.longitude < t.minLon - slack ||
+          pos.longitude > t.maxLon + slack) {
+        continue;
+      }
+      for (final c in t.coords) {
+        final d = _haversineMeters(pos, LatLng(c.lat, c.lon));
+        if (d < bestMeters) {
+          bestMeters = d;
+          nearest = t;
+        }
+      }
+    }
+    return (bestMeters < 1200) ? nearest : null;
+  }
+
+  Future<void> _onDropPinAt(LatLng latLng) async {
+    if (!_dropPinMode) return;
+    setState(() => _dropPinMode = false);
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FieldIntelSheet(
+        position: latLng,
+        nearestTrail: _findNearestTrail(latLng),
+      ),
+    );
+    if (!mounted) return;
+    if (ok == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xCC4CC38A),
+          content: Text(
+            'Field intel reported — thanks for keeping the team safe.',
+            style: TT.body(size: 13, color: Colors.white),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _openIncident(Incident incident) {
+    IncidentDetailSheet.show(context, incident);
+  }
+
+  void _toggle3D() {
+    setState(() => _show3D = !_show3D);
+  }
+
+  void _openCaveOnRoot(CaveWaypoint cave) {
+    CaveDetailSheet.show(context, cave);
+  }
+
+  // Picks up the trail by id when the 3D widget reports a tap. The 3D
+  // WebView only knows trail IDs, so the host has to resolve them.
+  void _openTrailById(String id) {
+    final trails = context.read<StaticDataProvider>().allTrails;
+    Trail? trail;
+    for (final t in trails) {
+      if (t.id == id) {
+        trail = t;
+        break;
+      }
+    }
+    if (trail == null || trail.coords.isEmpty) return;
+    final picked = trail;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TrailDetailScreen(
+        trail: picked,
+        onNavigateToMap: () {},
+      ),
+    ));
+  }
+
+  static double _haversineMeters(LatLng a, LatLng b) {
+    const r = 6371000.0;
+    final dLat = (b.latitude - a.latitude) * math.pi / 180.0;
+    final dLon = (b.longitude - a.longitude) * math.pi / 180.0;
+    final sLat = math.sin(dLat / 2);
+    final sLon = math.sin(dLon / 2);
+    final h = sLat * sLat +
+        math.cos(a.latitude * math.pi / 180.0) *
+            math.cos(b.latitude * math.pi / 180.0) *
+            sLon *
+            sLon;
+    return 2 * r * math.asin(math.min(1.0, math.sqrt(h)));
   }
 
   void _toggleSheet() {
@@ -518,6 +689,9 @@ class _TTMapScreenState extends State<TTMapScreen>
   // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    // Watch UnitsProvider so the whole map screen rebuilds when the user
+    // flips units globally (from this screen, the profile, or anywhere else).
+    context.watch<UnitsProvider>();
     // The body is a Stack: map fills the whole area, and a
     // DraggableScrollableSheet sits on top so users can pull it up to see the
     // elevation chart at full size.
@@ -537,24 +711,74 @@ class _TTMapScreenState extends State<TTMapScreen>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _MapView(
-                  mapCtrl: _mapCtrl,
-                  tileStyleIndex: _tileStyleIndex,
-                  nightMap: _nightMap,
-                  currentLatLng: _currentLatLng,
-                  currentHeading: _currentHeading,
-                  entryCtl: _entryCtl,
-                  useMiles: _useMiles,
-                  formatDistValueOnly: _formatDistValueOnly,
-                  unitLabel: _useMiles ? 'mi' : 'km',
-                  onZoomIn: _zoomIn,
-                  onZoomOut: _zoomOut,
-                  onRecenter: _recenter,
-                  onOpenLayers: _openLayerSheet,
-                  onToggleUnits: _toggleUnits,
-                  onTapDistance: _showDistanceBreakdown,
-                  onTapTime: _showTimeBreakdown,
-                ),
+                if (_show3D)
+                  Consumer3<StaticDataProvider, RecordingProvider, SafetyProvider>(
+                    builder: (_, statics, recording, safety, __) {
+                      return TrailMap3DWidget(
+                        trails: statics.allTrails,
+                        selectedTrail: statics.selectedTrail,
+                        onTrailTap: _openTrailById,
+                        caves: statics.caves,
+                        onCaveTap: (c) => _openCaveOnRoot(c),
+                        incidents: safety.incidents,
+                        onIncidentTap: _openIncident,
+                        gpsLat: _currentLatLng?.latitude,
+                        gpsLon: _currentLatLng?.longitude,
+                        bearing: _currentHeading,
+                        useTopoStyle: false,
+                        recordingPoints: recording.points,
+                        initialLat: _currentLatLng?.latitude ??
+                            kWorldMapCenter.lat,
+                        initialLon: _currentLatLng?.longitude ??
+                            kWorldMapCenter.lon,
+                        initialZoom: 13,
+                      );
+                    },
+                  )
+                else
+                  _MapView(
+                    mapCtrl: _mapCtrl,
+                    tileStyleIndex: _tileStyleIndex,
+                    nightMap: _nightMap,
+                    currentLatLng: _currentLatLng,
+                    currentHeading: _currentHeading,
+                    entryCtl: _entryCtl,
+                    useMiles: _useMiles,
+                    formatDistValueOnly: _formatDistValueOnly,
+                    unitLabel: _useMiles ? 'mi' : 'km',
+                    onZoomIn: _zoomIn,
+                    onZoomOut: _zoomOut,
+                    onRecenter: _recenter,
+                    onOpenLayers: _openLayerSheet,
+                    onToggleUnits: _toggleUnits,
+                    onTapDistance: _showDistanceBreakdown,
+                    onTapTime: _showTimeBreakdown,
+                    dropPinMode: _dropPinMode,
+                    onDropPin: _onDropPinAt,
+                    onIncidentTap: _openIncident,
+                  ),
+                // Floating "3D ON" pill so the user always knows which
+                // view they're in and can flip back without diving into
+                // the menu sheet.
+                if (_show3D)
+                  Positioned(
+                    top: 12,
+                    right: 14,
+                    child: _ModePill(
+                      label: '3D ON',
+                      onTap: _toggle3D,
+                    ),
+                  ),
+                // Persistent overlay banner while drop-pin mode is active
+                // so the user knows the next tap will land a pin. Tap the
+                // X to cancel without leaving the screen.
+                if (_dropPinMode)
+                  Positioned(
+                    top: 12,
+                    left: 14,
+                    right: 14,
+                    child: _DropPinBanner(onCancel: _toggleDropPinMode),
+                  ),
                 DraggableScrollableSheet(
                   controller: _sheetCtl,
                   initialChildSize: _sheetMin,
@@ -603,6 +827,9 @@ class _MapView extends StatelessWidget {
   final VoidCallback onToggleUnits;
   final VoidCallback onTapDistance;
   final VoidCallback onTapTime;
+  final bool dropPinMode;
+  final void Function(LatLng) onDropPin;
+  final void Function(Incident) onIncidentTap;
 
   const _MapView({
     required this.mapCtrl,
@@ -621,12 +848,16 @@ class _MapView extends StatelessWidget {
     required this.onToggleUnits,
     required this.onTapDistance,
     required this.onTapTime,
+    required this.dropPinMode,
+    required this.onDropPin,
+    required this.onIncidentTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final data = context.watch<StaticDataProvider>();
     final recording = context.watch<RecordingProvider>();
+    final selectedId = data.selectedTrail?.id;
 
     final style = kMapTileStyles[tileStyleIndex.clamp(0, kMapTileStyles.length - 1)];
     final tileUrl = nightMap ? kNightTileUrl : style.url;
@@ -635,18 +866,28 @@ class _MapView extends StatelessWidget {
     // ── Polylines ──
     final polylines = <Polyline>[];
 
-    // All known trails as faint background routes (so the map isn't empty).
+    // All known trails — drawn at full ember at normal opacity so they're
+    // visible against the satellite tiles. The previously-selected trail
+    // (if any) is drawn last and brighter so it stands out from the herd.
+    Polyline? selectedPolyline;
     for (final t in data.allTrails) {
       if (t.coords.isEmpty) continue;
       final pts = t.coords.map((c) => LatLng(c.lat, c.lon)).toList();
-      polylines.add(Polyline(
+      final isSelected = t.id == selectedId;
+      final line = Polyline(
         points: pts,
-        color: const Color(0x4DFF6A2C),
-        strokeWidth: 1.6,
+        color: isSelected ? TT.ember : const Color(0xCCFF6A2C),
+        strokeWidth: isSelected ? 4.5 : 2.6,
         strokeCap: StrokeCap.round,
         strokeJoin: StrokeJoin.round,
-      ));
+      );
+      if (isSelected) {
+        selectedPolyline = line;
+      } else {
+        polylines.add(line);
+      }
     }
+    if (selectedPolyline != null) polylines.add(selectedPolyline);
 
     // Active recording route — ember glow + sharp stroke.
     if (recording.points.length >= 2) {
@@ -714,6 +955,10 @@ class _MapView extends StatelessWidget {
                 flags: InteractiveFlag.all,
                 enableMultiFingerGestureRace: true,
               ),
+              // Tap on the map → find the nearest trail line within a
+              // ~150 m proximity radius and open its detail sheet, so users
+              // can poke a route on the map to see what it is.
+              onTap: (_, latLng) => _handleMapTap(context, latLng),
             ),
             children: [
               TileLayer(
@@ -724,6 +969,20 @@ class _MapView extends StatelessWidget {
                 maxZoom: tileMaxZoom,
               ),
               PolylineLayer(polylines: polylines),
+              // Accommodation pins (hotels, lodges, camps) — always on.
+              AccommodationMarkerLayer(
+                onTap: (acc) => _openAccommodation(context, acc),
+              ),
+              // Cave + shelter pins (125 surveyed waypoints) — always on.
+              // Tap a pin to open the cave detail sheet with name, GPS, and
+              // any linked trails that pass within 1 km of it.
+              CaveMarkerLayer(
+                onCaveTap: (cave) => _openCave(context, cave),
+              ),
+              // User-dropped intel pins (rockfall, weather, water source,
+              // SOS). Pins flow in via SafetyProvider's Supabase stream so
+              // everyone on the team sees a freshly-dropped pin in seconds.
+              IncidentMarkerLayer(onIncidentTap: onIncidentTap),
               MarkerLayer(markers: markers),
             ],
           ),
@@ -809,6 +1068,163 @@ class _MapView extends StatelessWidget {
         0, 0, 0, 1, 0,
       ]),
       child: clipped,
+    );
+  }
+
+  // ── Tap-to-locate helpers ────────────────────────────────────────────────
+  //
+  // Map taps that aren't on a cave or accommodation pin run through here.
+  // In drop-pin mode, the tap drops a field-intel pin at the GPS. Otherwise
+  // we look at every loaded trail's coordinate list and pick the nearest
+  // one within ~150 m of the tap, then push its detail sheet so the user
+  // can see what they tapped. Nothing close enough → silent no-op (pan,
+  // zoom, recenter still work).
+  void _handleMapTap(BuildContext context, LatLng tap) {
+    if (dropPinMode) {
+      onDropPin(tap);
+      return;
+    }
+    final trails = context.read<StaticDataProvider>().allTrails;
+    Trail? nearest;
+    double bestMeters = double.infinity;
+    for (final t in trails) {
+      if (t.coords.isEmpty) continue;
+      const slack = 0.015; // ≈1.5 km at this latitude
+      if (tap.latitude < t.minLat - slack ||
+          tap.latitude > t.maxLat + slack ||
+          tap.longitude < t.minLon - slack ||
+          tap.longitude > t.maxLon + slack) {
+        continue;
+      }
+      for (final c in t.coords) {
+        final d = _haversineMeters(tap, LatLng(c.lat, c.lon));
+        if (d < bestMeters) {
+          bestMeters = d;
+          nearest = t;
+        }
+      }
+    }
+    if (nearest == null || bestMeters > 150) return;
+    final picked = nearest;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TrailDetailScreen(
+        trail: picked,
+        onNavigateToMap: () {},
+      ),
+    ));
+  }
+
+  void _openAccommodation(BuildContext context, Accommodation acc) {
+    AccommodationDetailSheet.show(context, acc);
+  }
+
+  void _openCave(BuildContext context, CaveWaypoint cave) {
+    CaveDetailSheet.show(context, cave);
+  }
+
+  static double _haversineMeters(LatLng a, LatLng b) {
+    const r = 6371000.0;
+    final dLat = _rad(b.latitude - a.latitude);
+    final dLon = _rad(b.longitude - a.longitude);
+    final sLat = math.sin(dLat / 2);
+    final sLon = math.sin(dLon / 2);
+    final h = sLat * sLat +
+        math.cos(_rad(a.latitude)) *
+            math.cos(_rad(b.latitude)) *
+            sLon *
+            sLon;
+    return 2 * r * math.asin(math.min(1.0, math.sqrt(h)));
+  }
+
+  static double _rad(double deg) => deg * math.pi / 180.0;
+}
+
+// ──────────────────────────── MODE PILLS ─────────────────────────────────
+
+/// Small ember pill that announces an active map mode (e.g. "3D ON") and
+/// flips the mode off when tapped.
+class _ModePill extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _ModePill({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: TT.ember,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: const [
+              BoxShadow(color: Color(0xCCFF6A2C), blurRadius: 14, spreadRadius: -4),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TT
+                    .mono(size: 11, color: TT.emberInk, w: FontWeight.w900)
+                    .copyWith(letterSpacing: 0.14 * 11),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.close, size: 13, color: TT.emberInk),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────── DROP-PIN BANNER ──────────────────────────────
+
+class _DropPinBanner extends StatelessWidget {
+  final VoidCallback onCancel;
+  const _DropPinBanner({required this.onCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+        decoration: BoxDecoration(
+          color: TT.surf.withOpacity(0.92),
+          borderRadius: BorderRadius.circular(TT.rMd),
+          border: Border.all(color: TT.ember, width: 1),
+          boxShadow: const [
+            BoxShadow(color: Color(0x5CFF6A2C), blurRadius: 18, spreadRadius: -4),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.add_location_alt, color: TT.ember, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Tap the map to drop a pin',
+                style: TT.body(
+                    size: 13, w: FontWeight.w800, color: TT.text),
+              ),
+            ),
+            InkResponse(
+              radius: 18,
+              onTap: onCancel,
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.close, color: TT.text2, size: 18),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1697,12 +2113,12 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = context.watch<UnitsProvider>();
     final speedKmh = recording.averageSpeedKmh;
-    final speedValue = useMiles
-        ? (speedKmh * 0.621371).toStringAsFixed(1)
-        : speedKmh.toStringAsFixed(1);
-    final speedUnit = useMiles ? 'mph' : 'km/h';
-    final elev = recording.totalGainM;
+    final speedValue = units.speedFromKmh(speedKmh).toStringAsFixed(1);
+    final speedUnit = units.speedUnit;
+    final elev = units.elevationFromM(recording.totalGainM.toDouble()).round();
+    final elevUnit = units.elevationUnit;
     final time = recording.duration;
 
     return Container(
@@ -1719,7 +2135,7 @@ class _StatRow extends StatelessWidget {
               child: _MiniStat(
                 label: 'Elev',
                 value: elev.toString(),
-                unit: 'm',
+                unit: elevUnit,
                 ember: true,
               ),
             ),
@@ -1836,9 +2252,9 @@ class _MiniElevCard extends StatelessWidget {
       distSamples.add(totalDistKm);
     }
     final lastKm = distSamples.isEmpty ? 0.0 : distSamples.last;
-    final distLabel = useMiles
-        ? '0 → ${(lastKm * 0.621371).toStringAsFixed(1)} mi'
-        : '0 → ${lastKm.toStringAsFixed(1)} km';
+    final units = context.watch<UnitsProvider>();
+    final distLabel =
+        '0 → ${units.distanceFromKm(lastKm).toStringAsFixed(1)} ${units.distanceUnit}';
 
     return TTCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -1998,6 +2414,15 @@ class _TrailSearchDelegate extends SearchDelegate<Trail?> {
   final List<Trail> trails;
   _TrailSearchDelegate(this.trails) : super(searchFieldLabel: 'Search trails');
 
+  // Override the keyboard type to one that disables Android's spell-check and
+  // autocomplete bubbles — those underline trail names like "Mnweni" or
+  // "Drakensberg" in yellow because the dictionary doesn't know them, and
+  // they also actively auto-correct partial queries into the wrong word.
+  // visiblePassword is the standard Flutter workaround for this; it keeps a
+  // normal QWERTY layout but tells the IME this is identifier text.
+  @override
+  TextInputType? get keyboardType => TextInputType.visiblePassword;
+
   @override
   ThemeData appBarTheme(BuildContext context) {
     final base = Theme.of(context);
@@ -2022,9 +2447,12 @@ class _TrailSearchDelegate extends SearchDelegate<Trail?> {
   List<Trail> _matches(String q) {
     final query = q.trim().toLowerCase();
     if (query.isEmpty) {
+      // Show every loaded trail in alphabetical order — the ListView is
+      // virtualised so a 239-item list scrolls just as smoothly as a 40-item
+      // one, and "where's the rest of my trails?" beats a tidy short list.
       final sorted = List<Trail>.of(trails)
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      return sorted.take(40).toList();
+      return sorted;
     }
     final filtered = trails
         .where((t) => t.name.toLowerCase().contains(query))

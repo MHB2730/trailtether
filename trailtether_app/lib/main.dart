@@ -26,6 +26,7 @@ import 'providers/review_provider.dart';
 import 'providers/hike_history_provider.dart';
 import 'providers/profile_provider.dart';
 import 'providers/recorded_trails_provider.dart';
+import 'providers/units_provider.dart';
 import 'providers/weather_provider.dart';
 import 'providers/team_tracking_provider.dart';
 import 'screens/auth_gate.dart';
@@ -117,6 +118,7 @@ class TrailtetherRoot extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => HikeHistoryProvider()),
         ChangeNotifierProvider(create: (_) => RecordedTrailsProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider(create: (_) => UnitsProvider()),
         ChangeNotifierProvider(create: (_) => WeatherProvider()),
         ChangeNotifierProxyProvider2<RecordingProvider, TeamProvider,
             TeamTrackingProvider>(
