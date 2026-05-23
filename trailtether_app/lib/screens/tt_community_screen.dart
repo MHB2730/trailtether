@@ -2,15 +2,21 @@
 //
 // Recreates project/screens/community.jsx from the design bundle:
 // brand bar + segmented tabs (Feed / Chat) over an animated body.
-// Feed shows staggered posts (TTCard) with author rows, optional mini
-// elevation charts and GPX/route cards. Chat shows a bubble thread
-// (ember tint for own messages, graphite for received) with a
-// placeholder composer pinned at the bottom. Backed by inline
-// placeholder data — no provider / services dependencies.
+// Feed shows posts (TTCard) sourced from CommunityProvider.activities
+// with author rows, location pills and an optional mini elevation chart
+// when the activity references a hike. Chat shows a bubble thread
+// (ember tint for own messages, graphite for received) backed by
+// ChatProvider with a working composer pinned at the bottom.
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/design_tokens.dart';
+import '../models/chat_message.dart';
+import '../models/community.dart';
+import '../providers/auth_provider.dart' as ap;
+import '../providers/chat_provider.dart';
+import '../providers/community_provider.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_glass_card.dart';
@@ -74,91 +80,129 @@ class _TTCommunityScreenState extends State<TTCommunityScreen> {
   }
 }
 
+// ─────────────────────────────────── HELPERS ────────────────────────────────
+
+/// Stable avatar color for a name — keeps users visually distinct across
+/// posts/chat without persisting anything. Uses the brand palette.
+const List<Color> _avatarPalette = [
+  Color(0xFFFF8A4D),
+  Color(0xFF4CC38A),
+  Color(0xFFF2A93B),
+  Color(0xFFFF6A2C),
+  Color(0xFF5AA1D6),
+  Color(0xFFFFB486),
+];
+
+Color _avatarColorFor(String key) {
+  if (key.isEmpty) return TT.ember;
+  var h = 0;
+  for (final c in key.codeUnits) {
+    h = (h * 31 + c) & 0x7fffffff;
+  }
+  return _avatarPalette[h % _avatarPalette.length];
+}
+
+String _initialsFor(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '?';
+  final parts = trimmed.split(RegExp(r'\s+'));
+  if (parts.length == 1) {
+    final p = parts.first;
+    return p.length >= 2
+        ? p.substring(0, 2).toUpperCase()
+        : p[0].toUpperCase();
+  }
+  return (parts.first[0] + parts.last[0]).toUpperCase();
+}
+
+String _relativeTime(DateTime when) {
+  final now = DateTime.now();
+  final diff = now.difference(when);
+  if (diff.isNegative) return 'just now';
+  if (diff.inSeconds < 45) return 'just now';
+  if (diff.inMinutes < 1) return '${diff.inSeconds}s ago';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays == 1) return 'Yesterday';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
+  if (diff.inDays < 365) return '${(diff.inDays / 30).floor()}mo ago';
+  return '${(diff.inDays / 365).floor()}y ago';
+}
+
+String _clockTime(DateTime when) {
+  final h = when.hour.toString().padLeft(2, '0');
+  final m = when.minute.toString().padLeft(2, '0');
+  return '$h:$m';
+}
+
 // ─────────────────────────────────── FEED ───────────────────────────────────
-
-class _FeedPostData {
-  final String user;
-  final String initials;
-  final Color color;
-  final String time;
-  final String location;
-  final String text;
-  final _PostStats? stats;
-  final int likes;
-  final int comments;
-  final bool hazard;
-  final _Attachment attached;
-  final String? gpxName;
-  final String? gpxMeta;
-
-  const _FeedPostData({
-    required this.user,
-    required this.initials,
-    required this.color,
-    required this.time,
-    required this.location,
-    required this.text,
-    this.stats,
-    required this.likes,
-    required this.comments,
-    this.hazard = false,
-    this.attached = _Attachment.none,
-    this.gpxName,
-    this.gpxMeta,
-  });
-}
-
-class _PostStats {
-  final String dist, gain, time;
-  const _PostStats({required this.dist, required this.gain, required this.time});
-}
-
-enum _Attachment { none, elev, gpx }
 
 class _FeedView extends StatelessWidget {
   const _FeedView({super.key});
 
-  static const List<_FeedPostData> _posts = [
-    _FeedPostData(
-      user: 'Sarah L.', initials: 'SL', color: Color(0xFFFF8A4D),
-      time: '14m ago', location: 'Wonderland Trail',
-      text: "Made it to the summit — Liberty Cap. Wind is brutal up here but visibility is unreal.",
-      stats: _PostStats(dist: '8.4 mi', gain: '+3,950 ft', time: '5:42'),
-      likes: 24, comments: 6, attached: _Attachment.elev,
-    ),
-    _FeedPostData(
-      user: 'Mike K.', initials: 'MK', color: Color(0xFF4CC38A),
-      time: '2h ago', location: 'Berkeley Park',
-      text: 'Heads up — bridge at km 4 is washed out. Going around via the upper switchback. Adds ~30 min.',
-      likes: 42, comments: 11, hazard: true,
-    ),
-    _FeedPostData(
-      user: 'John D.', initials: 'JD', color: Color(0xFFFF6A2C),
-      time: 'Yesterday', location: 'Mt. Marcy Trail',
-      text: 'Sunday hike with the team. Perfect conditions, scored 9/10 on the weather. Posted the GPX if anyone wants it.',
-      stats: _PostStats(dist: '5.8 mi', gain: '+3,950 ft', time: '5:14'),
-      likes: 87, comments: 19, attached: _Attachment.gpx,
-      gpxName: 'mt-marcy-2023-10-26.gpx',
-      gpxMeta: '5.8 mi · 412 waypoints · 84 KB',
-    ),
-  ];
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<CommunityProvider>(
+      builder: (_, provider, __) {
+        if (provider.loading && provider.activities.isEmpty) {
+          return const Center(
+            child: CircularProgressIndicator(color: TT.ember),
+          );
+        }
+        final activities = provider.activities;
+        return RefreshIndicator(
+          onRefresh: provider.refresh,
+          color: TT.ember,
+          backgroundColor: TT.surf,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
+            children: [
+              const _ComposePrompt(),
+              const SizedBox(height: 14),
+              if (activities.isEmpty)
+                const _EmptyFeed()
+              else
+                for (var i = 0; i < activities.length; i++)
+                  Padding(
+                    padding: EdgeInsets.only(
+                        bottom: i == activities.length - 1 ? 0 : 12),
+                    child: _FadeUpDelayed(
+                      delay: Duration(milliseconds: 350 + i * 90),
+                      child: _FeedPost(activity: activities[i]),
+                    ),
+                  ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _EmptyFeed extends StatelessWidget {
+  const _EmptyFeed();
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
-      children: [
-        const _ComposePrompt(),
-        const SizedBox(height: 14),
-        for (var i = 0; i < _posts.length; i++)
-          Padding(
-            padding: EdgeInsets.only(bottom: i == _posts.length - 1 ? 0 : 12),
-            child: _FadeUpDelayed(
-              delay: Duration(milliseconds: 350 + i * 90),
-              child: _FeedPost(data: _posts[i]),
-            ),
-          ),
-      ],
+    return _FadeUpDelayed(
+      delay: const Duration(milliseconds: 320),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 32),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: TT.surf,
+          border: Border.all(color: TT.line, width: 1),
+          borderRadius: BorderRadius.circular(TT.rLg),
+        ),
+        child: Text(
+          'No activity yet. When your team starts hiking, posts appear here.',
+          textAlign: TextAlign.center,
+          style: TT.body(size: 13, w: FontWeight.w500, color: TT.text3)
+              .copyWith(height: 1.5),
+        ),
+      ),
     );
   }
 }
@@ -168,50 +212,68 @@ class _ComposePrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<ap.AuthProvider>();
+    final name = auth.displayName ?? auth.email ?? 'You';
+    final initials = _initialsFor(name);
+
     return _FadeUpDelayed(
       delay: const Duration(milliseconds: 220),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: TT.surf,
-          border: Border.all(color: TT.line, width: 1),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 34, height: 34,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: TT.ember, width: 2),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [Color(0xFF6B3A1A), TT.ember2],
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sharing posts is coming soon',
+                  style: TT.body(size: 13, color: Colors.white)),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: TT.surf2,
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: TT.surf,
+            border: Border.all(color: TT.line, width: 1),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: TT.ember, width: 2),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: [Color(0xFF6B3A1A), TT.ember2],
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(initials,
+                    style: TT.body(
+                        size: 12, w: FontWeight.w800, color: Colors.white)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Share a trail report, hazard, or photo…',
+                  style: TT.body(size: 13, w: FontWeight.w500, color: TT.text3),
                 ),
               ),
-              alignment: Alignment.center,
-              child: Text('JD',
-                  style: TT.body(size: 12, w: FontWeight.w800, color: Colors.white)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Share a trail report, hazard, or photo…',
-                style: TT.body(size: 13, w: FontWeight.w500, color: TT.text3),
+              const SizedBox(width: 8),
+              Container(
+                width: 32, height: 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0x08FFFFFF),
+                  border: Border.all(color: TT.line, width: 1),
+                  borderRadius: BorderRadius.circular(TT.rMd),
+                ),
+                child: const Icon(Icons.send, size: 14, color: TT.ember),
               ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 32, height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0x08FFFFFF),
-                border: Border.all(color: TT.line, width: 1),
-                borderRadius: BorderRadius.circular(TT.rMd),
-              ),
-              child: const Icon(Icons.send, size: 14, color: TT.ember),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -219,11 +281,38 @@ class _ComposePrompt extends StatelessWidget {
 }
 
 class _FeedPost extends StatelessWidget {
-  final _FeedPostData data;
-  const _FeedPost({required this.data});
+  final CommunityActivity activity;
+  const _FeedPost({required this.activity});
+
+  bool get _isHike => activity.type == ActivityType.hikeCompleted;
+  bool get _isHazard => activity.type == ActivityType.checkIn &&
+      (activity.title.toLowerCase().contains('hazard') ||
+          activity.subtitle.toLowerCase().contains('hazard'));
+
+  String get _locationLabel {
+    // Prefer an explicit location field on metadata if present, then fall
+    // back to the team name so the location pill is never empty.
+    final meta = activity.metadata;
+    final loc = (meta['location'] ?? meta['trail_name'] ?? meta['trail'])
+        as String?;
+    if (loc != null && loc.trim().isNotEmpty) return loc;
+    return activity.teamName;
+  }
+
+  String get _bodyText {
+    // Compose a readable body from the title + subtitle without producing
+    // double-spaces when one is empty.
+    final parts = <String>[];
+    if (activity.title.trim().isNotEmpty) parts.add(activity.title.trim());
+    if (activity.subtitle.trim().isNotEmpty) parts.add(activity.subtitle.trim());
+    return parts.isEmpty ? '(no details)' : parts.join(' — ');
+  }
 
   @override
   Widget build(BuildContext context) {
+    final color = _avatarColorFor(activity.userName);
+    final initials = _initialsFor(activity.userName);
+
     return TTCard(
       onTap: () {},
       padding: EdgeInsets.zero,
@@ -231,7 +320,7 @@ class _FeedPost extends StatelessWidget {
         borderRadius: BorderRadius.circular(TT.rLg),
         child: Stack(
           children: [
-            if (data.hazard)
+            if (_isHazard)
               Positioned(
                 left: 0, top: 0, bottom: 0,
                 child: Container(width: 3, color: TT.amber),
@@ -241,37 +330,32 @@ class _FeedPost extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _AuthorRow(data: data),
+                  _AuthorRow(
+                    name: activity.userName,
+                    initials: initials,
+                    color: color,
+                    time: _relativeTime(activity.timestamp),
+                    location: _locationLabel,
+                    hazard: _isHazard,
+                  ),
                   const SizedBox(height: 12),
                   Text(
-                    data.text,
+                    _bodyText,
                     style: TT.body(size: 13, w: FontWeight.w500)
                         .copyWith(height: 1.5),
                   ),
-                  if (data.stats != null) ...[
-                    const SizedBox(height: 12),
-                    _StatBar(stats: data.stats!),
-                  ],
-                  if (data.attached == _Attachment.elev) ...[
+                  if (_isHike) ...[
                     const SizedBox(height: 12),
                     const _MiniElevChart(),
-                  ],
-                  if (data.attached == _Attachment.gpx) ...[
-                    const SizedBox(height: 12),
-                    _GpxCard(name: data.gpxName ?? '', meta: data.gpxMeta ?? ''),
                   ],
                   const SizedBox(height: 12),
                   Container(height: 1, color: TT.line),
                   const SizedBox(height: 10),
-                  Row(
+                  const Row(
                     children: [
-                      _ActionBtn(icon: Icons.favorite_border, value: '${data.likes}'),
-                      const SizedBox(width: 18),
-                      _ActionBtn(icon: Icons.mode_comment_outlined, value: '${data.comments}'),
-                      const SizedBox(width: 18),
-                      const _ActionBtn(icon: Icons.send, value: 'Share'),
-                      const Spacer(),
-                      const Icon(Icons.more_horiz, size: 14, color: TT.text3),
+                      _ActionBtn(icon: Icons.send, value: 'Share'),
+                      Spacer(),
+                      Icon(Icons.more_horiz, size: 14, color: TT.text3),
                     ],
                   ),
                 ],
@@ -285,8 +369,20 @@ class _FeedPost extends StatelessWidget {
 }
 
 class _AuthorRow extends StatelessWidget {
-  final _FeedPostData data;
-  const _AuthorRow({required this.data});
+  final String name;
+  final String initials;
+  final Color color;
+  final String time;
+  final String location;
+  final bool hazard;
+  const _AuthorRow({
+    required this.name,
+    required this.initials,
+    required this.color,
+    required this.time,
+    required this.location,
+    required this.hazard,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -297,15 +393,15 @@ class _AuthorRow extends StatelessWidget {
           width: 38, height: 38,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: data.color, width: 2),
+            border: Border.all(color: color, width: 2),
             gradient: LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [data.color, data.color.withOpacity(0.66)],
+              colors: [color, color.withOpacity(0.66)],
             ),
           ),
           alignment: Alignment.center,
           child: Text(
-            data.initials,
+            initials,
             style: TT.body(size: 13, w: FontWeight.w800, color: Colors.white),
           ),
         ),
@@ -317,12 +413,12 @@ class _AuthorRow extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(data.user,
+                    child: Text(name,
                         style: TT.body(size: 13, w: FontWeight.w800)),
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    data.time,
+                    time,
                     style: TT.mono(size: 9.5, color: TT.text3)
                         .copyWith(letterSpacing: 0.06 * 9.5),
                   ),
@@ -335,14 +431,14 @@ class _AuthorRow extends StatelessWidget {
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      data.location,
+                      location,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TT.mono(size: 10, color: TT.ember)
                           .copyWith(letterSpacing: 0.06 * 10, fontWeight: FontWeight.w600),
                     ),
                   ),
-                  if (data.hazard) ...[
+                  if (hazard) ...[
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
@@ -360,58 +456,6 @@ class _AuthorRow extends StatelessWidget {
                 ],
               ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatBar extends StatelessWidget {
-  final _PostStats stats;
-  const _StatBar({required this.stats});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: TT.bg3,
-        border: Border.all(color: TT.line, width: 1),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: _StatChip(label: 'DIST', value: stats.dist)),
-          Expanded(child: _StatChip(label: 'GAIN', value: stats.gain, ember: true)),
-          Expanded(child: _StatChip(label: 'TIME', value: stats.time)),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool ember;
-  const _StatChip({required this.label, required this.value, this.ember = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: TT.body(size: 9, w: FontWeight.w700, color: TT.text3)
-                .copyWith(letterSpacing: 0.14 * 9)),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: TT.numStyle(
-            size: 12.5,
-            color: ember ? TT.ember : TT.text,
-            letterSpacing: -0.01 * 12.5,
           ),
         ),
       ],
@@ -519,67 +563,6 @@ class _MiniElevPainter extends CustomPainter {
   bool shouldRepaint(_MiniElevPainter old) => old.progress != progress;
 }
 
-class _GpxCard extends StatelessWidget {
-  final String name;
-  final String meta;
-  const _GpxCard({required this.name, required this.meta});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: TT.bg3,
-        border: Border.all(color: TT.line, width: 1),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 30, height: 30,
-            decoration: BoxDecoration(
-              color: TT.emberDim,
-              border: Border.all(color: const Color(0x52FF6A2C), width: 1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.route, size: 14, color: TT.ember),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TT.body(size: 11.5, w: FontWeight.w800)),
-                const SizedBox(height: 2),
-                Text(meta,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TT.mono(size: 9.5, color: TT.text3)
-                        .copyWith(letterSpacing: 0.04 * 9.5, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            width: 30, height: 30,
-            decoration: BoxDecoration(
-              color: const Color(0x08FFFFFF),
-              border: Border.all(color: TT.line, width: 1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.arrow_upward, size: 12, color: TT.ember),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ActionBtn extends StatelessWidget {
   final IconData icon;
   final String value;
@@ -602,76 +585,146 @@ class _ActionBtn extends StatelessWidget {
 
 // ─────────────────────────────────── CHAT ───────────────────────────────────
 
-class _ChatMsgData {
-  final String time;
-  final String? who;
-  final String? initials;
-  final Color? color;
-  final String text;
-  final bool mine;
-  final bool system;
-  final String? reaction;
-
-  const _ChatMsgData({
-    required this.time,
-    required this.text,
-    this.who,
-    this.initials,
-    this.color,
-    this.mine = false,
-    this.system = false,
-    this.reaction,
-  });
-}
-
-class _ChatView extends StatelessWidget {
+class _ChatView extends StatefulWidget {
   const _ChatView({super.key});
 
-  static const List<_ChatMsgData> _messages = [
-    _ChatMsgData(time: '09:42', who: 'Sarah L.', initials: 'SL', color: Color(0xFFFF8A4D),
-        text: 'At Shadow Lake. Going to push for Liberty Cap by 11.'),
-    _ChatMsgData(time: '09:46', mine: true,
-        text: "Copy. We're 20 min behind. Mike's pace dropped a bit, all good though."),
-    _ChatMsgData(time: '09:48', who: 'Mike K.', initials: 'MK', color: Color(0xFF4CC38A),
-        text: "Took a bad step. Knee's stiff but walkable."),
-    _ChatMsgData(time: '09:51', who: 'Emily R.', initials: 'ER', color: Color(0xFFF2A93B),
-        text: "I'll wait at the Wonderland junction. Bring the trekking pole.",
-        reaction: '🙏'),
-    _ChatMsgData(time: '09:53', mine: true, text: 'On our way. ETA 14 min.', reaction: '👍'),
-    _ChatMsgData(time: '09:58', who: 'Sarah L.', initials: 'SL', color: Color(0xFFFF8A4D),
-        text: "Storm moving in around 13:00. Let's tag the summit and head down."),
-    _ChatMsgData(time: '10:08', mine: true, system: true,
-        text: 'You shared your location · Sunrise Camp'),
-  ];
+  @override
+  State<_ChatView> createState() => _ChatViewState();
+}
+
+class _ChatViewState extends State<_ChatView> {
+  final ScrollController _scroll = ScrollController();
+  final TextEditingController _composer = TextEditingController();
+  int _lastMsgCount = 0;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _composer.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      final target = _scroll.position.maxScrollExtent;
+      if (animate) {
+        _scroll.animateTo(target,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOut);
+      } else {
+        _scroll.jumpTo(target);
+      }
+    });
+  }
+
+  Future<void> _send(ChatProvider chat) async {
+    final auth = context.read<ap.AuthProvider>();
+    final txt = _composer.text.trim();
+    if (txt.isEmpty) return;
+
+    if (!auth.isAuth) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Please sign in to join the community chat.',
+            style: TT.body(size: 13, color: Colors.white)),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: TT.surf2,
+      ));
+      return;
+    }
+
+    final senderId = auth.uid ?? '';
+    final senderName = auth.displayName ?? auth.email ?? 'Hiker';
+
+    _composer.clear();
+    await chat.sendText(
+      senderId: senderId,
+      senderName: senderName,
+      text: txt,
+    );
+    _scrollToBottom();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(18, 12, 18, 6),
-          child: _FadeUpDelayed(
-            delay: Duration(milliseconds: 120),
-            child: _PinnedChannel(),
-          ),
+    return Consumer<ChatProvider>(
+      builder: (_, chat, __) {
+        // ChatProvider already returns oldest-first (service does .reversed
+        // after sorting sent_at DESC). Defensive sort keeps ordering stable
+        // if that ever changes.
+        final messages = List<ChatMessage>.from(chat.messages)
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+        // Auto-scroll to bottom when message count changes (new message
+        // arrives) or on initial build.
+        if (messages.length != _lastMsgCount) {
+          _lastMsgCount = messages.length;
+          _scrollToBottom(animate: _lastMsgCount > 0);
+        }
+
+        final auth = context.watch<ap.AuthProvider>();
+        final myUid = auth.uid;
+
+        return Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 12, 18, 6),
+              child: _FadeUpDelayed(
+                delay: Duration(milliseconds: 120),
+                child: _PinnedChannel(),
+              ),
+            ),
+            Expanded(
+              child: messages.isEmpty
+                  ? const _EmptyChat()
+                  : ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+                      itemCount: messages.length,
+                      itemBuilder: (_, i) {
+                        final m = messages[i];
+                        final mine =
+                            myUid != null && m.senderId == myUid;
+                        return Padding(
+                          padding: EdgeInsets.only(
+                              bottom: i == messages.length - 1 ? 0 : 10),
+                          child: _FadeUpDelayed(
+                            // Cap the stagger so older messages don't pile
+                            // up huge delays on the first render.
+                            delay: Duration(
+                                milliseconds: 80 + (i.clamp(0, 8)) * 50),
+                            child: _ChatMsg(msg: m, mine: mine),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            _ChatComposer(
+              controller: _composer,
+              sending: chat.sending,
+              onSend: () => _send(chat),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _EmptyChat extends StatelessWidget {
+  const _EmptyChat();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Text(
+          'Be the first to say hello',
+          textAlign: TextAlign.center,
+          style: TT.body(size: 13, w: FontWeight.w500, color: TT.text3),
         ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
-            itemCount: _messages.length,
-            itemBuilder: (_, i) {
-              return Padding(
-                padding: EdgeInsets.only(bottom: i == _messages.length - 1 ? 0 : 10),
-                child: _FadeUpDelayed(
-                  delay: Duration(milliseconds: 180 + i * 80),
-                  child: _ChatMsg(data: _messages[i]),
-                ),
-              );
-            },
-          ),
-        ),
-        const _ChatComposer(),
-      ],
+      ),
     );
   }
 }
@@ -705,10 +758,10 @@ class _PinnedChannel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Alpine Adventure · Team Chat',
+                Text('Community · Team Chat',
                     style: TT.body(size: 12.5, w: FontWeight.w800, color: TT.ember)),
                 const SizedBox(height: 2),
-                Text('4 ACTIVE · TRAIL #DAY-3',
+                Text('LIVE · #GENERAL',
                     style: TT.mono(size: 10, color: TT.text3)
                         .copyWith(letterSpacing: 0.04 * 10, fontWeight: FontWeight.w600)),
               ],
@@ -721,16 +774,17 @@ class _PinnedChannel extends StatelessWidget {
 }
 
 class _ChatMsg extends StatelessWidget {
-  final _ChatMsgData data;
-  const _ChatMsg({required this.data});
+  final ChatMessage msg;
+  final bool mine;
+  const _ChatMsg({required this.msg, required this.mine});
 
   @override
   Widget build(BuildContext context) {
-    if (data.system) {
+    if (msg.type == ChatMessageType.system) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Text(
-          data.text,
+          msg.text,
           textAlign: TextAlign.center,
           style: TT.mono(size: 10, color: TT.text3)
               .copyWith(letterSpacing: 0.06 * 10),
@@ -738,7 +792,6 @@ class _ChatMsg extends StatelessWidget {
       );
     }
 
-    final mine = data.mine;
     final bubbleBg = mine ? TT.emberDim : TT.surf;
     final bubbleBorder = mine ? const Color(0x5CFF6A2C) : TT.line;
     final bubbleColor = mine ? TT.ember3 : TT.text;
@@ -756,6 +809,10 @@ class _ChatMsg extends StatelessWidget {
             bottomRight: Radius.circular(14),
           );
 
+    final color = _avatarColorFor(msg.senderId.isNotEmpty ? msg.senderId : msg.senderName);
+    final initials = _initialsFor(msg.senderName);
+    final timeLabel = _clockTime(msg.timestamp);
+
     return LayoutBuilder(builder: (_, c) {
       final maxBubbleW = c.maxWidth * 0.74;
       final avatar = !mine
@@ -763,18 +820,15 @@ class _ChatMsg extends StatelessWidget {
               width: 30, height: 30,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: data.color ?? TT.ember, width: 1.5),
+                border: Border.all(color: color, width: 1.5),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [
-                    data.color ?? TT.ember,
-                    (data.color ?? TT.ember).withOpacity(0.66),
-                  ],
+                  colors: [color, color.withOpacity(0.66)],
                 ),
               ),
               alignment: Alignment.center,
               child: Text(
-                data.initials ?? '',
+                initials,
                 style: TT.body(size: 11, w: FontWeight.w800, color: Colors.white),
               ),
             )
@@ -787,7 +841,7 @@ class _ChatMsg extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 3),
               child: Text(
-                '${data.who ?? ''} · ${data.time}',
+                '${msg.senderName} · $timeLabel',
                 style: TT.mono(size: 10, color: TT.text3)
                     .copyWith(letterSpacing: 0.04 * 10),
               ),
@@ -802,7 +856,7 @@ class _ChatMsg extends StatelessWidget {
                 borderRadius: radius,
               ),
               child: Text(
-                data.text,
+                msg.text,
                 style: TT.body(size: 12.5, w: FontWeight.w500, color: bubbleColor)
                     .copyWith(height: 1.4),
               ),
@@ -815,26 +869,13 @@ class _ChatMsg extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    data.time,
+                    timeLabel,
                     style: TT.mono(size: 9.5, color: TT.text3)
                         .copyWith(letterSpacing: 0.04 * 9.5, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 4),
                   const Icon(Icons.done_all, size: 12, color: TT.green),
                 ],
-              ),
-            ),
-          if (data.reaction != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: TT.surf2,
-                  border: Border.all(color: TT.line, width: 1),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(data.reaction!, style: const TextStyle(fontSize: 13)),
               ),
             ),
         ],
@@ -856,7 +897,14 @@ class _ChatMsg extends StatelessWidget {
 }
 
 class _ChatComposer extends StatelessWidget {
-  const _ChatComposer();
+  final TextEditingController controller;
+  final bool sending;
+  final VoidCallback onSend;
+  const _ChatComposer({
+    required this.controller,
+    required this.sending,
+    required this.onSend,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -883,7 +931,7 @@ class _ChatComposer extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                 decoration: BoxDecoration(
                   color: TT.surf,
                   border: Border.all(color: TT.line, width: 1),
@@ -892,9 +940,26 @@ class _ChatComposer extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'Message…',
-                        style: TT.body(size: 13, w: FontWeight.w500, color: TT.text3),
+                      child: TextField(
+                        controller: controller,
+                        enabled: !sending,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => onSend(),
+                        cursorColor: TT.ember,
+                        style: TT.body(size: 13, w: FontWeight.w500),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 10),
+                          hintText: 'Message…',
+                          hintStyle: TT.body(
+                              size: 13,
+                              w: FontWeight.w500,
+                              color: TT.text3),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -904,18 +969,31 @@ class _ChatComposer extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Container(
-              width: 42, height: 42,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [TT.ember2, TT.ember],
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: sending ? null : onSend,
+              child: Container(
+                width: 42, height: 42,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: [TT.ember2, TT.ember],
+                  ),
+                  boxShadow: TT.shadowEmber,
                 ),
-                boxShadow: TT.shadowEmber,
+                alignment: Alignment.center,
+                child: sending
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(TT.emberInk),
+                        ),
+                      )
+                    : const Icon(Icons.send, size: 16, color: TT.emberInk),
               ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.send, size: 16, color: TT.emberInk),
             ),
           ],
         ),

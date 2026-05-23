@@ -29,6 +29,8 @@ class TTBrandMark extends StatelessWidget {
   }
 }
 
+/// The user's original orange-pin-with-mountain logo. Lives in
+/// `assets/icon/app_icon.png`; never replace with a re-drawn vector mark.
 class _TTLogo extends StatelessWidget {
   final double size;
   const _TTLogo({required this.size});
@@ -38,42 +40,15 @@ class _TTLogo extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(painter: _LogoPainter()),
+      child: Image.asset(
+        'assets/icon/app_icon.png',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+      ),
     );
   }
-}
-
-class _LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.width / 32;
-    final p = Path()
-      ..moveTo(3 * s, 26 * s)
-      ..lineTo(11 * s, 11 * s)
-      ..lineTo(17 * s, 19 * s)
-      ..lineTo(22 * s, 12 * s)
-      ..lineTo(29 * s, 26 * s)
-      ..close();
-    final paint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft, end: Alignment.bottomRight,
-        colors: [TT.ember2, TT.ember],
-      ).createShader(Offset.zero & size);
-    canvas.drawPath(p, paint);
-    canvas.drawCircle(
-      Offset(22 * s, 7 * s),
-      2.6 * s,
-      Paint()..color = TT.ember2,
-    );
-    canvas.drawCircle(
-      Offset(22 * s, 7 * s),
-      1.0 * s,
-      Paint()..color = TT.emberInk,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_LogoPainter oldDelegate) => false;
 }
 
 /// Page-level app bar matching the design — wordmark + large title with

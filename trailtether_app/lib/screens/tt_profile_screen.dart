@@ -2,17 +2,71 @@
 //
 // Recreates project/screens/profile.jsx from the design bundle: gradient avatar
 // header, four count-up stat tiles, an 8-badge achievements grid, and grouped
-// settings sections. Placeholder data only — no provider/service wiring.
+// settings sections. Wired to live AuthProvider / ProfileProvider /
+// HikeHistoryProvider data — falls back gracefully when fields are empty.
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/design_tokens.dart';
+import '../models/achievement.dart';
+import '../models/saved_hike.dart';
+import '../providers/auth_provider.dart' as ap;
+import '../providers/hike_history_provider.dart';
+import '../providers/profile_provider.dart';
+import '../services/auth_service.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
 import '../widgets/design/tt_topo.dart';
+
+// ──────────────────────────── HELPERS ───────────────────────────────────────
+
+/// Derive uppercase initials (max 2 chars) from a display name. Falls back to
+/// the first letter of the email local-part, then to "HK" (for "Hiker").
+String _initialsFor({String? displayName, String? email}) {
+  final name = (displayName ?? '').trim();
+  if (name.isNotEmpty) {
+    final parts = name.split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      final s = parts.first;
+      return s.substring(0, s.length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
+  }
+  final mail = (email ?? '').trim();
+  if (mail.contains('@')) {
+    final local = mail.split('@').first;
+    if (local.isNotEmpty) {
+      return local
+          .substring(0, local.length >= 2 ? 2 : 1)
+          .toUpperCase();
+    }
+  }
+  return 'HK';
+}
+
+/// Tier label from lifetime hike count. Matches the design's "TRAILBLAZER ·
+/// TIER III" cadence — uppercase rank, dot separator, tier numeral.
+String _tierFor(int hikes) {
+  if (hikes < 10) return 'NOVICE';
+  if (hikes < 25) return 'EXPLORER · TIER I';
+  if (hikes < 50) return 'TRAILBLAZER · TIER II';
+  if (hikes < 100) return 'TRAILBLAZER · TIER III';
+  if (hikes < 250) return 'SUMMITEER · TIER IV';
+  return 'LEGEND · TIER V';
+}
+
+String _handleFromEmail(String? email) {
+  if (email == null || !email.contains('@')) return '';
+  return '@${email.split('@').first.toLowerCase()}';
+}
+
+// ──────────────────────────── SCREEN ────────────────────────────────────────
 
 class TTProfileScreen extends StatefulWidget {
   final bool embedded;
@@ -27,16 +81,86 @@ class _TTProfileScreenState extends State<TTProfileScreen>
   late final AnimationController _headerCtl =
       AnimationController(vsync: this, duration: TT.dSlow)..forward();
 
-  // Placeholder toggle state — purely visual, no service writes.
+  // Local toggles — visual state. Notifications toggle persists via prefs.
+  static const _kNotifPrefKey = 'tt_notifications_enabled';
   bool _liveTracking = true;
   bool _hapticFeedback = true;
   bool _trailWeather = true;
   bool _offTrailAlerts = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadNotifPref();
+  }
+
+  Future<void> _loadNotifPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final v = prefs.getBool(_kNotifPrefKey);
+      if (v != null && mounted) setState(() => _trailWeather = v);
+    } catch (_) {/* prefs unavailable — keep default */}
+  }
+
+  Future<void> _setTrailWeather(bool v) async {
+    setState(() => _trailWeather = v);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kNotifPrefKey, v);
+    } catch (_) {/* best effort */}
+  }
+
+  @override
   void dispose() {
     _headerCtl.dispose();
     super.dispose();
+  }
+
+  Future<void> _confirmAndSignOut(BuildContext context) async {
+    final email = context.read<ap.AuthProvider>().email ?? '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Text('Sign out?',
+            style: TT.body(size: 16, w: FontWeight.w800)),
+        content: Text(
+          email.isNotEmpty
+              ? 'You will be signed out of $email.'
+              : 'You will be signed out of Trailtether.',
+          style: TT.body(size: 13, color: TT.text2),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel',
+                style: TT.body(size: 13, color: TT.text2)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Sign out',
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await AuthService.signOut();
+      // AuthGate observes the auth-state stream and redirects to LoginScreen
+      // once the session clears; no manual navigation required here.
+    }
+  }
+
+  void _stub(String label) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label — coming soon',
+            style: TT.body(size: 13, color: TT.text)),
+        backgroundColor: TT.surf,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -53,14 +177,18 @@ class _TTProfileScreenState extends State<TTProfileScreen>
               TTPageAppBar(
                 title: 'Profile',
                 trailing: [
-                  TTIconBtn(icon: Icons.settings_outlined, onTap: () {}),
+                  TTIconBtn(
+                      icon: Icons.settings_outlined,
+                      onTap: () => _stub('Settings')),
                 ],
               ),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
                   children: [
-                    _ProfileHeader(animation: _headerCtl),
+                    _ProfileHeader(
+                        animation: _headerCtl,
+                        onEditBio: () => _stub('Edit profile')),
                     const SizedBox(height: 14),
                     const _StatTilesRow(),
                     const SizedBox(height: 22),
@@ -75,18 +203,22 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           label: 'Edit profile',
                           sub: 'Name, bio, photo',
                           trailing: _SettingTrailing.chevron(),
+                          onTap: () => _stub('Edit profile'),
                         ),
                         _SettingRowData(
                           icon: Icons.shield_outlined,
                           label: 'Privacy & data',
                           sub: 'No data sold · No ads',
                           trailing: _SettingTrailing.chevron(),
+                          onTap: () => _stub('Privacy & data'),
                         ),
                         _SettingRowData(
                           icon: Icons.phone_outlined,
                           label: 'Emergency contacts',
-                          sub: '3 contacts saved',
-                          trailing: _SettingTrailing.value('3'),
+                          sub: _emergencyContactsSub(context),
+                          trailing: _SettingTrailing.value(
+                              '${context.watch<ProfileProvider>().profile.contacts.length}'),
+                          onTap: () => _stub('Emergency contacts'),
                         ),
                       ],
                     ),
@@ -101,7 +233,8 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: 'Always-on when hiking',
                           trailing: _SettingTrailing.toggle(
                             value: _liveTracking,
-                            onChanged: (v) => setState(() => _liveTracking = v),
+                            onChanged: (v) =>
+                                setState(() => _liveTracking = v),
                           ),
                         ),
                         _SettingRowData(
@@ -110,7 +243,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: 'Storms, wind, visibility',
                           trailing: _SettingTrailing.toggle(
                             value: _trailWeather,
-                            onChanged: (v) => setState(() => _trailWeather = v),
+                            onChanged: _setTrailWeather,
                           ),
                         ),
                         _SettingRowData(
@@ -119,7 +252,8 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: 'Get nudged when drifting',
                           trailing: _SettingTrailing.toggle(
                             value: _offTrailAlerts,
-                            onChanged: (v) => setState(() => _offTrailAlerts = v),
+                            onChanged: (v) =>
+                                setState(() => _offTrailAlerts = v),
                           ),
                         ),
                         _SettingRowData(
@@ -128,7 +262,8 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           sub: 'Pings on alerts',
                           trailing: _SettingTrailing.toggle(
                             value: _hapticFeedback,
-                            onChanged: (v) => setState(() => _hapticFeedback = v),
+                            onChanged: (v) =>
+                                setState(() => _hapticFeedback = v),
                           ),
                         ),
                         _SettingRowData(
@@ -136,6 +271,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           label: 'Units',
                           sub: 'Imperial · ft / mi',
                           trailing: _SettingTrailing.value('Imperial'),
+                          onTap: () => _stub('Units'),
                         ),
                       ],
                     ),
@@ -147,17 +283,20 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                         _SettingRowData(
                           icon: Icons.delete_outline,
                           label: 'Delete hike history',
-                          sub: '47 hikes · 12.4 MB',
+                          sub: _hikeHistorySub(context),
                           danger: true,
                           trailing: _SettingTrailing.chevron(),
+                          onTap: () => _stub('Delete hike history'),
                         ),
                         _SettingRowData(
                           icon: Icons.logout,
                           label: 'Sign out',
-                          sub: 'john@trailtether.app',
+                          sub: context.watch<ap.AuthProvider>().email ??
+                              'Not signed in',
                           danger: true,
                           isSignOut: true,
                           trailing: _SettingTrailing.signOut(),
+                          onTap: () => _confirmAndSignOut(context),
                         ),
                       ],
                     ),
@@ -201,13 +340,26 @@ class _TTProfileScreenState extends State<TTProfileScreen>
     if (widget.embedded) return Material(color: TT.bg, child: body);
     return Scaffold(backgroundColor: TT.bg, body: body);
   }
+
+  String _emergencyContactsSub(BuildContext context) {
+    final n = context.watch<ProfileProvider>().profile.contacts.length;
+    if (n == 0) return 'None saved · tap to add';
+    return n == 1 ? '1 contact saved' : '$n contacts saved';
+  }
+
+  String _hikeHistorySub(BuildContext context) {
+    final n = context.watch<HikeHistoryProvider>().hikes.length;
+    if (n == 0) return 'No hikes recorded yet';
+    return n == 1 ? '1 hike' : '$n hikes';
+  }
 }
 
 // ──────────────────────────── HEADER ────────────────────────────────────────
 
 class _ProfileHeader extends StatelessWidget {
   final AnimationController animation;
-  const _ProfileHeader({required this.animation});
+  final VoidCallback onEditBio;
+  const _ProfileHeader({required this.animation, required this.onEditBio});
 
   @override
   Widget build(BuildContext context) {
@@ -219,107 +371,153 @@ class _ProfileHeader extends StatelessWidget {
           opacity: t,
           child: Transform.translate(
             offset: Offset(0, (1 - t) * 12),
-            child: _buildCard(),
+            child: _buildCard(context),
           ),
         );
       },
     );
   }
 
-  Widget _buildCard() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(TT.rLg + 2),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [TT.surf, TT.bg3],
-          ),
-          border: Border.all(color: TT.line, width: 1),
+  Widget _buildCard(BuildContext context) {
+    return Consumer2<ap.AuthProvider, ProfileProvider>(
+      builder: (_, auth, pp, __) {
+        final fallbackHandleName = auth.email?.split('@').first;
+        final name = (auth.displayName?.trim().isNotEmpty == true)
+            ? auth.displayName!.trim()
+            : (pp.profile.displayName.trim().isNotEmpty
+                ? pp.profile.displayName.trim()
+                : (fallbackHandleName ?? 'Hiker'));
+        final handle = _handleFromEmail(auth.email);
+        final hikes = context.watch<HikeHistoryProvider>().hikes.length;
+        final tier = _tierFor(hikes);
+        final bio = pp.profile.bio.trim();
+        final photoUrl = (auth.photoUrl?.trim().isNotEmpty == true)
+            ? auth.photoUrl!.trim()
+            : pp.profile.photoUrl.trim();
+        final initials = _initialsFor(
+            displayName: name, email: auth.email);
+
+        return ClipRRect(
           borderRadius: BorderRadius.circular(TT.rLg + 2),
-          boxShadow: TT.shadowCard,
-        ),
-        child: Stack(
-          children: [
-            // Ember glow corner
-            Positioned(
-              top: -40,
-              right: -40,
-              child: Container(
-                width: 140,
-                height: 140,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [Color(0x38FF6A2C), Color(0x00FF6A2C)],
-                    stops: [0.0, 0.7],
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [TT.surf, TT.bg3],
+              ),
+              border: Border.all(color: TT.line, width: 1),
+              borderRadius: BorderRadius.circular(TT.rLg + 2),
+              boxShadow: TT.shadowCard,
+            ),
+            child: Stack(
+              children: [
+                // Ember glow corner
+                Positioned(
+                  top: -40,
+                  right: -40,
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [Color(0x38FF6A2C), Color(0x00FF6A2C)],
+                        stops: [0.0, 0.7],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const _GradientAvatar(initials: 'JD'),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('John Davies',
-                                style: TT.title(22, letterSpacing: -0.01 * 22)),
-                            const SizedBox(height: 4),
-                            Text('@johndavies',
-                                style: TT.mono(
-                                    size: 11,
-                                    color: TT.text3,
-                                    letterSpacing: 0.04 * 11)),
-                            const SizedBox(height: 8),
-                            const TTPill(
-                              label: 'TRAILBLAZER · TIER III',
-                              variant: TTPillVariant.ember,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _GradientAvatar(
+                            initials: initials,
+                            photoUrl: photoUrl,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name,
+                                    style: TT.title(22,
+                                        letterSpacing: -0.01 * 22)),
+                                if (handle.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(handle,
+                                      style: TT.mono(
+                                          size: 11,
+                                          color: TT.text3,
+                                          letterSpacing: 0.04 * 11)),
+                                ],
+                                const SizedBox(height: 8),
+                                TTPill(
+                                  label: tier,
+                                  variant: TTPillVariant.ember,
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      InkWell(
+                        onTap: onEditBio,
+                        borderRadius:
+                            BorderRadius.circular(TT.rSm + 2),
+                        child: Container(
+                          padding:
+                              const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0x05FFFFFF),
+                            border: Border.all(color: TT.line, width: 1),
+                            borderRadius:
+                                BorderRadius.circular(TT.rSm + 2),
+                          ),
+                          child: Text(
+                            bio.isNotEmpty ? bio : 'Tap to add a bio',
+                            style: TT
+                                .body(
+                                    size: 12,
+                                    w: FontWeight.w500,
+                                    color: bio.isNotEmpty
+                                        ? TT.text2
+                                        : TT.text3)
+                                .copyWith(
+                                    height: 1.5,
+                                    fontStyle: bio.isNotEmpty
+                                        ? FontStyle.normal
+                                        : FontStyle.italic),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0x05FFFFFF),
-                      border: Border.all(color: TT.line, width: 1),
-                      borderRadius: BorderRadius.circular(TT.rSm + 2),
-                    ),
-                    child: Text(
-                      'Cape Town based. Drakensberg regular. Slow ascents, long descents, dawn starts.',
-                      style: TT.body(size: 12, w: FontWeight.w500, color: TT.text2)
-                          .copyWith(height: 1.5),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _GradientAvatar extends StatelessWidget {
   final String initials;
-  const _GradientAvatar({required this.initials});
+  final String photoUrl;
+  const _GradientAvatar({required this.initials, required this.photoUrl});
 
   @override
   Widget build(BuildContext context) {
+    final hasRemotePhoto =
+        photoUrl.startsWith('http://') || photoUrl.startsWith('https://');
     return SizedBox(
       width: 72,
       height: 72,
@@ -331,11 +529,19 @@ class _GradientAvatar extends StatelessWidget {
             height: 72,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF6B3A1A), TT.ember2],
-              ),
+              gradient: hasRemotePhoto
+                  ? null
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF6B3A1A), TT.ember2],
+                    ),
+              image: hasRemotePhoto
+                  ? DecorationImage(
+                      image: NetworkImage(photoUrl),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
               border: Border.all(color: TT.ember, width: 3),
               boxShadow: const [
                 BoxShadow(
@@ -346,11 +552,14 @@ class _GradientAvatar extends StatelessWidget {
               ],
             ),
             alignment: Alignment.center,
-            child: Text(
-              initials,
-              style: TT.body(size: 26, w: FontWeight.w900, color: Colors.white)
-                  .copyWith(letterSpacing: -0.02 * 26),
-            ),
+            child: hasRemotePhoto
+                ? null
+                : Text(
+                    initials,
+                    style: TT
+                        .body(size: 26, w: FontWeight.w900, color: Colors.white)
+                        .copyWith(letterSpacing: -0.02 * 26),
+                  ),
           ),
           Positioned(
             right: 1,
@@ -381,54 +590,75 @@ class _StatTilesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tiles = <_StatTile>[
-      _StatTile(
-        icon: Icons.terrain_outlined,
-        label: 'Hikes',
-        value: '47',
-        unit: null,
-        ember: false,
-      ),
-      _StatTile(
-        icon: Icons.navigation_outlined,
-        label: 'Distance',
-        value: '284',
-        unit: 'mi',
-        ember: true,
-      ),
-      _StatTile(
-        icon: Icons.arrow_upward,
-        label: 'Ascent',
-        value: '62,418',
-        unit: 'ft',
-        ember: false,
-      ),
-      _StatTile(
-        icon: Icons.flag_outlined,
-        label: 'Peaks',
-        value: '12',
-        unit: null,
-        ember: false,
-      ),
-    ];
+    return Consumer<HikeHistoryProvider>(
+      builder: (_, history, __) {
+        final hikes = history.hikes;
+        final hikeCount = hikes.length;
+        final distMi = hikes.fold<double>(0, (a, SavedHike h) => a + h.distanceKm) * 0.621371;
+        final ascentFt = (hikes.fold<int>(0, (a, SavedHike h) => a + h.ascentM) * 3.28084).round();
+        final peaks = hikes.fold<int>(0, (a, SavedHike h) => a + h.peaksClimbed);
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: tiles.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.55,
-      ),
-      itemBuilder: (_, i) {
-        return _FadeUp(
-          delay: Duration(milliseconds: 280 + i * 70),
-          child: tiles[i],
+        final tiles = <_StatTile>[
+          _StatTile(
+            icon: Icons.terrain_outlined,
+            label: 'Hikes',
+            value: hikeCount.toString(),
+            unit: null,
+            ember: false,
+          ),
+          _StatTile(
+            icon: Icons.navigation_outlined,
+            label: 'Distance',
+            value: distMi.round().toString(),
+            unit: 'mi',
+            ember: true,
+          ),
+          _StatTile(
+            icon: Icons.arrow_upward,
+            label: 'Ascent',
+            value: _formatThousands(ascentFt),
+            unit: 'ft',
+            ember: false,
+          ),
+          _StatTile(
+            icon: Icons.flag_outlined,
+            label: 'Peaks',
+            value: peaks.toString(),
+            unit: null,
+            ember: false,
+          ),
+        ];
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: tiles.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.55,
+          ),
+          itemBuilder: (_, i) {
+            return _FadeUp(
+              delay: Duration(milliseconds: 280 + i * 70),
+              child: tiles[i],
+            );
+          },
         );
       },
     );
+  }
+
+  static String _formatThousands(int v) {
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final remaining = s.length - i;
+      buf.write(s[i]);
+      if (remaining > 1 && remaining % 3 == 1) buf.write(',');
+    }
+    return buf.toString();
   }
 }
 
@@ -496,109 +726,158 @@ class _StatTile extends StatelessWidget {
 class _AchievementsSection extends StatelessWidget {
   const _AchievementsSection();
 
+  // Mock grid used when the user has no unlocked achievements yet — keeps the
+  // 8-tile layout but renders every badge as "locked".
+  static const _mockGrid = <_AchievementData>[
+    _AchievementData(
+      icon: Icons.play_arrow,
+      label: 'First Steps',
+      date: 'LOCKED',
+      color: TT.ember,
+      unlocked: false,
+    ),
+    _AchievementData(
+      icon: Icons.terrain,
+      label: '4K Club',
+      date: 'LOCKED',
+      color: TT.ember2,
+      unlocked: false,
+    ),
+    _AchievementData(
+      icon: Icons.link,
+      label: 'Tethered',
+      date: 'LOCKED',
+      color: TT.blue,
+      unlocked: false,
+    ),
+    _AchievementData(
+      icon: Icons.route,
+      label: 'Plan Maker',
+      date: 'LOCKED',
+      color: TT.green,
+      unlocked: false,
+    ),
+    _AchievementData(
+      icon: Icons.air,
+      label: 'Storm Survivor',
+      date: 'LOCKED',
+      color: TT.amber,
+      unlocked: false,
+    ),
+    _AchievementData(
+      icon: Icons.flag_outlined,
+      label: 'Summit X12',
+      date: 'LOCKED',
+      color: TT.text3,
+      unlocked: false,
+    ),
+    _AchievementData(
+      icon: Icons.shield_outlined,
+      label: 'First Responder',
+      date: 'LOCKED',
+      color: TT.text3,
+      unlocked: false,
+    ),
+    _AchievementData(
+      icon: Icons.nights_stay_outlined,
+      label: 'Night Owl',
+      date: 'LOCKED',
+      color: TT.text3,
+      unlocked: false,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    const badges = <_AchievementData>[
-      _AchievementData(
-        icon: Icons.play_arrow,
-        label: 'First Steps',
-        date: 'JAN 14',
-        color: TT.ember,
-        unlocked: true,
-      ),
-      _AchievementData(
-        icon: Icons.terrain,
-        label: '4K Club',
-        date: 'MAR 02',
-        color: TT.ember2,
-        unlocked: true,
-      ),
-      _AchievementData(
-        icon: Icons.link,
-        label: 'Tethered',
-        date: 'MAR 19',
-        color: TT.blue,
-        unlocked: true,
-      ),
-      _AchievementData(
-        icon: Icons.route,
-        label: 'Plan Maker',
-        date: 'APR 06',
-        color: TT.green,
-        unlocked: true,
-      ),
-      _AchievementData(
-        icon: Icons.air,
-        label: 'Storm Survivor',
-        date: 'MAY 11',
-        color: TT.amber,
-        unlocked: true,
-      ),
-      _AchievementData(
-        icon: Icons.flag_outlined,
-        label: 'Summit X12',
-        date: 'LOCKED',
-        color: TT.text3,
-        unlocked: false,
-      ),
-      _AchievementData(
-        icon: Icons.shield_outlined,
-        label: 'First Responder',
-        date: 'LOCKED',
-        color: TT.text3,
-        unlocked: false,
-      ),
-      _AchievementData(
-        icon: Icons.nights_stay_outlined,
-        label: 'Night Owl',
-        date: 'LOCKED',
-        color: TT.text3,
-        unlocked: false,
-      ),
-    ];
+    return Consumer<ProfileProvider>(
+      builder: (_, pp, __) {
+        final unlockedAll = pp.achievements.where((a) => a.unlocked).toList();
+        final List<_AchievementData> badges;
+        final int total;
+        final int unlockedCount;
+        if (unlockedAll.isEmpty) {
+          badges = _mockGrid;
+          total = _mockGrid.length;
+          unlockedCount = 0;
+        } else {
+          // Show up to 8 tiles: unlocked first, then a few locked stragglers
+          // (so the grid stays balanced when the user has fewer than 8
+          // unlocks). Order matches ProfileProvider's default list.
+          final locked =
+              pp.achievements.where((a) => !a.unlocked).toList();
+          final picked = <Achievement>[
+            ...unlockedAll.take(8),
+            ...locked.take((8 - unlockedAll.length).clamp(0, 8)),
+          ].take(8).toList();
+          badges = picked.map(_fromAchievement).toList(growable: false);
+          total = 8;
+          unlockedCount = unlockedAll.length.clamp(0, 8);
+        }
 
-    final unlockedCount = badges.where((b) => b.unlocked).length;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(2, 0, 2, 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'ACHIEVEMENTS · $unlockedCount OF ${badges.length}',
-                style: TT.label(
-                    size: 11, color: TT.text2, letterSpacing: 0.16 * 11),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(2, 0, 2, 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'ACHIEVEMENTS · $unlockedCount OF $total',
+                    style: TT.label(
+                        size: 11,
+                        color: TT.text2,
+                        letterSpacing: 0.16 * 11),
+                  ),
+                  Text(
+                    'VIEW ALL →',
+                    style: TT
+                        .body(size: 10, w: FontWeight.w800, color: TT.ember)
+                        .copyWith(letterSpacing: 0.1 * 10),
+                  ),
+                ],
               ),
-              Text(
-                'VIEW ALL →',
-                style: TT
-                    .body(size: 10, w: FontWeight.w800, color: TT.ember)
-                    .copyWith(letterSpacing: 0.1 * 10),
+            ),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: badges.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 0.74,
               ),
-            ],
-          ),
-        ),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: badges.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.74,
-          ),
-          itemBuilder: (_, i) => _FadeUp(
-            delay: Duration(milliseconds: 580 + i * 60),
-            child: _AchievementBadge(data: badges[i]),
-          ),
-        ),
-      ],
+              itemBuilder: (_, i) => _FadeUp(
+                delay: Duration(milliseconds: 580 + i * 60),
+                child: _AchievementBadge(data: badges[i]),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
+
+  static _AchievementData _fromAchievement(Achievement a) {
+    return _AchievementData(
+      icon: a.icon,
+      label: a.title,
+      date: a.unlocked && a.dateUnlocked != null
+          ? _shortDate(a.dateUnlocked!)
+          : 'LOCKED',
+      color: a.unlocked ? a.color : TT.text3,
+      unlocked: a.unlocked,
+    );
+  }
+
+  static const _months = [
+    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+  ];
+
+  static String _shortDate(DateTime d) =>
+      '${_months[d.month - 1]} ${d.day.toString().padLeft(2, '0')}';
 }
 
 class _AchievementData {
@@ -809,6 +1088,7 @@ class _SettingRowData {
   final _SettingTrailing trailing;
   final bool danger;
   final bool isSignOut;
+  final VoidCallback? onTap;
 
   const _SettingRowData({
     required this.icon,
@@ -817,6 +1097,7 @@ class _SettingRowData {
     required this.trailing,
     this.danger = false,
     this.isSignOut = false,
+    this.onTap,
   });
 }
 
@@ -833,7 +1114,7 @@ class _SettingRow extends StatelessWidget {
     final iconBorder = data.danger ? const Color(0x59E63D2E) : TT.line2;
 
     return InkWell(
-      onTap: () {},
+      onTap: data.onTap,
       borderRadius: BorderRadius.circular(TT.rSm),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),

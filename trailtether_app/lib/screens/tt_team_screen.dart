@@ -3,36 +3,48 @@
 // Recreates project/screens/team.jsx from the design bundle: brand bar +
 // three summary stat tiles, a live team map preview with avatar pins +
 // animated blue trail, scrollable team roster, and an ember "START HIKE"
-// FAB. Uses placeholder team data only — no provider/service imports.
+// FAB. Wired to live `TeamProvider` + `TeamTrackingProvider` data — no
+// hardcoded placeholder hikers.
 
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/design_tokens.dart';
+import '../models/team.dart';
+import '../providers/auth_provider.dart' as ap;
+import '../providers/team_provider.dart';
+import '../providers/team_tracking_provider.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
 import '../widgets/design/tt_topo.dart';
+import 'create_team_screen.dart';
+import 'join_team_screen.dart';
 
 enum _MemberStatus { onTrail, atCamp, offGrid }
 
-class _TeamMember {
+class _TeamMemberVM {
+  final String uid;
   final String name;
   final String initial;
-  final String subStatus; // e.g. "Sunrise Camp"
+  final String photoUrl;
+  final String subStatus; // e.g. "Sunrise Camp" or "Online"
   final _MemberStatus status;
-  final int batteryPct;
-  final String lastSeen;
+  final int? batteryPct; // null when not available
+  final String lastSeen; // mono short text
   final double mapX; // 0..1
   final double mapY; // 0..1
   final bool lead;
 
-  const _TeamMember({
+  const _TeamMemberVM({
+    required this.uid,
     required this.name,
     required this.initial,
+    required this.photoUrl,
     required this.subStatus,
     required this.status,
     required this.batteryPct,
@@ -42,50 +54,6 @@ class _TeamMember {
     this.lead = false,
   });
 }
-
-const List<_TeamMember> _kTeam = [
-  _TeamMember(
-    name: 'John D.',
-    initial: 'J',
-    subStatus: 'Sunrise Camp',
-    status: _MemberStatus.onTrail,
-    batteryPct: 84,
-    lastSeen: '00:12',
-    mapX: 0.36,
-    mapY: 0.53,
-    lead: true,
-  ),
-  _TeamMember(
-    name: 'Sarah L.',
-    initial: 'S',
-    subStatus: 'Shadow Lake',
-    status: _MemberStatus.onTrail,
-    batteryPct: 64,
-    lastSeen: '00:35',
-    mapX: 0.61,
-    mapY: 0.44,
-  ),
-  _TeamMember(
-    name: 'Mike K.',
-    initial: 'M',
-    subStatus: 'Berkeley Park',
-    status: _MemberStatus.atCamp,
-    batteryPct: 71,
-    lastSeen: '01:08',
-    mapX: 0.27,
-    mapY: 0.78,
-  ),
-  _TeamMember(
-    name: 'Emily R.',
-    initial: 'E',
-    subStatus: 'Frozen Lake',
-    status: _MemberStatus.offGrid,
-    batteryPct: 22,
-    lastSeen: '04:47',
-    mapX: 0.76,
-    mapY: 0.49,
-  ),
-];
 
 Color _statusColor(_MemberStatus s) {
   switch (s) {
@@ -120,21 +88,140 @@ String _statusLabel(_MemberStatus s) {
   }
 }
 
+String _initialFor(String displayName) {
+  final trimmed = displayName.trim();
+  if (trimmed.isEmpty) return '?';
+  return trimmed.characters.first.toUpperCase();
+}
+
+String _formatLastSeen(DateTime when) {
+  final delta = DateTime.now().difference(when);
+  if (delta.inSeconds < 60) return '00:00';
+  final h = delta.inHours;
+  final m = delta.inMinutes % 60;
+  return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+}
+
+String _subStatusForLocation(TeamMemberLocation loc) {
+  final s = (loc.status ?? '').toLowerCase();
+  if (s == 'recording' || s == 'active' || s == 'started') return 'On trail';
+  if (s == 'arrived') return 'At camp';
+  if (s == 'help') return 'Needs help';
+  if (loc.isLive) return 'Online';
+  if (loc.isRecent) return 'Last seen ${_formatLastSeen(loc.timestamp)} ago';
+  return 'Off-grid · ${_formatLastSeen(loc.timestamp)} ago';
+}
+
+_MemberStatus _statusForLocation(TeamMemberLocation? loc) {
+  if (loc == null) return _MemberStatus.offGrid;
+  final s = (loc.status ?? '').toLowerCase();
+  if (s == 'arrived') return _MemberStatus.atCamp;
+  if (loc.isLive) return _MemberStatus.onTrail;
+  if (loc.isRecent) return _MemberStatus.atCamp;
+  return _MemberStatus.offGrid;
+}
+
 class TTTeamScreen extends StatefulWidget {
   final bool embedded;
-  const TTTeamScreen({super.key, this.embedded = false});
+
+  /// Optional tab-switch callback shared with [AppShell]; when supplied, the
+  /// "START HIKE" FAB jumps to the Map tab. Left null on its own when this
+  /// screen is opened directly (e.g. in tests), in which case the FAB is a
+  /// no-op stub — by design.
+  final ValueChanged<int>? onNavigate;
+
+  const TTTeamScreen({super.key, this.embedded = false, this.onNavigate});
 
   @override
   State<TTTeamScreen> createState() => _TTTeamScreenState();
 }
 
 class _TTTeamScreenState extends State<TTTeamScreen> {
+  late String _updatedStamp;
+
+  @override
+  void initState() {
+    super.initState();
+    _updatedStamp = _stamp(DateTime.now());
+  }
+
+  String _stamp(DateTime now) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(now.hour)}:${two(now.minute)}:${two(now.second)}';
+  }
+
+  // ─── Build a deterministic 0..1 map position for a member without a known
+  //     live coord. Lets the CustomPainter keep its illustrative pins even
+  //     when TeamTrackingProvider hasn't reported real lat/lon yet.
+  static double _frac(String seed, int salt) {
+    var h = salt;
+    for (final code in seed.codeUnits) {
+      h = (h * 31 + code) & 0x7fffffff;
+    }
+    return 0.18 + ((h % 700) / 1000.0); // keeps pins within 0.18..0.88
+  }
+
+  List<_TeamMemberVM> _buildMembers({
+    required Team? team,
+    required List<TeamMemberLocation> locations,
+    required String currentUid,
+  }) {
+    if (team == null) return const [];
+    final byUid = <String, TeamMemberLocation>{
+      for (final l in locations) l.uid: l,
+    };
+
+    return team.members.map((m) {
+      final loc = byUid[m.uid];
+      final status = _statusForLocation(loc);
+      final subStatus = loc != null ? _subStatusForLocation(loc) : 'Off-grid';
+      final lastSeen =
+          loc != null ? _formatLastSeen(loc.timestamp) : '--:--';
+      final mapX = _frac(m.uid.isNotEmpty ? m.uid : m.displayName, 11);
+      final mapY = _frac(m.uid.isNotEmpty ? m.uid : m.displayName, 53);
+      return _TeamMemberVM(
+        uid: m.uid,
+        name: m.displayName.isNotEmpty ? m.displayName : 'Hiker',
+        initial: _initialFor(m.displayName),
+        photoUrl: m.photoUrl,
+        subStatus: subStatus,
+        status: status,
+        batteryPct: null, // backend does not yet supply battery
+        lastSeen: lastSeen,
+        mapX: mapX,
+        mapY: mapY,
+        lead: m.uid == team.createdBy || m.uid == currentUid && team.createdBy == m.uid,
+      );
+    }).toList();
+  }
+
+  void _startHike() {
+    final cb = widget.onNavigate;
+    if (cb != null) {
+      cb(1); // Map tab — see app_shell.dart tab order.
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Open the Map tab to start a hike.'),
+        duration: Duration(seconds: 2),
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final activeCount = _kTeam
-        .where((m) => m.status != _MemberStatus.offGrid)
-        .length;
-    const totalDistanceMi = 8.4;
+    final tp = context.watch<TeamProvider>();
+    final tracking = context.watch<TeamTrackingProvider>();
+    final auth = context.watch<ap.AuthProvider>();
+    final team = tp.selectedTeam;
+    final currentUid = auth.uid ?? '';
+    final members =
+        _buildMembers(team: team, locations: tracking.teamLocations, currentUid: currentUid);
+    final memberCount =
+        (team == null) ? 0 : (team.memberCount > 0 ? team.memberCount : team.members.length);
+    final activeCount =
+        members.where((m) => m.status != _MemberStatus.offGrid).length;
+    final totalDistanceMi = (team?.totalDistanceKm ?? 0) * 0.621371;
+    final mapMembers = members.take(4).toList();
 
     final body = Stack(
       children: [
@@ -155,69 +242,92 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                     ],
                   ),
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(0, 4, 0, 120),
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 6, 18, 14),
-                          child: _SummaryRow(
-                            members: _kTeam.length,
-                            active: activeCount,
-                            distanceMi: totalDistanceMi,
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(18, 0, 18, 16),
-                          child: _TeamMapPreview(members: _kTeam),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: team == null
+                        ? const _NoTeamEmptyState()
+                        : ListView(
+                            padding:
+                                const EdgeInsets.fromLTRB(0, 4, 0, 120),
                             children: [
-                              Row(
-                                children: [
-                                  Text('ACTIVE TEAM',
-                                      style: TT.label(
-                                          size: 11,
-                                          color: TT.ember,
-                                          letterSpacing: 0.16 * 11)),
-                                  const SizedBox(width: 8),
-                                  TTPill(
-                                    label: '${_kTeam.length}',
-                                    variant: TTPillVariant.ember,
-                                  ),
-                                ],
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(18, 6, 18, 14),
+                                child: _SummaryRow(
+                                  members: memberCount,
+                                  active: activeCount,
+                                  distanceMi: totalDistanceMi,
+                                ),
                               ),
-                              Text('UPDATED 10:09:11',
-                                  style: TT.mono(size: 10, color: TT.text3)),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    18, 0, 18, 16),
+                                child:
+                                    _TeamMapPreview(members: mapMembers),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    18, 0, 18, 12),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text('ACTIVE TEAM',
+                                            style: TT.label(
+                                                size: 11,
+                                                color: TT.ember,
+                                                letterSpacing: 0.16 * 11)),
+                                        const SizedBox(width: 8),
+                                        TTPill(
+                                          label: '$memberCount',
+                                          variant: TTPillVariant.ember,
+                                        ),
+                                      ],
+                                    ),
+                                    Text('UPDATED $_updatedStamp',
+                                        style: TT.mono(
+                                            size: 10, color: TT.text3)),
+                                  ],
+                                ),
+                              ),
+                              if (members.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                      18, 16, 18, 24),
+                                  child: Text(
+                                    'No team members live right now.',
+                                    textAlign: TextAlign.center,
+                                    style: TT.body(
+                                        size: 13, color: TT.text2),
+                                  ),
+                                )
+                              else
+                                ...List.generate(members.length, (i) {
+                                  return Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        18, 0, 18, 10),
+                                    child: _FadeUpDelayed(
+                                      delay: Duration(
+                                          milliseconds: 400 + i * 90),
+                                      child: _TeamRow(member: members[i]),
+                                    ),
+                                  );
+                                }),
                             ],
                           ),
-                        ),
-                        ...List.generate(_kTeam.length, (i) {
-                          return Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(18, 0, 18, 10),
-                            child: _FadeUpDelayed(
-                              delay: Duration(milliseconds: 400 + i * 90),
-                              child: _TeamRow(member: _kTeam[i]),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
                   ),
                 ],
               ),
-              Positioned(
-                right: 18,
-                bottom: 24,
-                child: TTFAB(
-                  icon: Icons.play_arrow,
-                  label: 'START HIKE',
-                  onTap: () {},
+              if (team != null)
+                Positioned(
+                  right: 18,
+                  bottom: 24,
+                  child: TTFAB(
+                    icon: Icons.play_arrow,
+                    label: 'START HIKE',
+                    onTap: _startHike,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -226,6 +336,130 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
 
     if (widget.embedded) return Material(color: TT.bg, child: body);
     return Scaffold(backgroundColor: TT.bg, body: body);
+  }
+}
+
+// ──────────────────────────── EMPTY STATE ───────────────────────────────────
+
+class _NoTeamEmptyState extends StatelessWidget {
+  const _NoTeamEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 8, 28, 48),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: TT.emberDim,
+                shape: BoxShape.circle,
+                border:
+                    Border.all(color: const Color(0x52FF6A2C), width: 1),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.group_outlined,
+                  size: 32, color: TT.ember),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Join or create a team',
+              textAlign: TextAlign.center,
+              style: TT.title(18, letterSpacing: -0.01 * 18),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Trailtether keeps everyone visible to the command centre. '
+              'Form a team to share live locations on the map.',
+              textAlign: TextAlign.center,
+              style: TT.body(size: 13, color: TT.text2),
+            ),
+            const SizedBox(height: 22),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _EmberCta(
+                  label: 'JOIN TEAM',
+                  icon: Icons.qr_code_scanner,
+                  filled: false,
+                  onTap: () => _go(context, const JoinTeamScreen()),
+                ),
+                const SizedBox(width: 12),
+                _EmberCta(
+                  label: 'CREATE TEAM',
+                  icon: Icons.add,
+                  filled: true,
+                  onTap: () => _go(context, const CreateTeamScreen()),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _go(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+}
+
+class _EmberCta extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool filled;
+  final VoidCallback onTap;
+  const _EmberCta({
+    required this.label,
+    required this.icon,
+    required this.filled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = filled ? TT.emberInk : TT.ember;
+    return Material(
+      color: filled ? TT.ember : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: filled
+                ? null
+                : Border.all(color: const Color(0x52FF6A2C), width: 1),
+            boxShadow: filled
+                ? const [
+                    BoxShadow(color: Color(0x66FF6A2C), blurRadius: 14),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: fg),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TT
+                    .body(size: 12, w: FontWeight.w900, color: fg)
+                    .copyWith(letterSpacing: 0.16 * 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -350,7 +584,7 @@ class _StatTile extends StatelessWidget {
 // ──────────────────────────── MAP PREVIEW ───────────────────────────────────
 
 class _TeamMapPreview extends StatefulWidget {
-  final List<_TeamMember> members;
+  final List<_TeamMemberVM> members;
   const _TeamMapPreview({required this.members});
 
   @override
@@ -361,7 +595,7 @@ class _TeamMapPreviewState extends State<_TeamMapPreview>
     with TickerProviderStateMixin {
   late final AnimationController _drawCtl;
   late final AnimationController _pulseCtl;
-  late final List<AnimationController> _popCtls;
+  late List<AnimationController> _popCtls;
 
   @override
   void initState() {
@@ -371,14 +605,28 @@ class _TeamMapPreviewState extends State<_TeamMapPreview>
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat();
-    _popCtls = List.generate(widget.members.length, (i) {
-      final c =
-          AnimationController(vsync: this, duration: TT.dSlow);
+    _popCtls = _buildPopControllers(widget.members.length);
+  }
+
+  List<AnimationController> _buildPopControllers(int count) {
+    return List.generate(count, (i) {
+      final c = AnimationController(vsync: this, duration: TT.dSlow);
       Future.delayed(Duration(milliseconds: 500 + i * 100), () {
         if (mounted) c.forward();
       });
       return c;
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant _TeamMapPreview old) {
+    super.didUpdateWidget(old);
+    if (old.members.length != widget.members.length) {
+      for (final c in _popCtls) {
+        c.dispose();
+      }
+      _popCtls = _buildPopControllers(widget.members.length);
+    }
   }
 
   @override
@@ -415,6 +663,14 @@ class _TeamMapPreviewState extends State<_TeamMapPreview>
                 );
               },
             ),
+            if (widget.members.isEmpty)
+              Center(
+                child: Text(
+                  'No team members live right now',
+                  textAlign: TextAlign.center,
+                  style: TT.mono(size: 11, color: TT.text2),
+                ),
+              ),
             Positioned(
               top: 10,
               left: 10,
@@ -509,7 +765,7 @@ class _MapPulseDotState extends State<_MapPulseDot>
 }
 
 class _TeamMapPainter extends CustomPainter {
-  final List<_TeamMember> members;
+  final List<_TeamMemberVM> members;
   final double drawT;
   final double pulseT;
   final List<double> popT;
@@ -636,7 +892,7 @@ class _TeamMapPainter extends CustomPainter {
     for (var i = 0; i < members.length; i++) {
       final m = members[i];
       final c = Offset(size.width * m.mapX, size.height * m.mapY);
-      final t = popT[i];
+      final t = i < popT.length ? popT[i] : 1.0;
       if (t <= 0) continue;
       _drawAvatarPin(canvas, c, m, t);
     }
@@ -663,7 +919,7 @@ class _TeamMapPainter extends CustomPainter {
   }
 
   void _drawAvatarPin(
-      Canvas canvas, Offset c, _TeamMember m, double t) {
+      Canvas canvas, Offset c, _TeamMemberVM m, double t) {
     final color = _pinColor(m.status);
     final scale = 0.7 + 0.3 * t;
 
@@ -728,7 +984,8 @@ class _TeamMapPainter extends CustomPainter {
   bool shouldRepaint(_TeamMapPainter old) =>
       old.drawT != drawT ||
       old.pulseT != pulseT ||
-      !_listEq(old.popT, popT);
+      !_listEq(old.popT, popT) ||
+      old.members.length != members.length;
 
   bool _listEq(List<double> a, List<double> b) {
     if (a.length != b.length) return false;
@@ -742,13 +999,14 @@ class _TeamMapPainter extends CustomPainter {
 // ──────────────────────────── TEAM ROW ──────────────────────────────────────
 
 class _TeamRow extends StatelessWidget {
-  final _TeamMember member;
+  final _TeamMemberVM member;
   const _TeamRow({required this.member});
 
   @override
   Widget build(BuildContext context) {
     final ringColor = _statusColor(member.status);
     final tileColor = _pinColor(member.status);
+    final battery = member.batteryPct;
     return TTCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       onTap: () {},
@@ -777,9 +1035,11 @@ class _TeamRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _AvatarBlock(
-                  initial: member.initial,
-                  tileColor: tileColor,
-                  ringColor: ringColor),
+                initial: member.initial,
+                photoUrl: member.photoUrl,
+                tileColor: tileColor,
+                ringColor: ringColor,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -863,8 +1123,10 @@ class _TeamRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _BattRow(pct: member.batteryPct),
-                  const SizedBox(height: 6),
+                  if (battery != null) ...[
+                    _BattRow(pct: battery),
+                    const SizedBox(height: 6),
+                  ],
                   Text(
                     member.lastSeen,
                     style: TT.mono(size: 10, color: TT.text3),
@@ -883,16 +1145,19 @@ class _TeamRow extends StatelessWidget {
 
 class _AvatarBlock extends StatelessWidget {
   final String initial;
+  final String photoUrl;
   final Color tileColor;
   final Color ringColor;
   const _AvatarBlock({
     required this.initial,
+    required this.photoUrl,
     required this.tileColor,
     required this.ringColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasPhoto = photoUrl.isNotEmpty;
     return SizedBox(
       width: 50,
       height: 50,
@@ -904,11 +1169,19 @@ class _AvatarBlock extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [tileColor, tileColor.withOpacity(0.66)],
-              ),
+              gradient: hasPhoto
+                  ? null
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [tileColor, tileColor.withOpacity(0.66)],
+                    ),
+              image: hasPhoto
+                  ? DecorationImage(
+                      image: NetworkImage(photoUrl),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
               border: Border.all(color: tileColor, width: 2.5),
               boxShadow: [
                 BoxShadow(
@@ -918,11 +1191,13 @@ class _AvatarBlock extends StatelessWidget {
               ],
             ),
             alignment: Alignment.center,
-            child: Text(
-              initial,
-              style:
-                  TT.body(size: 16, w: FontWeight.w800, color: Colors.white),
-            ),
+            child: hasPhoto
+                ? null
+                : Text(
+                    initial,
+                    style: TT.body(
+                        size: 16, w: FontWeight.w800, color: Colors.white),
+                  ),
           ),
           Positioned(
             right: -1,

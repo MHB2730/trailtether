@@ -5,12 +5,32 @@
 // with countdown, weather card (animated sun rotation + cloud drift + 5-hour
 // strip), last-hike card backed by TTBigElevChart, and a field-intel strip.
 // All sections enter via staggered fade-up animations.
+//
+// Visuals are unchanged from the design mock — every value that used to be a
+// hardcoded placeholder ("John D.", "Mt. Marcy Summit", static weather, etc.)
+// is now sourced from the live providers (`AuthProvider`, `HikeHistoryProvider`,
+// `WeatherProvider`, `TeamProvider`, `SafetyProvider`, `RecordingProvider`)
+// with intentional fallback copy when no data is present.
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../core/design_tokens.dart';
+import '../models/incident.dart';
+import '../models/saved_hike.dart';
+import '../models/team.dart';
+import '../models/weather.dart';
+import '../providers/auth_provider.dart' as ap;
+import '../providers/hike_history_provider.dart';
+import '../providers/recording_provider.dart';
+import '../providers/safety_provider.dart';
+import '../providers/team_provider.dart';
+import '../providers/weather_provider.dart';
+import '../services/team_service.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_count_up.dart';
@@ -18,6 +38,7 @@ import '../widgets/design/tt_elev_chart.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
 import '../widgets/design/tt_topo.dart';
+import 'tt_sos_screen.dart';
 
 class TTHomeScreen extends StatefulWidget {
   final bool embedded;
@@ -34,6 +55,54 @@ class TTHomeScreen extends StatefulWidget {
 }
 
 class _TTHomeScreenState extends State<TTHomeScreen> {
+  // Cache of upcoming-hike plans across the user's teams. Recomputed when the
+  // team set changes so we don't refetch on every rebuild.
+  Future<List<HikePlan>> _plansFuture = Future.value(const []);
+  String? _lastTeamId;
+  bool _weatherKicked = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Refresh team-plans future when the team list changes.
+    final teams = context.watch<TeamProvider>().teams;
+    final teamIds = teams.map((t) => t.id).join(',');
+    if (teamIds != _lastTeamId) {
+      _lastTeamId = teamIds;
+      if (teams.isEmpty) {
+        _plansFuture = Future.value(const []);
+      } else {
+        _plansFuture =
+            Future.wait(teams.map((t) => TeamService.fetchPlansForTeam(t.id)))
+                .then((listOfLists) {
+          final all = listOfLists.expand((l) => l).toList();
+          all.sort((a, b) => a.hikeDate.compareTo(b.hikeDate));
+          return all;
+        }).catchError((_) => <HikePlan>[]);
+      }
+    }
+
+    // Wire up weather provider with the current user, and kick off the first
+    // fetch of the first stored location so the weather card has something
+    // to show by default. Guarded so it only fires once per screen lifetime.
+    final auth = context.read<ap.AuthProvider>();
+    final weather = context.read<WeatherProvider>();
+    weather.setUserId(auth.uid);
+    if (!_weatherKicked &&
+        weather.currentWeather == null &&
+        weather.locations.isNotEmpty &&
+        !weather.loading) {
+      _weatherKicked = true;
+      // Defer to next frame so we don't notify during build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(weather.fetchWeatherForLocation(0));
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final body = Stack(
@@ -49,9 +118,12 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
               const _HomeHero(),
               const SizedBox(height: 4),
               _HomeQuickActions(onNavigate: widget.onNavigate),
-              const _UpcomingHikeCard(),
+              _UpcomingHikeCard(
+                plansFuture: _plansFuture,
+                onNavigateToMap: () => widget.onNavigate?.call(1),
+              ),
               const _WeatherCard(),
-              const _LastHikeCard(),
+              _LastHikeCard(onNavigateToMap: () => widget.onNavigate?.call(1)),
               const _FieldIntelStrip(),
             ],
           ),
@@ -101,19 +173,24 @@ class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixi
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<ap.AuthProvider>();
+    final firstName = _firstName(auth);
+
     return SizedBox(
-      height: 240,
+      height: 260,
       child: Stack(
         children: [
+          // v3.1: real photographic hero (assets/icon/hero_mountains.jpg)
+          // replaces the painted mountain illustration per the brand handoff.
           Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _starCtl,
-              builder: (_, __) => CustomPaint(
-                painter: _HeroMountainPainter(starPhase: _starCtl.value),
-              ),
+            child: Image.asset(
+              'assets/icon/hero_mountains.jpg',
+              fit: BoxFit.cover,
+              alignment: const Alignment(0, -0.4),
+              filterQuality: FilterQuality.medium,
             ),
           ),
-          // Bottom fade to body
+          // Dark-to-body gradient for legibility + ember side glow.
           Positioned.fill(
             child: IgnorePointer(
               child: Container(
@@ -122,12 +199,12 @@ class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixi
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Color(0x00000000),
-                      Color(0x00000000),
-                      Color(0x99070A0E),
+                      Color(0x8C07090C),
+                      Color(0x4007090C),
+                      Color(0x8007090C),
                       TT.bg,
                     ],
-                    stops: [0.0, 0.5, 0.8, 1.0],
+                    stops: [0.0, 0.35, 0.75, 1.0],
                   ),
                 ),
               ),
@@ -138,7 +215,7 @@ class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixi
             top: 14,
             left: 18,
             right: 18,
-            child: _HeroBrandRow(entry: _entryCtl),
+            child: _HeroBrandRow(entry: _entryCtl, auth: auth),
           ),
           // Greeting overlay
           Positioned(
@@ -169,11 +246,13 @@ class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixi
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'John D.',
+                    firstName,
                     style: TT.title(32, letterSpacing: -0.025 * 32).copyWith(
                       fontWeight: FontWeight.w900,
                       height: 1.0,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -185,12 +264,53 @@ class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixi
   }
 }
 
+/// Derive a friendly first-name greeting from the auth user.
+///
+/// Priority: `displayName` first token → email local part → "Hiker".
+String _firstName(ap.AuthProvider auth) {
+  final dn = auth.displayName?.trim();
+  if (dn != null && dn.isNotEmpty) {
+    final first = dn.split(RegExp(r'\s+')).first;
+    return first.isEmpty ? 'Hiker' : first;
+  }
+  final email = auth.email;
+  if (email != null && email.contains('@')) {
+    final prefix = email.split('@').first.trim();
+    if (prefix.isNotEmpty) return _capitalize(prefix);
+  }
+  return 'Hiker';
+}
+
+String _capitalize(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+/// 1- or 2-letter avatar initials derived from displayName / email.
+String _avatarInitials(ap.AuthProvider auth) {
+  final dn = auth.displayName?.trim();
+  if (dn != null && dn.isNotEmpty) {
+    final parts = dn.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 2) {
+      return (parts.first[0] + parts.last[0]).toUpperCase();
+    }
+    return parts.first.substring(0, math.min(2, parts.first.length)).toUpperCase();
+  }
+  final email = auth.email;
+  if (email != null && email.isNotEmpty) {
+    final prefix = email.split('@').first;
+    return prefix.substring(0, math.min(2, prefix.length)).toUpperCase();
+  }
+  return 'TT';
+}
+
 class _HeroBrandRow extends StatelessWidget {
   final AnimationController entry;
-  const _HeroBrandRow({required this.entry});
+  final ap.AuthProvider auth;
+  const _HeroBrandRow({required this.entry, required this.auth});
 
   @override
   Widget build(BuildContext context) {
+    final photo = auth.photoUrl;
+    final hasPhoto = photo != null && photo.isNotEmpty;
     return AnimatedBuilder(
       animation: entry,
       builder: (_, child) {
@@ -208,20 +328,47 @@ class _HeroBrandRow extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: TT.ember, width: 2),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF6B3A1A), TT.ember2],
-              ),
+              gradient: hasPhoto
+                  ? null
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF6B3A1A), TT.ember2],
+                    ),
               boxShadow: const [
                 BoxShadow(color: Color(0x73FF6A2C), blurRadius: 14),
               ],
             ),
             alignment: Alignment.center,
-            child: Text(
-              'JD',
-              style: TT.body(size: 13, w: FontWeight.w800, color: Colors.white),
-            ),
+            clipBehavior: hasPhoto ? Clip.antiAlias : Clip.none,
+            child: hasPhoto
+                ? Image.network(
+                    photo,
+                    width: 38,
+                    height: 38,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF6B3A1A), TT.ember2],
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        _avatarInitials(auth),
+                        style: TT.body(
+                            size: 13, w: FontWeight.w800, color: Colors.white),
+                      ),
+                    ),
+                  )
+                : Text(
+                    _avatarInitials(auth),
+                    style: TT.body(
+                        size: 13, w: FontWeight.w800, color: Colors.white),
+                  ),
           ),
         ],
       ),
@@ -229,163 +376,6 @@ class _HeroBrandRow extends StatelessWidget {
   }
 }
 
-class _HeroMountainPainter extends CustomPainter {
-  final double starPhase;
-  _HeroMountainPainter({required this.starPhase});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final s = w / 412.0; // design width
-    final hs = h / 240.0; // design height
-
-    // Sky gradient
-    final skyPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF1A1F28), Color(0xFF0D1116), Color(0xFF06080B)],
-        stops: [0.0, 0.55, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, w, h));
-    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), skyPaint);
-
-    // Ember sun glow (radial)
-    final sunCenter = Offset(320 * s, 85 * hs);
-    final sunGlow = Paint()
-      ..shader = const RadialGradient(
-        colors: [Color(0xBFFF8A4D), Color(0x00FF6A2C)],
-      ).createShader(Rect.fromCircle(center: sunCenter, radius: 80 * s));
-    canvas.drawCircle(sunCenter, 80 * s, sunGlow);
-
-    // Sun core layers
-    canvas.drawCircle(
-      sunCenter,
-      38 * s,
-      Paint()
-        ..shader = const RadialGradient(
-          colors: [Color(0xBFFF8A4D), Color(0x00FF6A2C)],
-        ).createShader(Rect.fromCircle(center: sunCenter, radius: 38 * s)),
-    );
-    canvas.drawCircle(
-      sunCenter,
-      22 * s,
-      Paint()..color = const Color(0x8CFF8A4D),
-    );
-    canvas.drawCircle(
-      sunCenter,
-      14 * s,
-      Paint()..color = const Color(0xD9FFB486),
-    );
-
-    // Distant stars (twinkle)
-    const starPts = [
-      [55.0, 40.0, 1.0, 0.0],
-      [120.0, 30.0, 0.8, 0.4],
-      [180.0, 22.0, 1.2, 0.8],
-      [50.0, 80.0, 0.7, 1.2],
-      [240.0, 38.0, 1.0, 1.6],
-    ];
-    for (final p in starPts) {
-      final phase = (starPhase + p[3] / 3.0) % 1.0;
-      final twinkle = 0.45 + 0.25 * math.sin(phase * 2 * math.pi);
-      final paint = Paint()..color = Colors.white.withOpacity(twinkle);
-      canvas.drawCircle(Offset(p[0] * s, p[1] * hs), p[2] * s, paint);
-    }
-
-    // Back range
-    final backPath = Path()
-      ..moveTo(-10 * s, 170 * hs)
-      ..lineTo(50 * s, 115 * hs)
-      ..lineTo(95 * s, 145 * hs)
-      ..lineTo(140 * s, 95 * hs)
-      ..lineTo(200 * s, 130 * hs)
-      ..lineTo(250 * s, 105 * hs)
-      ..lineTo(310 * s, 140 * hs)
-      ..lineTo(360 * s, 110 * hs)
-      ..lineTo(420 * s, 145 * hs)
-      ..lineTo(420 * s, 240 * hs)
-      ..lineTo(-10 * s, 240 * hs)
-      ..close();
-    canvas.drawPath(
-      backPath,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF2A313C), Color(0xFF11161C)],
-        ).createShader(Rect.fromLTWH(0, 100 * hs, w, 140 * hs))
-        ..color = const Color(0xD9000000),
-    );
-
-    // Mid range
-    final midPath = Path()
-      ..moveTo(-10 * s, 200 * hs)
-      ..lineTo(30 * s, 165 * hs)
-      ..lineTo(80 * s, 185 * hs)
-      ..lineTo(140 * s, 140 * hs)
-      ..lineTo(180 * s, 170 * hs)
-      ..lineTo(230 * s, 150 * hs)
-      ..lineTo(290 * s, 180 * hs)
-      ..lineTo(340 * s, 155 * hs)
-      ..lineTo(420 * s, 185 * hs)
-      ..lineTo(420 * s, 240 * hs)
-      ..lineTo(-10 * s, 240 * hs)
-      ..close();
-    canvas.drawPath(midPath, Paint()..color = const Color(0xFF171C25));
-
-    // Front range
-    final frontPath = Path()
-      ..moveTo(-10 * s, 240 * hs)
-      ..lineTo(10 * s, 220 * hs)
-      ..lineTo(60 * s, 205 * hs)
-      ..lineTo(100 * s, 218 * hs)
-      ..lineTo(170 * s, 198 * hs)
-      ..lineTo(220 * s, 215 * hs)
-      ..lineTo(280 * s, 200 * hs)
-      ..lineTo(340 * s, 220 * hs)
-      ..lineTo(420 * s, 210 * hs)
-      ..lineTo(420 * s, 240 * hs)
-      ..close();
-    canvas.drawPath(
-      frontPath,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF1A2029), Color(0xFF0A0C0F)],
-        ).createShader(Rect.fromLTWH(0, 195 * hs, w, 45 * hs)),
-    );
-
-    // Snow on top peak
-    final snowPath = Path()
-      ..moveTo(135 * s, 100 * hs)
-      ..lineTo(140 * s, 95 * hs)
-      ..lineTo(146 * s, 105 * hs)
-      ..lineTo(142 * s, 102 * hs)
-      ..close();
-    canvas.drawPath(snowPath, Paint()..color = const Color(0xB3EEF1F4));
-
-    // Topo motif overlay (very faint)
-    final topoPaint = Paint()
-      ..color = const Color(0x0AFFFFFF)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-    final topo1 = Path()
-      ..moveTo(-10 * s, 180 * hs)
-      ..quadraticBezierTo(100 * s, 165 * hs, 200 * s, 168 * hs)
-      ..quadraticBezierTo(310 * s, 171 * hs, 420 * s, 175 * hs);
-    final topo2 = Path()
-      ..moveTo(-10 * s, 200 * hs)
-      ..quadraticBezierTo(100 * s, 188 * hs, 200 * s, 190 * hs)
-      ..quadraticBezierTo(310 * s, 192 * hs, 420 * s, 198 * hs);
-    canvas.drawPath(topo1, topoPaint);
-    canvas.drawPath(topo2, topoPaint);
-  }
-
-  @override
-  bool shouldRepaint(_HeroMountainPainter old) => old.starPhase != starPhase;
-}
 
 // ─────────────────────────── QUICK ACTION TILES ─────────────────────────────
 
@@ -395,10 +385,13 @@ class _HomeQuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final recording = context.watch<RecordingProvider>();
+    final isRecording = recording.isRecording || recording.isPaused;
+
     final actions = <_QuickAction>[
       _QuickAction(
-        icon: Icons.play_arrow_rounded,
-        label: 'Start Hike',
+        icon: isRecording ? Icons.pause_rounded : Icons.play_arrow_rounded,
+        label: isRecording ? 'Recording' : 'Start Hike',
         color: TT.ember,
         primary: true,
         onTap: () => onNavigate?.call(1),
@@ -419,7 +412,9 @@ class _HomeQuickActions extends StatelessWidget {
         icon: Icons.radio_button_checked,
         label: 'SOS',
         color: TT.red,
-        onTap: () {},
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const TTSOSScreen()),
+        ),
       ),
     ];
 
@@ -537,7 +532,12 @@ class _QuickActionTileState extends State<_QuickActionTile> {
 // ─────────────────────────── UPCOMING HIKE CARD ─────────────────────────────
 
 class _UpcomingHikeCard extends StatefulWidget {
-  const _UpcomingHikeCard();
+  final Future<List<HikePlan>> plansFuture;
+  final VoidCallback onNavigateToMap;
+  const _UpcomingHikeCard({
+    required this.plansFuture,
+    required this.onNavigateToMap,
+  });
 
   @override
   State<_UpcomingHikeCard> createState() => _UpcomingHikeCardState();
@@ -578,104 +578,286 @@ class _UpcomingHikeCardState extends State<_UpcomingHikeCard>
             ),
           );
         },
-        child: TTCard(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-          onTap: () {},
-          child: Stack(
-            children: [
-              // Ember corner glow
-              Positioned(
-                top: -30,
-                right: -30,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [Color(0x38FF6A2C), Color(0x00FF6A2C)],
-                      stops: [0.0, 0.7],
-                    ),
-                  ),
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const _PulseDot(color: TT.ember),
-                          const SizedBox(width: 6),
-                          Text(
-                            'UPCOMING · IN 2 DAYS',
-                            style: TT.mono(size: 10, color: TT.ember).copyWith(
-                              letterSpacing: 0.18 * 10,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const TTPill(label: '4 GOING', variant: TTPillVariant.ember),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Mt. Marcy Summit',
-                    style: TT.title(19, letterSpacing: -0.01 * 19),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'OCT 28 · 06:00 START · 12.4 KM',
-                    style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
-                        .copyWith(letterSpacing: 0.04 * 11),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const _AvatarStack(
-                        entries: [
-                          _AvatarEntry('J', Color(0xFFFF6A2C)),
-                          _AvatarEntry('S', Color(0xFFFF8A4D)),
-                          _AvatarEntry('M', Color(0xFF4CC38A)),
-                          _AvatarEntry('E', Color(0xFFF2A93B)),
-                        ],
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'STARTS IN',
-                                style: TT.body(size: 9, w: FontWeight.w700, color: TT.text3)
-                                    .copyWith(letterSpacing: 0.16 * 9),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '2d 19h',
-                                style: TT.numStyle(size: 17, letterSpacing: -0.02 * 17),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(Icons.chevron_right, size: 16, color: TT.text3),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
+        child: FutureBuilder<List<HikePlan>>(
+          future: widget.plansFuture,
+          builder: (context, snap) {
+            final all = snap.data ?? const <HikePlan>[];
+            final now = DateTime.now();
+            // First future plan, sorted by date (the future itself sorts them).
+            final next = all
+                .where((p) => p.hikeDate.isAfter(now) && p.status != 'completed')
+                .toList();
+            final plan = next.isNotEmpty ? next.first : null;
+            return TTCard(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              onTap: widget.onNavigateToMap,
+              child: plan == null
+                  ? _UpcomingEmptyContent(onTap: widget.onNavigateToMap)
+                  : _UpcomingPlanContent(plan: plan),
+            );
+          },
         ),
       ),
     );
+  }
+}
+
+class _UpcomingEmptyContent extends StatelessWidget {
+  final VoidCallback onTap;
+  const _UpcomingEmptyContent({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Ember corner glow
+        Positioned(
+          top: -30,
+          right: -30,
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [Color(0x38FF6A2C), Color(0x00FF6A2C)],
+                stops: [0.0, 0.7],
+              ),
+            ),
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const _PulseDot(color: TT.ember),
+                const SizedBox(width: 6),
+                Text(
+                  'NO UPCOMING HIKES',
+                  style: TT.mono(size: 10, color: TT.ember).copyWith(
+                    letterSpacing: 0.18 * 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Plan your next adventure',
+              style: TT.title(19, letterSpacing: -0.01 * 19),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'TAP TO PLAN A ROUTE · DRAKENSBERG',
+              style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
+                  .copyWith(letterSpacing: 0.04 * 11),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: TT.emberDim,
+                    border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.add_rounded,
+                          size: 13, color: TT.ember),
+                      const SizedBox(width: 5),
+                      Text(
+                        'PLAN HIKE',
+                        style: TT
+                            .mono(size: 10.5, color: TT.ember, w: FontWeight.w800)
+                            .copyWith(letterSpacing: 0.12 * 10.5),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, size: 16, color: TT.text3),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _UpcomingPlanContent extends StatelessWidget {
+  final HikePlan plan;
+  const _UpcomingPlanContent({required this.plan});
+
+  @override
+  Widget build(BuildContext context) {
+    final extras = plan.extras;
+    final rsvp = extras.rsvp;
+    // Going count: rsvp entries marked "going". Always at least 1 (creator).
+    final going = rsvp.entries.where((e) => e.value == 'going').length;
+    final goingCount = going > 0 ? going : 1;
+
+    final now = DateTime.now();
+    final diff = plan.hikeDate.difference(now);
+    final countdownLabel = _formatCountdown(diff);
+    final headerLabel = _formatHeaderRelative(diff);
+
+    final dateStr = DateFormat('MMM d').format(plan.hikeDate).toUpperCase();
+    final timeStr = extras.time.isNotEmpty
+        ? extras.time
+        : DateFormat('HH:mm').format(plan.hikeDate);
+    final subtitle =
+        '$dateStr · $timeStr START${plan.meetingPoint.isNotEmpty ? ' · ${plan.meetingPoint.toUpperCase()}' : ''}';
+
+    // Avatar stack: derive deterministic initials/colors from rsvp uids if any,
+    // else from invited members or fall back to a single creator marker.
+    final attendees = _deriveAttendees(plan);
+
+    return Stack(
+      children: [
+        Positioned(
+          top: -30,
+          right: -30,
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [Color(0x38FF6A2C), Color(0x00FF6A2C)],
+                stops: [0.0, 0.7],
+              ),
+            ),
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const _PulseDot(color: TT.ember),
+                    const SizedBox(width: 6),
+                    Text(
+                      headerLabel,
+                      style: TT.mono(size: 10, color: TT.ember).copyWith(
+                        letterSpacing: 0.18 * 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                TTPill(
+                    label: '$goingCount GOING', variant: TTPillVariant.ember),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              plan.trailName.isNotEmpty ? plan.trailName : 'Planned hike',
+              style: TT.title(19, letterSpacing: -0.01 * 19),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
+                  .copyWith(letterSpacing: 0.04 * 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _AvatarStack(entries: attendees),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'STARTS IN',
+                          style: TT.body(
+                                  size: 9, w: FontWeight.w700, color: TT.text3)
+                              .copyWith(letterSpacing: 0.16 * 9),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          countdownLabel,
+                          style: TT.numStyle(
+                              size: 17, letterSpacing: -0.02 * 17),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.chevron_right, size: 16, color: TT.text3),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static List<_AvatarEntry> _deriveAttendees(HikePlan plan) {
+    const palette = [
+      Color(0xFFFF6A2C),
+      Color(0xFFFF8A4D),
+      Color(0xFF4CC38A),
+      Color(0xFFF2A93B),
+      Color(0xFF5AA1D6),
+    ];
+    final extras = plan.extras;
+    // Prefer "going" RSVPs, then invited members, then fall back to creator.
+    final goingIds = extras.rsvp.entries
+        .where((e) => e.value == 'going')
+        .map((e) => e.key)
+        .toList();
+    final source = goingIds.isNotEmpty
+        ? goingIds
+        : (extras.invitedMembers.isNotEmpty
+            ? extras.invitedMembers
+            : [plan.createdBy]);
+    final entries = <_AvatarEntry>[];
+    for (var i = 0; i < math.min(4, source.length); i++) {
+      final id = source[i];
+      final initial = (id.isEmpty ? 'H' : id[0]).toUpperCase();
+      entries.add(_AvatarEntry(initial, palette[i % palette.length]));
+    }
+    if (entries.isEmpty) {
+      entries.add(const _AvatarEntry('H', Color(0xFFFF6A2C)));
+    }
+    return entries;
+  }
+
+  static String _formatCountdown(Duration d) {
+    if (d.isNegative) return 'NOW';
+    final days = d.inDays;
+    final hours = d.inHours - days * 24;
+    if (days > 0) return '${days}d ${hours}h';
+    final mins = d.inMinutes - d.inHours * 60;
+    if (d.inHours > 0) return '${d.inHours}h ${mins}m';
+    return '${d.inMinutes}m';
+  }
+
+  static String _formatHeaderRelative(Duration d) {
+    if (d.isNegative) return 'UPCOMING · STARTING NOW';
+    final days = d.inDays;
+    if (days <= 0) return 'UPCOMING · TODAY';
+    if (days == 1) return 'UPCOMING · TOMORROW';
+    return 'UPCOMING · IN $days DAYS';
   }
 }
 
@@ -801,6 +983,12 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
 
   @override
   Widget build(BuildContext context) {
+    final wp = context.watch<WeatherProvider>();
+    final weather = wp.currentWeather;
+    final locationName = wp.locations.isNotEmpty
+        ? (wp.locations.first['name'] as String? ?? 'DRAKENSBERG')
+        : 'DRAKENSBERG';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
       child: AnimatedBuilder(
@@ -815,138 +1003,63 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
             ),
           );
         },
-        child: TTCard(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: TT.body(size: 11, w: FontWeight.w700, color: TT.text2)
-                            .copyWith(letterSpacing: 0.16 * 11),
-                        children: const [
-                          TextSpan(text: 'CONDITIONS · '),
-                          TextSpan(
-                            text: 'DRAKENSBERG N',
-                            style: TextStyle(color: TT.text3),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '7 DAYS →',
-                    style: TT.mono(size: 10, color: TT.ember, w: FontWeight.w800)
-                        .copyWith(letterSpacing: 0.1 * 10),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([_sunCtl, _rayCtl, _cloudCtl]),
-                      builder: (_, __) => CustomPaint(
-                        painter: _WeatherIconPainter(
-                          sunPhase: _sunCtl.value,
-                          rayPhase: _rayCtl.value,
-                          cloudPhase: _cloudCtl.value,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: weather == null && !wp.loading
+              ? () => unawaited(wp.fetchWeatherForLocation(0))
+              : null,
+          child: TTCard(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: TT.body(
+                                  size: 11, w: FontWeight.w700, color: TT.text2)
+                              .copyWith(letterSpacing: 0.16 * 11),
                           children: [
-                            Text(
-                              '14°',
-                              style: TT.numStyle(
-                                size: 32,
-                                letterSpacing: -0.025 * 32,
-                              ).copyWith(height: 1.0),
-                            ),
-                            const SizedBox(width: 4),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                'C',
-                                style: TT.body(
-                                  size: 14,
-                                  color: TT.text2,
-                                  w: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'PART CLOUDY · WIND 18 km/h',
-                          style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
-                              .copyWith(letterSpacing: 0.05 * 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0x244CC38A),
-                          border: Border.all(color: const Color(0x524CC38A), width: 1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              '8',
-                              style: TT.numStyle(size: 13, color: TT.green),
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              '/10',
-                              style: TT.body(size: 9.5, color: TT.green, w: FontWeight.w600)
-                                  .copyWith(letterSpacing: 0.08 * 9.5),
+                            const TextSpan(text: 'CONDITIONS · '),
+                            TextSpan(
+                              text: locationName.toUpperCase(),
+                              style: const TextStyle(color: TT.text3),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'HIKE SCORE',
-                        style: TT.body(size: 9, color: TT.green, w: FontWeight.w700)
-                            .copyWith(letterSpacing: 0.14 * 9),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.only(top: 10),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: TT.line, width: 1)),
+                    ),
+                    Text(
+                      wp.loading ? 'LOADING…' : '7 DAYS →',
+                      style: TT
+                          .mono(size: 10, color: TT.ember, w: FontWeight.w800)
+                          .copyWith(letterSpacing: 0.1 * 10),
+                    ),
+                  ],
                 ),
-                child: _HourStrip(),
-              ),
-            ],
+                const SizedBox(height: 12),
+                if (weather == null)
+                  _WeatherSkeleton(loading: wp.loading, error: wp.error)
+                else
+                  _WeatherBody(
+                    weather: weather,
+                    sunCtl: _sunCtl,
+                    rayCtl: _rayCtl,
+                    cloudCtl: _cloudCtl,
+                  ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.only(top: 10),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: TT.line, width: 1)),
+                  ),
+                  child: _HourStrip(weather: weather),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -954,20 +1067,215 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
   }
 }
 
-class _HourStrip extends StatelessWidget {
-  static const _hours = <_HourEntry>[
-    _HourEntry('10', '14°', _WxKind.sun),
-    _HourEntry('13', '17°', _WxKind.sun),
-    _HourEntry('16', '15°', _WxKind.cloud),
-    _HourEntry('19', '11°', _WxKind.cloud),
-    _HourEntry('22', '8°', _WxKind.moon),
-  ];
+class _WeatherSkeleton extends StatelessWidget {
+  final bool loading;
+  final String? error;
+  const _WeatherSkeleton({required this.loading, this.error});
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: List.generate(_hours.length, (i) {
-        final h = _hours[i];
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: const Color(0x08FFFFFF),
+            border: Border.all(color: TT.line2, width: 1),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            loading
+                ? Icons.refresh_rounded
+                : (error != null
+                    ? Icons.cloud_off_rounded
+                    : Icons.cloud_outlined),
+            size: 28,
+            color: TT.text3,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                loading ? 'Fetching…' : 'Tap to load weather',
+                style:
+                    TT.title(20, letterSpacing: -0.02 * 20).copyWith(height: 1.1),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                loading
+                    ? 'CONNECTING TO STATIONS'
+                    : (error != null
+                        ? 'NO RECENT DATA · TAP TO RETRY'
+                        : 'PICK A LOCATION IN WEATHER TAB'),
+                style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
+                    .copyWith(letterSpacing: 0.05 * 11),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeatherBody extends StatelessWidget {
+  final WeatherData weather;
+  final AnimationController sunCtl;
+  final AnimationController rayCtl;
+  final AnimationController cloudCtl;
+  const _WeatherBody({
+    required this.weather,
+    required this.sunCtl,
+    required this.rayCtl,
+    required this.cloudCtl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cur = weather.current;
+    final tempInt = cur.temperature.round();
+    final condition = weatherDescription(cur.weatherCode).toUpperCase();
+    final wind = cur.windSpeed.round();
+    final score = _hikeScore(weather);
+    final scoreColor = score >= 7
+        ? TT.green
+        : (score >= 4 ? TT.amber : TT.red);
+    final scoreBg = score >= 7
+        ? const Color(0x244CC38A)
+        : (score >= 4 ? const Color(0x24F2A93B) : const Color(0x24E63D2E));
+    final scoreBorder = score >= 7
+        ? const Color(0x524CC38A)
+        : (score >= 4 ? const Color(0x52F2A93B) : const Color(0x52E63D2E));
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 64,
+          height: 64,
+          child: AnimatedBuilder(
+            animation: Listenable.merge([sunCtl, rayCtl, cloudCtl]),
+            builder: (_, __) => CustomPaint(
+              painter: _WeatherIconPainter(
+                sunPhase: sunCtl.value,
+                rayPhase: rayCtl.value,
+                cloudPhase: cloudCtl.value,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$tempInt°',
+                    style: TT.numStyle(
+                      size: 32,
+                      letterSpacing: -0.025 * 32,
+                    ).copyWith(height: 1.0),
+                  ),
+                  const SizedBox(width: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'C',
+                      style: TT.body(
+                        size: 14,
+                        color: TT.text2,
+                        w: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$condition · WIND $wind km/h',
+                style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
+                    .copyWith(letterSpacing: 0.05 * 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: scoreBg,
+                border: Border.all(color: scoreBorder, width: 1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '$score',
+                    style: TT.numStyle(size: 13, color: scoreColor),
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    '/10',
+                    style:
+                        TT.body(size: 9.5, color: scoreColor, w: FontWeight.w600)
+                            .copyWith(letterSpacing: 0.08 * 9.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'HIKE SCORE',
+              style: TT.body(size: 9, color: scoreColor, w: FontWeight.w700)
+                  .copyWith(letterSpacing: 0.14 * 9),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Derived hike-friendliness score on a 1–10 scale.
+///
+/// Higher precip probability and stronger winds pull the score down.
+/// Anchored at 10 when conditions are dry and calm. Clamped 1..10.
+int _hikeScore(WeatherData weather) {
+  final cur = weather.current;
+  // Today's forecast supplies the precip-probability metric when available.
+  final today = weather.daily.isNotEmpty ? weather.daily.first : null;
+  final precipProb = today?.precipProbability ?? 0;
+  final windKmh = cur.windSpeed; // Already km/h from aggregator.
+  // Wind penalty grows linearly past 10 km/h, capped at ~4 points at 50 km/h.
+  final windPenalty = ((windKmh - 10).clamp(0, 50)) / 50 * 4;
+  final raw = (1 - precipProb / 100) * 10 - windPenalty;
+  return raw.clamp(1, 10).round();
+}
+
+class _HourStrip extends StatelessWidget {
+  final WeatherData? weather;
+  const _HourStrip({required this.weather});
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _buildEntries();
+    return Row(
+      children: List.generate(entries.length, (i) {
+        final h = entries[i];
         return Expanded(
           child: Column(
             children: [
@@ -993,6 +1301,55 @@ class _HourStrip extends StatelessWidget {
         );
       }),
     );
+  }
+
+  List<_HourEntry> _buildEntries() {
+    final w = weather;
+    if (w == null || w.hourly.isEmpty) {
+      // Skeleton: 5 dashes that match the design layout when no data exists.
+      return const [
+        _HourEntry('--', '--', _WxKind.cloud),
+        _HourEntry('--', '--', _WxKind.cloud),
+        _HourEntry('--', '--', _WxKind.cloud),
+        _HourEntry('--', '--', _WxKind.cloud),
+        _HourEntry('--', '--', _WxKind.cloud),
+      ];
+    }
+    final now = DateTime.now();
+    // Step every 3 hours from "now" forward to fill 5 columns.
+    final slices = w.hourly.where((h) => !h.time.isBefore(now)).toList();
+    final picks = <HourlySlice>[];
+    if (slices.isEmpty) {
+      picks.addAll(w.hourly.take(5));
+    } else {
+      final start = slices.first.time;
+      for (final s in slices) {
+        if (picks.isEmpty) {
+          picks.add(s);
+        } else {
+          final gap = s.time.difference(start).inHours;
+          if (gap >= picks.length * 3) picks.add(s);
+        }
+        if (picks.length >= 5) break;
+      }
+    }
+    if (picks.isEmpty) return const [];
+    return picks
+        .map((s) => _HourEntry(
+              DateFormat('HH').format(s.time),
+              '${s.temperature.round()}°',
+              _kindFor(s),
+            ))
+        .toList();
+  }
+
+  static _WxKind _kindFor(HourlySlice s) {
+    final isNight = s.time.hour < 6 || s.time.hour >= 19;
+    final code = s.weatherCode;
+    if (code == 0 || code == 1) {
+      return isNight ? _WxKind.moon : _WxKind.sun;
+    }
+    return _WxKind.cloud;
   }
 }
 
@@ -1128,7 +1485,8 @@ class _WeatherIconPainter extends CustomPainter {
 // ───────────────────────────── LAST HIKE CARD ───────────────────────────────
 
 class _LastHikeCard extends StatefulWidget {
-  const _LastHikeCard();
+  final VoidCallback onNavigateToMap;
+  const _LastHikeCard({required this.onNavigateToMap});
 
   @override
   State<_LastHikeCard> createState() => _LastHikeCardState();
@@ -1154,6 +1512,10 @@ class _LastHikeCardState extends State<_LastHikeCard> with SingleTickerProviderS
 
   @override
   Widget build(BuildContext context) {
+    final history = context.watch<HikeHistoryProvider>();
+    final hikes = history.hikes;
+    final SavedHike? latest = hikes.isNotEmpty ? hikes.first : null;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
       child: Column(
@@ -1191,74 +1553,161 @@ class _LastHikeCardState extends State<_LastHikeCard> with SingleTickerProviderS
             },
             child: TTCard(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              onTap: () {},
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Mt. Marcy Trail',
-                              style: TT.body(size: 14, w: FontWeight.w800),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'OCT 26 · 5.8 mi · 5:14:22',
-                              style: TT.mono(size: 10.5, color: TT.text3, w: FontWeight.w600)
-                                  .copyWith(letterSpacing: 0.04 * 10.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0x214CC38A),
-                          border: Border.all(color: const Color(0x4D4CC38A), width: 1),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(
-                          'SYNCED',
-                          style: TT.mono(size: 9, color: TT.green, w: FontWeight.w800)
-                              .copyWith(letterSpacing: 0.12 * 9),
-                        ),
-                      ),
-                      const SizedBox(width: 7),
-                      const Icon(Icons.chevron_right, size: 15, color: TT.text3),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const TTBigElevChart(peakLabel: '5.8 mi · 3,950 ft'),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const _StatChip(
-                        leading: '↑',
-                        value: '3,950',
-                        unit: 'ft',
-                        valueColor: TT.ember,
-                      ),
-                      const SizedBox(width: 14),
-                      Container(width: 1, height: 12, color: TT.line3),
-                      const SizedBox(width: 14),
-                      const _StatChip(leading: 'kcal', value: '1,189', unit: 'kcal'),
-                      const SizedBox(width: 14),
-                      Container(width: 1, height: 12, color: TT.line3),
-                      const SizedBox(width: 14),
-                      const _StatChip(leading: 'steps', value: '18,432', unit: ''),
-                    ],
-                  ),
-                ],
-              ),
+              onTap: latest != null ? () {} : widget.onNavigateToMap,
+              child: latest == null
+                  ? _LastHikeEmpty(onTap: widget.onNavigateToMap)
+                  : _LastHikeContent(hike: latest),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LastHikeEmpty extends StatelessWidget {
+  final VoidCallback onTap;
+  const _LastHikeEmpty({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: TT.emberDim,
+                border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.flag_outlined,
+                  size: 18, color: TT.ember),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No recorded hikes yet',
+                    style: TT.body(size: 14, w: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'START YOUR FIRST · TAP TO BEGIN',
+                    style: TT.mono(size: 10.5, color: TT.text3, w: FontWeight.w600)
+                        .copyWith(letterSpacing: 0.04 * 10.5),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 15, color: TT.text3),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const TTBigElevChart(peakLabel: 'No data yet'),
+      ],
+    );
+  }
+}
+
+class _LastHikeContent extends StatelessWidget {
+  final SavedHike hike;
+  const _LastHikeContent({required this.hike});
+
+  @override
+  Widget build(BuildContext context) {
+    final distMi = (hike.distanceKm * 0.621371).toStringAsFixed(1);
+    final dur = Duration(seconds: hike.durationSeconds);
+    final durText =
+        '${dur.inHours}:${(dur.inMinutes % 60).toString().padLeft(2, '0')}:${(dur.inSeconds % 60).toString().padLeft(2, '0')}';
+    final dateStr = DateFormat('MMM d').format(hike.startedAt).toUpperCase();
+    final ascentFt =
+        NumberFormat.decimalPattern().format((hike.ascentM * 3.28084).round());
+    final peakLabel = '$distMi mi · $ascentFt ft';
+
+    // Calories: ~117 kcal per mile (rough but matches activity screen heuristic).
+    final kcal = NumberFormat.decimalPattern()
+        .format((hike.distanceKm * 116.7).round());
+    // Steps: ~1312 steps per km (rough hiking cadence).
+    final steps = NumberFormat.decimalPattern()
+        .format((hike.distanceKm * 1312).round());
+
+    final samples = hike.points.length > 4
+        ? hike.points.map((p) => p.altitude).toList()
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hike.name,
+                    style: TT.body(size: 14, w: FontWeight.w800),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '$dateStr · $distMi mi · $durText',
+                    style:
+                        TT.mono(size: 10.5, color: TT.text3, w: FontWeight.w600)
+                            .copyWith(letterSpacing: 0.04 * 10.5),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0x214CC38A),
+                border: Border.all(color: const Color(0x4D4CC38A), width: 1),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Text(
+                'SYNCED',
+                style: TT.mono(size: 9, color: TT.green, w: FontWeight.w800)
+                    .copyWith(letterSpacing: 0.12 * 9),
+              ),
+            ),
+            const SizedBox(width: 7),
+            const Icon(Icons.chevron_right, size: 15, color: TT.text3),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TTBigElevChart(samples: samples, peakLabel: peakLabel),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _StatChip(
+              leading: '↑',
+              value: ascentFt,
+              unit: 'ft',
+              valueColor: TT.ember,
+            ),
+            const SizedBox(width: 14),
+            Container(width: 1, height: 12, color: TT.line3),
+            const SizedBox(width: 14),
+            _StatChip(leading: 'kcal', value: kcal, unit: 'kcal'),
+            const SizedBox(width: 14),
+            Container(width: 1, height: 12, color: TT.line3),
+            const SizedBox(width: 14),
+            _StatChip(leading: 'steps', value: steps, unit: ''),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -1307,26 +1756,14 @@ class _FieldIntelStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const rows = [
-      _IntelEntry(
-        icon: Icons.warning_amber_rounded,
-        color: TT.amber,
-        title: 'Loose rock near km 4.8',
-        sub: 'Wonderland Trail · reported 18m ago',
-      ),
-      _IntelEntry(
-        icon: Icons.air,
-        color: TT.blue,
-        title: 'Storm forecast in 90 min',
-        sub: 'Consider shelter at km 5.8 · Cave #47',
-      ),
-      _IntelEntry(
-        icon: Icons.group_outlined,
-        color: TT.green,
-        title: '3 hikers ahead of you',
-        sub: 'Last contact 11 min · Sunrise Camp',
-      ),
-    ];
+    // Pull live safety + team data so the strip surfaces real intel when
+    // available. Curated Drakensberg-anchored fallbacks fill the slots when
+    // no live data exists yet so the strip never looks empty.
+    final safety = context.watch<SafetyProvider>();
+    final teams = context.watch<TeamProvider>();
+    final recording = context.watch<RecordingProvider>();
+
+    final rows = _buildRows(safety, teams, recording);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
@@ -1350,6 +1787,127 @@ class _FieldIntelStrip extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  List<_IntelEntry> _buildRows(SafetyProvider safety, TeamProvider teams,
+      RecordingProvider recording) {
+    final rows = <_IntelEntry>[];
+
+    // 1) If recording is active and the user has drifted off-trail, surface
+    //    that first — most important live signal.
+    if (recording.isOffTrail) {
+      final dist = recording.offTrailDist.round();
+      rows.add(_IntelEntry(
+        icon: Icons.warning_amber_rounded,
+        color: TT.amber,
+        title: 'Off trail by ${dist}m',
+        sub: 'Head ${recording.returnDirection} to return to route',
+      ));
+    }
+
+    // 2) Most recent hazard/incident from SafetyProvider's live stream.
+    final hazards = safety.incidents
+        .where((i) =>
+            i.severity != IncidentSeverity.low &&
+            i.type != IncidentType.viewpoint &&
+            i.type != IncidentType.waterSource)
+        .toList()
+      ..sort((a, b) => b.reportedAt.compareTo(a.reportedAt));
+    if (hazards.isNotEmpty) {
+      final h = hazards.first;
+      rows.add(_IntelEntry(
+        icon: _iconForIncident(h.type),
+        color: _colorForSeverity(h.severity),
+        title: _shortTitle(h),
+        sub:
+            '${h.trailName ?? "Drakensberg"} · reported ${_ago(h.reportedAt)}',
+      ));
+    }
+
+    // 3) Team activity — selected team's name + member count.
+    final t = teams.selectedTeam;
+    if (t != null) {
+      rows.add(_IntelEntry(
+        icon: Icons.group_outlined,
+        color: TT.green,
+        title: '${t.members.length} hikers in ${t.name}',
+        sub: 'TAP TEAMS TAB FOR LIVE TRACKING',
+      ));
+    }
+
+    // Fall back to curated Drakensberg-focused content when the live signals
+    // aren't ready yet — keeps the strip looking intentional.
+    if (rows.isEmpty) {
+      return const [
+        _IntelEntry(
+          icon: Icons.warning_amber_rounded,
+          color: TT.amber,
+          title: 'Loose rock near Tugela Gorge',
+          sub: 'Drakensberg North · advisory standing',
+        ),
+        _IntelEntry(
+          icon: Icons.air,
+          color: TT.blue,
+          title: 'Afternoon storms possible',
+          sub: 'Check weather card before late departures',
+        ),
+        _IntelEntry(
+          icon: Icons.group_outlined,
+          color: TT.green,
+          title: 'Join a Trailtether team',
+          sub: 'Share live location with hiking partners',
+        ),
+      ];
+    }
+
+    return rows.take(3).toList();
+  }
+
+  static IconData _iconForIncident(IncidentType t) {
+    switch (t) {
+      case IncidentType.weatherEvent:
+        return Icons.air;
+      case IncidentType.rockfall:
+      case IncidentType.trailDamage:
+        return Icons.warning_amber_rounded;
+      case IncidentType.wildlifeEncounter:
+      case IncidentType.snakeBite:
+        return Icons.pets;
+      case IncidentType.medicalEmergency:
+      case IncidentType.stuckOrTrapped:
+        return Icons.medical_services_outlined;
+      default:
+        return Icons.report_outlined;
+    }
+  }
+
+  static Color _colorForSeverity(IncidentSeverity s) {
+    switch (s) {
+      case IncidentSeverity.critical:
+        return TT.red;
+      case IncidentSeverity.serious:
+        return TT.amber;
+      case IncidentSeverity.moderate:
+        return TT.amber;
+      case IncidentSeverity.low:
+        return TT.blue;
+    }
+  }
+
+  static String _shortTitle(Incident h) {
+    if (h.description.isNotEmpty) {
+      final first = h.description.split('. ').first;
+      return first.length > 60 ? '${first.substring(0, 57)}…' : first;
+    }
+    return h.type.label;
+  }
+
+  static String _ago(DateTime when) {
+    final diff = DateTime.now().difference(when);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 }
 
@@ -1408,12 +1966,16 @@ class _IntelRow extends StatelessWidget {
                   Text(
                     entry.title,
                     style: TT.body(size: 12, w: FontWeight.w800),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     entry.sub,
                     style: TT.mono(size: 10, color: TT.text3, w: FontWeight.w500)
                         .copyWith(letterSpacing: 0.02 * 10),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

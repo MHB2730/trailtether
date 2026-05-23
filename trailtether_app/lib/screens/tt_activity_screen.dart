@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 
 import '../core/design_tokens.dart';
 import '../models/saved_hike.dart';
+import '../providers/auth_provider.dart';
 import '../providers/hike_history_provider.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
@@ -82,31 +83,59 @@ class _TTActivityScreenState extends State<TTActivityScreen> {
 class _AvatarBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: TT.ember, width: 2),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [Color(0xFF6B3A1A), TT.ember2],
+    return Consumer<AuthProvider>(builder: (_, auth, __) {
+      final photoUrl = auth.photoUrl;
+      final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+      return Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: TT.ember, width: 2),
+          gradient: hasPhoto
+              ? null
+              : const LinearGradient(
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [Color(0xFF6B3A1A), TT.ember2],
+                ),
+          image: hasPhoto
+              ? DecorationImage(
+                  image: NetworkImage(photoUrl),
+                  fit: BoxFit.cover,
+                )
+              : null,
+          boxShadow: const [BoxShadow(color: Color(0x66FF6A2C), blurRadius: 12, spreadRadius: 0)],
         ),
-        boxShadow: const [BoxShadow(color: Color(0x66FF6A2C), blurRadius: 12, spreadRadius: 0)],
-      ),
-      alignment: Alignment.center,
-      child: Text(_initials(context), style: TT.body(size: 13, w: FontWeight.w800, color: Colors.white)),
-    );
+        alignment: Alignment.center,
+        child: hasPhoto
+            ? null
+            : Text(_initials(auth),
+                style: TT.body(size: 13, w: FontWeight.w800, color: Colors.white)),
+      );
+    });
   }
 
-  String _initials(BuildContext context) {
-    // Best-effort: try to derive from auth user via Provider if available.
-    try {
-      // Avoid hard dependency on auth_provider to keep this widget reusable.
-      return 'JD';
-    } catch (_) {
-      return 'JD';
+  String _initials(AuthProvider auth) {
+    final name = (auth.displayName ?? '').trim();
+    if (name.isNotEmpty) {
+      final parts = name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      if (parts.length >= 2) {
+        return (parts.first[0] + parts.last[0]).toUpperCase();
+      }
+      if (parts.isNotEmpty && parts.first.length >= 2) {
+        return parts.first.substring(0, 2).toUpperCase();
+      }
+      if (parts.isNotEmpty) {
+        return parts.first[0].toUpperCase();
+      }
     }
+    final email = (auth.email ?? '').trim();
+    if (email.isNotEmpty) {
+      final local = email.split('@').first;
+      if (local.length >= 2) return local.substring(0, 2).toUpperCase();
+      if (local.isNotEmpty) return local[0].toUpperCase();
+    }
+    return '--';
   }
 }
 
@@ -139,17 +168,39 @@ class _FeaturedHike extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = latest?.name ?? 'Mt. Marcy Trail';
-    final date = latest != null
-        ? DateFormat('MMM d, y').format(latest!.startedAt).toUpperCase()
-        : 'OCT 26, 2026';
-    final dist = latest != null ? (latest!.distanceKm * 0.621371).toStringAsFixed(1) : '5.8';
-    final ascent = latest != null
-        ? NumberFormat.decimalPattern().format((latest!.ascentM * 3.28084).round())
-        : '3,950';
-    final samples = latest != null && latest!.points.length > 4
-        ? latest!.points.map((p) => p.altitude).toList()
-        : null;
+    if (latest == null) {
+      return TTCard(
+        padding: const EdgeInsets.fromLTRB(18, 28, 18, 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Opacity(
+              opacity: 0.35,
+              child: Icon(Icons.landscape_outlined, size: 56, color: TT.text2),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'No recorded hikes yet',
+              textAlign: TextAlign.center,
+              style: TT.title(16, letterSpacing: -0.01 * 16),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Tap Start Hike on the Map to record one',
+              textAlign: TextAlign.center,
+              style: TT.body(size: 12.5, color: TT.text3),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final h = latest!;
+    final name = h.name;
+    final date = DateFormat('MMM d, y').format(h.startedAt).toUpperCase();
+    final dist = (h.distanceKm * 0.621371).toStringAsFixed(1);
+    final ascent = NumberFormat.decimalPattern().format((h.ascentM * 3.28084).round());
+    final samples = h.points.length > 4 ? h.points.map((p) => p.altitude).toList() : null;
 
     return TTCard(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
@@ -402,7 +453,11 @@ class _RecentActivity extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = hikes.isEmpty ? _placeholder() : hikes.map(_fromHike).toList();
+    // Caller passes `hikes.sublist(1, ...)`, so an empty list here means there
+    // is at most one recorded hike — hide the section entirely rather than
+    // showing fake placeholder rows.
+    if (hikes.isEmpty) return const SizedBox.shrink();
+    final entries = hikes.map(_fromHike).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -430,12 +485,6 @@ class _RecentActivity extends StatelessWidget {
       ],
     );
   }
-
-  static List<_ActivityEntry> _placeholder() => const [
-        _ActivityEntry(name: 'Bear Creek',      date: 'Oct 21', dist: '6.4 mi', gain: '+1,250'),
-        _ActivityEntry(name: 'Cascade Mtn',     date: 'Oct 18', dist: '5.1 mi', gain: '+1,880'),
-        _ActivityEntry(name: 'Pinecrest Ridge', date: 'Oct 12', dist: '8.2 mi', gain: '+2,140'),
-      ];
 
   static _ActivityEntry _fromHike(SavedHike h) => _ActivityEntry(
         name: h.name,

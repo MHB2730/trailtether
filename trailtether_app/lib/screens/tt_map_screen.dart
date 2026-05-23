@@ -1,19 +1,27 @@
 // Trailtether 2.0 — Map / Peak Tracker screen.
 //
-// Recreates project/screens/maps.jsx from the design bundle: full-bleed
-// topographic map (custom painter) with animated route, You / Summit / Start
-// markers, KM markers, floating glass stat cards, zoom + crosshair + layer
-// controls, scale bar, and a bottom RecordingPanel with Pause / Stop buttons
-// and a mini elevation chart. Self-contained — does not touch providers.
+// Real flutter_map backed implementation that keeps the v3.0 visual treatment
+// (floating glass stat cards, ember route polyline, bottom RecordingPanel)
+// but drives all data through the live providers: RecordingProvider (active
+// trail / stats / points), StaticDataProvider (route overlays), and the
+// OfflineMapService tile provider for cached tiles.
 
+import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show PathMetric;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' hide Path;
+import 'package:provider/provider.dart';
 
+import '../core/constants.dart';
 import '../core/design_tokens.dart';
+import '../providers/recording_provider.dart';
+import '../providers/static_data_provider.dart';
+import '../services/location_service.dart';
+import '../services/offline_map_service.dart';
 import '../widgets/design/tt_app_bar.dart';
-import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
 
@@ -27,24 +35,133 @@ class TTMapScreen extends StatefulWidget {
 
 class _TTMapScreenState extends State<TTMapScreen>
     with TickerProviderStateMixin {
-  // Drives the route draw + dashed traversed trace.
-  late final AnimationController _routeCtl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
+  // Live flutter_map controller.
+  final MapController _mapCtrl = MapController();
+
+  // Tile style index into kMapTileStyles.
+  int _tileStyleIndex = 0; // 0 = Outdoor / OpenTopoMap
+
+  // Live GPS position (drives the user marker + recenter).
+  LatLng? _currentLatLng;
+  double? _currentHeading;
+  StreamSubscription<Position>? _positionSub;
+
+  // Drives the route draw + panel entry anim.
+  late final AnimationController _entryCtl =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 200), () {
-      if (mounted) _routeCtl.forward();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _entryCtl.forward();
     });
+    _startLocationStream();
+  }
+
+  Future<void> _startLocationStream() async {
+    final ok = await LocationService.requestPermission();
+    if (!ok) return;
+    _positionSub = LocationService.smoothedPositionStream.listen(
+      (pos) {
+        if (!mounted) return;
+        setState(() {
+          _currentLatLng = LatLng(pos.latitude, pos.longitude);
+          _currentHeading = pos.heading;
+        });
+      },
+      onError: (_) {},
+      cancelOnError: false,
+    );
   }
 
   @override
   void dispose() {
-    _routeCtl.dispose();
+    _entryCtl.dispose();
+    _positionSub?.cancel();
     super.dispose();
   }
 
+  // ── Map control handlers ───────────────────────────────────────────────────
+  void _zoomIn() {
+    final z = _mapCtrl.camera.zoom;
+    _mapCtrl.move(_mapCtrl.camera.center, (z + 1).clamp(2.0, 20.0));
+  }
+
+  void _zoomOut() {
+    final z = _mapCtrl.camera.zoom;
+    _mapCtrl.move(_mapCtrl.camera.center, (z - 1).clamp(2.0, 20.0));
+  }
+
+  void _recenter() {
+    final p = _currentLatLng;
+    if (p != null) {
+      _mapCtrl.move(p, math.max(_mapCtrl.camera.zoom, 14.0));
+    } else {
+      _mapCtrl.move(LatLng(kWorldMapCenter.lat, kWorldMapCenter.lon),
+          kWorldMapZoomInit);
+    }
+  }
+
+  void _openLayerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: TT.bg2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rLg)),
+      ),
+      builder: (_) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: TT.line3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text('MAP STYLE',
+                  style: TT.label(size: 11, color: TT.text2, letterSpacing: 1.6)),
+              const SizedBox(height: 10),
+              for (var i = 0; i < kMapTileStyles.length; i++)
+                _LayerOption(
+                  label: kMapTileStyles[i].label,
+                  iconLabel: kMapTileStyles[i].iconLabel,
+                  selected: i == _tileStyleIndex,
+                  onTap: () {
+                    setState(() => _tileStyleIndex = i);
+                    Navigator.of(context).pop();
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Recording actions ──────────────────────────────────────────────────────
+  Future<void> _startRecording() async {
+    final rec = context.read<RecordingProvider>();
+    final ok = await rec.start();
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Location permission required to start recording.')),
+      );
+    }
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final body = SafeArea(
@@ -62,8 +179,23 @@ class _TTMapScreenState extends State<TTMapScreen>
           Expanded(
             child: Column(
               children: [
-                Expanded(child: _MapView(routeCtl: _routeCtl)),
-                _RecordingPanel(),
+                Expanded(
+                  child: _MapView(
+                    mapCtrl: _mapCtrl,
+                    tileStyleIndex: _tileStyleIndex,
+                    currentLatLng: _currentLatLng,
+                    currentHeading: _currentHeading,
+                    entryCtl: _entryCtl,
+                    onZoomIn: _zoomIn,
+                    onZoomOut: _zoomOut,
+                    onRecenter: _recenter,
+                    onOpenLayers: _openLayerSheet,
+                  ),
+                ),
+                _RecordingPanel(
+                  entryCtl: _entryCtl,
+                  onStart: _startRecording,
+                ),
               ],
             ),
           ),
@@ -79,613 +211,287 @@ class _TTMapScreenState extends State<TTMapScreen>
 // ───────────────────────────── MAP VIEW ──────────────────────────────────────
 
 class _MapView extends StatelessWidget {
-  final AnimationController routeCtl;
-  const _MapView({required this.routeCtl});
+  final MapController mapCtrl;
+  final int tileStyleIndex;
+  final LatLng? currentLatLng;
+  final double? currentHeading;
+  final AnimationController entryCtl;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onRecenter;
+  final VoidCallback onOpenLayers;
+
+  const _MapView({
+    required this.mapCtrl,
+    required this.tileStyleIndex,
+    required this.currentLatLng,
+    required this.currentHeading,
+    required this.entryCtl,
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onRecenter,
+    required this.onOpenLayers,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final data = context.watch<StaticDataProvider>();
+    final recording = context.watch<RecordingProvider>();
+
+    final style = kMapTileStyles[tileStyleIndex.clamp(0, kMapTileStyles.length - 1)];
+
+    // ── Polylines ──
+    final polylines = <Polyline>[];
+
+    // All known trails as faint background routes (so the map isn't empty).
+    for (final t in data.allTrails) {
+      if (t.coords.isEmpty) continue;
+      final pts = t.coords.map((c) => LatLng(c.lat, c.lon)).toList();
+      polylines.add(Polyline(
+        points: pts,
+        color: const Color(0x4DFF6A2C),
+        strokeWidth: 1.6,
+        strokeCap: StrokeCap.round,
+        strokeJoin: StrokeJoin.round,
+      ));
+    }
+
+    // Active recording route — ember glow + sharp stroke.
+    if (recording.points.length >= 2) {
+      final recPts = recording.points.map((p) => p.toLatLng).toList();
+      polylines.add(Polyline(
+        points: recPts,
+        color: const Color(0x66FF6A2C),
+        strokeWidth: 8.0,
+        strokeCap: StrokeCap.round,
+        strokeJoin: StrokeJoin.round,
+      ));
+      polylines.add(Polyline(
+        points: recPts,
+        color: TT.ember,
+        strokeWidth: 3.5,
+        strokeCap: StrokeCap.round,
+        strokeJoin: StrokeJoin.round,
+      ));
+    }
+
+    // ── Markers ──
+    final markers = <Marker>[];
+
+    // Recording start dot.
+    if (recording.points.isNotEmpty) {
+      final start = recording.points.first.toLatLng;
+      markers.add(Marker(
+        point: start,
+        width: 18,
+        height: 18,
+        child: const _StartDot(),
+      ));
+    }
+
+    // User position pulse.
+    if (currentLatLng != null) {
+      markers.add(Marker(
+        point: currentLatLng!,
+        width: 56,
+        height: 56,
+        child: const _YouMarker(),
+      ));
+    }
+
     return ClipRect(
-      child: Container(
-        color: const Color(0xFF0A0C0F),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Topographic map (contours + labels + lakes + route + markers)
-            AnimatedBuilder(
-              animation: routeCtl,
-              builder: (_, __) => CustomPaint(
-                painter: _TopoMapPainter(progress: routeCtl.value),
-                size: Size.infinite,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Real map underlay.
+          AnimatedBuilder(
+            animation: entryCtl,
+            builder: (_, child) {
+              final t = TT.easeOut.transform(entryCtl.value);
+              return Opacity(opacity: 0.4 + 0.6 * t, child: child);
+            },
+            child: FlutterMap(
+              mapController: mapCtrl,
+              options: MapOptions(
+                initialCenter: currentLatLng ??
+                    LatLng(kWorldMapCenter.lat, kWorldMapCenter.lon),
+                initialZoom: kWorldMapZoomInit,
+                minZoom: 2,
+                maxZoom: 20,
+                backgroundColor: const Color(0xFF06080B),
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all,
+                  enableMultiFingerGestureRace: true,
+                ),
               ),
+              children: [
+                TileLayer(
+                  key: ValueKey('tile_$tileStyleIndex'),
+                  urlTemplate: style.url,
+                  tileProvider: OfflineMapService.tileProvider(),
+                  userAgentPackageName: 'com.trailtether.app',
+                  maxZoom: style.maxZoom,
+                ),
+                PolylineLayer(polylines: polylines),
+                MarkerLayer(markers: markers),
+              ],
             ),
+          ),
 
-            // KM markers fade in on top of the painter
-            const Positioned.fill(child: _KmMarkers()),
-
-            // You / Summit / Start markers pop in
-            const Positioned.fill(child: _RouteMarkers()),
-
-            // Floating top stat cards
-            const Positioned(
-              top: 12,
-              left: 14,
-              right: 14,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _AnimUp(
-                      delay: Duration(milliseconds: 120),
-                      child: _FloatingStat(
-                        icon: Icons.navigation,
-                        label: 'Distance',
-                        value: '4.8',
-                        unit: 'km',
-                        sublabel: 'Completed',
-                        countDelayMs: 320,
-                      ),
+          // Floating top stat cards.
+          Positioned(
+            top: 12,
+            left: 14,
+            right: 14,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _AnimUp(
+                    delay: const Duration(milliseconds: 120),
+                    child: _FloatingStat(
+                      icon: Icons.navigation,
+                      label: 'Distance',
+                      value: _formatMiles(recording.distanceKm),
+                      unit: 'mi',
+                      sublabel: recording.isRecording
+                          ? 'Recording'
+                          : (recording.points.isEmpty ? 'No data' : 'Last hike'),
                     ),
                   ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: _AnimUp(
-                      delay: Duration(milliseconds: 220),
-                      child: _FloatingStat(
-                        icon: Icons.schedule,
-                        label: 'Time',
-                        value: '2h 15m',
-                        sublabel: 'Duration',
-                        countDelayMs: 420,
-                      ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _AnimUp(
+                    delay: const Duration(milliseconds: 220),
+                    child: _FloatingStat(
+                      icon: Icons.schedule,
+                      label: 'Time',
+                      value: _formatDurationShort(recording.duration),
+                      sublabel: 'Duration',
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
 
-            // Right-side controls
-            const Positioned(
-              top: 152,
-              right: 14,
-              child: _MapControls(),
+          // Right-side controls.
+          Positioned(
+            top: 152,
+            right: 14,
+            child: _MapControls(
+              onZoomIn: onZoomIn,
+              onZoomOut: onZoomOut,
+              onRecenter: onRecenter,
+              onOpenLayers: onOpenLayers,
             ),
+          ),
 
-            // Scale bar
-            const Positioned(
-              bottom: 14,
-              left: 14,
-              child: _AnimUp(
-                delay: Duration(milliseconds: 900),
-                child: _ScaleBar(),
-              ),
+          // Tile attribution / style label.
+          Positioned(
+            bottom: 14,
+            left: 14,
+            child: _AnimUp(
+              delay: const Duration(milliseconds: 900),
+              child: _ScaleBar(label: style.iconLabel),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────── ROUTE GEOMETRY ──────────────────────────────────
-//
-// All marker positions and the route path are defined in a fixed 412 × 460
-// design space and rescaled to the actual canvas size. This mirrors the
-// SVG viewBox in maps.jsx so the layout matches the design exactly.
-
-class _RouteGeo {
-  static const double w = 412;
-  static const double h = 460;
-
-  static const Offset you = Offset(170, 230);
-  static const Offset summit = Offset(340, 100);
-  static const Offset start = Offset(70, 410);
-
-  // KM marker positions (label, position, animation delay)
-  static const List<_KmMarker> kms = [
-    _KmMarker(label: '5 km', pos: Offset(80, 320), delay: Duration(milliseconds: 1100)),
-    _KmMarker(label: '10 km', pos: Offset(225, 230), delay: Duration(milliseconds: 1300)),
-    _KmMarker(label: '15 km', pos: Offset(325, 155), delay: Duration(milliseconds: 1500)),
-  ];
-
-  /// Build the route path scaled to [size]. Mirrors:
-  ///   M 70 410 Q 50 350 80 290 Q 120 240 170 230
-  ///   Q 230 230 270 200 Q 320 170 340 130 L 340 100
-  static Path routePath(Size size) {
-    final sx = size.width / w;
-    final sy = size.height / h;
-    Offset p(double x, double y) => Offset(x * sx, y * sy);
-    final path = Path()
-      ..moveTo(p(70, 410).dx, p(70, 410).dy)
-      ..quadraticBezierTo(p(50, 350).dx, p(50, 350).dy, p(80, 290).dx, p(80, 290).dy)
-      ..quadraticBezierTo(p(120, 240).dx, p(120, 240).dy, p(170, 230).dx, p(170, 230).dy)
-      ..quadraticBezierTo(p(230, 230).dx, p(230, 230).dy, p(270, 200).dx, p(270, 200).dy)
-      ..quadraticBezierTo(p(320, 170).dx, p(320, 170).dy, p(340, 130).dx, p(340, 130).dy)
-      ..lineTo(p(340, 100).dx, p(340, 100).dy);
-    return path;
-  }
-
-  static Offset scale(Offset designPt, Size size) =>
-      Offset(designPt.dx / w * size.width, designPt.dy / h * size.height);
-}
-
-class _KmMarker {
-  final String label;
-  final Offset pos;
-  final Duration delay;
-  const _KmMarker({required this.label, required this.pos, required this.delay});
-}
-
-// ─────────────────────────── TOPO MAP PAINTER ────────────────────────────────
-
-class _TopoMapPainter extends CustomPainter {
-  /// 0..1 — animates the route draw and the dashed traversed trace.
-  final double progress;
-  _TopoMapPainter({required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // 1) Base background
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF06080B));
-
-    // 2) Radial terrain glow (warm centre)
-    final terrainRect = Offset.zero & size;
-    final terrainPaint = Paint()
-      ..shader = const RadialGradient(
-        center: Alignment(0, -0.2),
-        radius: 0.95,
-        colors: [
-          Color(0xCC1D242C),
-          Color(0x9911161C),
-          Color(0x0006080B),
+          ),
         ],
-        stops: [0.0, 0.55, 1.0],
-      ).createShader(terrainRect);
-    canvas.drawRect(terrainRect, terrainPaint);
-
-    // 3) Contour lines — two stacked layers (light + darker)
-    _drawContours(
-      canvas,
-      size,
-      const [
-        [Offset(-20, 400), Offset(100, 380), Offset(200, 380), Offset(440, 390)],
-        [Offset(-20, 360), Offset(100, 330), Offset(200, 335), Offset(440, 355)],
-        [Offset(-20, 320), Offset(100, 260), Offset(220, 270), Offset(440, 310)],
-        [Offset(0, 280), Offset(120, 200), Offset(230, 215), Offset(440, 260)],
-        [Offset(30, 240), Offset(140, 160), Offset(240, 175), Offset(420, 220)],
-        [Offset(60, 210), Offset(160, 130), Offset(250, 145), Offset(400, 200)],
-        [Offset(90, 180), Offset(190, 110), Offset(250, 130), Offset(380, 180)],
-        [Offset(120, 160), Offset(200, 110), Offset(250, 120), Offset(360, 150)],
-        [Offset(150, 140), Offset(210, 110), Offset(250, 115), Offset(340, 135)],
-      ],
-      strokeColor: const Color(0x8C2A3038),
-      strokeWidth: 0.5,
-    );
-    _drawContours(
-      canvas,
-      size,
-      const [
-        [Offset(-20, 420), Offset(100, 400), Offset(200, 398), Offset(440, 410)],
-        [Offset(-20, 380), Offset(100, 360), Offset(200, 358), Offset(440, 370)],
-        [Offset(-20, 340), Offset(100, 300), Offset(200, 305), Offset(440, 330)],
-        [Offset(-20, 300), Offset(120, 230), Offset(220, 245), Offset(440, 285)],
-        [Offset(20, 260), Offset(140, 180), Offset(240, 195), Offset(430, 240)],
-        [Offset(50, 225), Offset(150, 150), Offset(250, 165), Offset(410, 210)],
-      ],
-      strokeColor: const Color(0xA61C2127),
-      strokeWidth: 0.4,
-    );
-
-    // 4) Lakes — subtle blue ellipses
-    final lakePaint1 = Paint()..color = const Color(0xB3162A3C);
-    final lakePaint2 = Paint()..color = const Color(0x8C162A3C);
-    final lake1 = _scaleOffset(const Offset(48, 380), size);
-    final lake2 = _scaleOffset(const Offset(360, 280), size);
-    final sx = size.width / _RouteGeo.w;
-    final sy = size.height / _RouteGeo.h;
-    canvas.drawOval(
-      Rect.fromCenter(center: lake1, width: 44 * sx, height: 16 * sy),
-      lakePaint1,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: lake2, width: 28 * sx, height: 12 * sy),
-      lakePaint2,
-    );
-
-    // 5) Region labels
-    _drawLabel(
-      canvas,
-      'NISQUALLY  VALLEY',
-      _scaleOffset(const Offset(200, 350), size),
-      const TextStyle(
-        color: Color(0xFF3D454D),
-        fontFamily: 'Manrope',
-        fontSize: 9,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.98,
       ),
     );
-    _drawLabel(
-      canvas,
-      'PARADISE  RIDGE',
-      _scaleOffset(const Offset(80, 200), size),
-      const TextStyle(
-        color: Color(0xFF3D454D),
-        fontFamily: 'Manrope',
-        fontSize: 8,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.44,
-      ),
-    );
-
-    // 6) Route — shadow + animated glow + animated sharp stroke + dashed trace
-    final routePath = _RouteGeo.routePath(size);
-    final metrics = routePath.computeMetrics().toList();
-    final totalLen = metrics.fold<double>(0, (a, m) => a + m.length);
-
-    // Shadow (always full)
-    canvas.drawPath(
-      routePath,
-      Paint()
-        ..color = const Color(0x8C000000)
-        ..strokeWidth = 9
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    // Animated glow + sharp stroke (staggered)
-    final glowProgress = (progress * 1.0).clamp(0.0, 1.0);
-    final sharpProgress = ((progress - 0.04) * 1.04).clamp(0.0, 1.0);
-    final tracerProgress = ((progress - 0.10) * 1.11).clamp(0.0, 1.0);
-
-    _drawPartialPath(canvas, metrics, totalLen, glowProgress,
-        Paint()
-          ..color = const Color(0x66FF6A2C)
-          ..strokeWidth = 6
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.2));
-    _drawPartialPath(canvas, metrics, totalLen, sharpProgress,
-        Paint()
-          ..color = TT.ember2
-          ..strokeWidth = 3
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round);
-
-    // Dashed traversed trace — uses extractPath on tiny dash segments
-    if (tracerProgress > 0) {
-      final dashPaint = Paint()
-        ..color = const Color(0x73FFFFFF)
-        ..strokeWidth = 1.2
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.butt;
-      _drawDashedPartial(canvas, metrics, totalLen, tracerProgress, dashPaint,
-          dashOn: 2, dashOff: 7);
-    }
   }
-
-  void _drawContours(
-    Canvas canvas,
-    Size size,
-    List<List<Offset>> waves, {
-    required Color strokeColor,
-    required double strokeWidth,
-  }) {
-    final paint = Paint()
-      ..color = strokeColor
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    for (final pts in waves) {
-      if (pts.length < 4) continue;
-      final s = <Offset>[];
-      for (final o in pts) {
-        s.add(_scaleOffset(o, size));
-      }
-      // SVG-style Q with smooth-T mirroring. Mock JSX uses Q + T; we use a
-      // simple quadratic through the first three then a smooth second segment.
-      final path = Path()..moveTo(s[0].dx, s[0].dy);
-      final c1 = s[1];
-      final mid = s[2];
-      path.quadraticBezierTo(c1.dx, c1.dy, mid.dx, mid.dy);
-      // Smooth-T reflection: control point reflected across mid.
-      final c2 = Offset(2 * mid.dx - c1.dx, 2 * mid.dy - c1.dy);
-      path.quadraticBezierTo(c2.dx, c2.dy, s[3].dx, s[3].dy);
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  void _drawPartialPath(
-    Canvas canvas,
-    List<PathMetric> metrics,
-    double totalLen,
-    double progress,
-    Paint paint,
-  ) {
-    if (progress <= 0) return;
-    final target = totalLen * progress;
-    double drawn = 0;
-    for (final m in metrics) {
-      if (drawn >= target) break;
-      final remain = target - drawn;
-      final segLen = math.min(m.length, remain);
-      final extracted = m.extractPath(0, segLen);
-      canvas.drawPath(extracted, paint);
-      drawn += segLen;
-    }
-  }
-
-  void _drawDashedPartial(
-    Canvas canvas,
-    List<PathMetric> metrics,
-    double totalLen,
-    double progress,
-    Paint paint, {
-    required double dashOn,
-    required double dashOff,
-  }) {
-    final target = totalLen * progress;
-    double drawn = 0;
-    for (final m in metrics) {
-      if (drawn >= target) break;
-      double pos = 0;
-      while (pos < m.length && drawn < target) {
-        final remainTarget = target - drawn;
-        final on = math.min(dashOn, math.min(m.length - pos, remainTarget));
-        if (on <= 0) break;
-        canvas.drawPath(m.extractPath(pos, pos + on), paint);
-        pos += on;
-        drawn += on;
-        pos += dashOff;
-      }
-    }
-  }
-
-  Offset _scaleOffset(Offset designPt, Size size) =>
-      Offset(designPt.dx / _RouteGeo.w * size.width,
-          designPt.dy / _RouteGeo.h * size.height);
-
-  void _drawLabel(Canvas canvas, String text, Offset center, TextStyle style) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-    )..layout();
-    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy - tp.height / 2));
-  }
-
-  @override
-  bool shouldRepaint(_TopoMapPainter old) => old.progress != progress;
 }
 
-// ───────────────────────── KM MARKERS OVERLAY ────────────────────────────────
+// ──────────────────────────── MARKERS ──────────────────────────────────────
 
-class _KmMarkers extends StatelessWidget {
-  const _KmMarkers();
+class _YouMarker extends StatefulWidget {
+  const _YouMarker();
+  @override
+  State<_YouMarker> createState() => _YouMarkerState();
+}
+
+class _YouMarkerState extends State<_YouMarker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1500),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (_, c) {
-      final size = Size(c.maxWidth, c.maxHeight);
-      return Stack(
-        children: [
-          for (final m in _RouteGeo.kms)
-            Positioned(
-              left: _RouteGeo.scale(m.pos, size).dx - 18,
-              top: _RouteGeo.scale(m.pos, size).dy - 7.5,
-              child: _AnimIn(
-                delay: m.delay,
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, __) {
+        final t = _pulse.value;
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // Outer pulse.
+            Opacity(
+              opacity: (1 - t).clamp(0.0, 0.6),
+              child: Transform.scale(
+                scale: 0.7 + t * 1.4,
                 child: Container(
                   width: 36,
-                  height: 15,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A0D04),
-                    borderRadius: BorderRadius.circular(3.5),
-                    border: Border.all(color: TT.ember, width: 0.8),
-                  ),
-                  child: Text(
-                    m.label,
-                    style: TT.mono(size: 9.5, color: TT.ember2, w: FontWeight.w700)
-                        .copyWith(letterSpacing: 0),
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0x33FF6A2C),
                   ),
                 ),
               ),
             ),
-        ],
-      );
-    });
-  }
-}
-
-// ─────────────────────────── ROUTE MARKERS ───────────────────────────────────
-
-class _RouteMarkers extends StatelessWidget {
-  const _RouteMarkers();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (_, c) {
-      final size = Size(c.maxWidth, c.maxHeight);
-      final youPx = _RouteGeo.scale(_RouteGeo.you, size);
-      final summitPx = _RouteGeo.scale(_RouteGeo.summit, size);
-      final startPx = _RouteGeo.scale(_RouteGeo.start, size);
-      return Stack(
-        children: [
-          // You marker
-          Positioned(
-            left: youPx.dx - 26,
-            top: youPx.dy - 26,
-            width: 52,
-            height: 52,
-            child: const _AnimPop(
-              delay: Duration(milliseconds: 1400),
-              child: _YouMarker(),
+            // Inner halo.
+            Container(
+              width: 22,
+              height: 22,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0x52FF6A2C),
+              ),
             ),
-          ),
-          // Summit marker with label bubble above
-          Positioned(
-            left: summitPx.dx - 50,
-            top: summitPx.dy - 32,
-            width: 100,
-            height: 50,
-            child: const _AnimPop(
-              delay: Duration(milliseconds: 1600),
-              child: _SummitMarker(),
+            // Core dot.
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                border: Border.all(color: TT.ember, width: 2.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x80000000),
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
             ),
-          ),
-          // Start marker with label tag to the right
-          Positioned(
-            left: startPx.dx - 12,
-            top: startPx.dy - 12,
-            width: 80,
-            height: 24,
-            child: const _AnimPop(
-              delay: Duration(milliseconds: 1700),
-              child: _StartMarker(),
-            ),
-          ),
-        ],
-      );
-    });
-  }
-}
-
-class _YouMarker extends StatelessWidget {
-  const _YouMarker();
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(painter: _YouMarkerPainter(), size: const Size(52, 52));
-  }
-}
-
-class _YouMarkerPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    canvas.drawCircle(c, 26, Paint()..color = const Color(0x1AFF6A2C));
-    canvas.drawCircle(c, 16, Paint()..color = const Color(0x38FF6A2C));
-    canvas.drawCircle(c, 10, Paint()..color = Colors.white);
-    canvas.drawCircle(
-      c,
-      10,
-      Paint()
-        ..color = TT.ember
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
-    );
-    // Direction chevron
-    final chev = Path()
-      ..moveTo(c.dx, c.dy - 3)
-      ..lineTo(c.dx + 4, c.dy + 5)
-      ..lineTo(c.dx, c.dy + 3)
-      ..lineTo(c.dx - 4, c.dy + 5)
-      ..close();
-    canvas.drawPath(chev, Paint()..color = TT.ember);
-  }
-
-  @override
-  bool shouldRepaint(_YouMarkerPainter old) => false;
-}
-
-class _SummitMarker extends StatelessWidget {
-  const _SummitMarker();
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Label bubble
-        Container(
-          width: 100,
-          height: 20,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xEB0A0C0F),
-            border: Border.all(color: TT.ember, width: 1),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            'SUMMIT · 4,392 m',
-            style: TT.body(size: 10, w: FontWeight.w800, color: TT.ember2)
-                .copyWith(letterSpacing: 0.8),
-          ),
-        ),
-        const SizedBox(height: 4),
-        // Triangle marker
-        SizedBox(
-          width: 28,
-          height: 26,
-          child: CustomPaint(painter: _SummitDotPainter()),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
 
-class _SummitDotPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    canvas.drawCircle(c, 8, Paint()..color = const Color(0xFF1A0D04));
-    canvas.drawCircle(
-      c,
-      8,
-      Paint()
-        ..color = TT.ember
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-    final tri = Path()
-      ..moveTo(c.dx, c.dy - 3)
-      ..lineTo(c.dx - 3, c.dy + 2)
-      ..lineTo(c.dx + 3, c.dy + 2)
-      ..close();
-    canvas.drawPath(tri, Paint()..color = TT.ember);
-  }
-
-  @override
-  bool shouldRepaint(_SummitDotPainter old) => false;
-}
-
-class _StartMarker extends StatelessWidget {
-  const _StartMarker();
+class _StartDot extends StatelessWidget {
+  const _StartDot();
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Diamond
-        Transform.rotate(
-          angle: math.pi / 4,
-          child: Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: TT.ember,
-              border: Border.all(color: const Color(0xFF1A0D04), width: 1.5),
-            ),
-          ),
+    return Transform.rotate(
+      angle: math.pi / 4,
+      child: Container(
+        decoration: BoxDecoration(
+          color: TT.ember,
+          border: Border.all(color: const Color(0xFF1A0D04), width: 2),
         ),
-        const SizedBox(width: 10),
-        // Tag
-        Container(
-          width: 46,
-          height: 18,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xEB0A0C0F),
-            border: Border.all(color: const Color(0x26FFFFFF), width: 0.5),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            'START',
-            style: TT.body(size: 9.5, w: FontWeight.w700, color: TT.text)
-                .copyWith(letterSpacing: 0.95),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -698,7 +504,6 @@ class _FloatingStat extends StatelessWidget {
   final String value;
   final String? unit;
   final String? sublabel;
-  final int countDelayMs;
 
   const _FloatingStat({
     required this.icon,
@@ -706,7 +511,6 @@ class _FloatingStat extends StatelessWidget {
     required this.value,
     this.unit,
     this.sublabel,
-    this.countDelayMs = 300,
   });
 
   @override
@@ -743,10 +547,10 @@ class _FloatingStat extends StatelessWidget {
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Flexible(
-                      child: TTCountUp(
-                        text: value,
+                      child: Text(
+                        value,
                         style: TT.numStyle(size: 17, letterSpacing: -0.02 * 17),
-                        delay: Duration(milliseconds: countDelayMs),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (unit != null) ...[
@@ -775,26 +579,42 @@ class _FloatingStat extends StatelessWidget {
 // ──────────────────────────── MAP CONTROLS ───────────────────────────────────
 
 class _MapControls extends StatelessWidget {
-  const _MapControls();
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onRecenter;
+  final VoidCallback onOpenLayers;
+  const _MapControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onRecenter,
+    required this.onOpenLayers,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _AnimPop(
-          delay: Duration(milliseconds: 420),
-          child: _ZoomGroup(),
+          delay: const Duration(milliseconds: 420),
+          child: _ZoomGroup(onZoomIn: onZoomIn, onZoomOut: onZoomOut),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         _AnimPop(
-          delay: Duration(milliseconds: 520),
-          child: _CircleBtn(icon: Icons.gps_fixed, ember: true),
+          delay: const Duration(milliseconds: 520),
+          child: _CircleBtn(
+            icon: Icons.gps_fixed,
+            ember: true,
+            onTap: onRecenter,
+          ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         _AnimPop(
-          delay: Duration(milliseconds: 580),
-          child: _CircleBtn(icon: Icons.layers_outlined),
+          delay: const Duration(milliseconds: 580),
+          child: _CircleBtn(
+            icon: Icons.layers_outlined,
+            onTap: onOpenLayers,
+          ),
         ),
       ],
     );
@@ -802,7 +622,10 @@ class _MapControls extends StatelessWidget {
 }
 
 class _ZoomGroup extends StatelessWidget {
-  const _ZoomGroup();
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  const _ZoomGroup({required this.onZoomIn, required this.onZoomOut});
+
   @override
   Widget build(BuildContext context) {
     return TTGlass(
@@ -810,9 +633,9 @@ class _ZoomGroup extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _ZoomBtn(icon: Icons.add, onTap: () {}),
+          _ZoomBtn(icon: Icons.add, onTap: onZoomIn),
           Container(width: 38, height: 1, color: TT.line2),
-          _ZoomBtn(icon: Icons.remove, onTap: () {}),
+          _ZoomBtn(icon: Icons.remove, onTap: onZoomOut),
         ],
       ),
     );
@@ -823,6 +646,7 @@ class _ZoomBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   const _ZoomBtn({required this.icon, required this.onTap});
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -840,11 +664,17 @@ class _ZoomBtn extends StatelessWidget {
 class _CircleBtn extends StatelessWidget {
   final IconData icon;
   final bool ember;
-  const _CircleBtn({required this.icon, this.ember = false});
+  final VoidCallback onTap;
+  const _CircleBtn({
+    required this.icon,
+    required this.onTap,
+    this.ember = false,
+  });
+
   @override
   Widget build(BuildContext context) {
     return TTGlass(
-      onTap: () {},
+      onTap: onTap,
       padding: EdgeInsets.zero,
       child: SizedBox(
         width: 38,
@@ -858,7 +688,8 @@ class _CircleBtn extends StatelessWidget {
 // ─────────────────────────────── SCALE BAR ──────────────────────────────────
 
 class _ScaleBar extends StatelessWidget {
-  const _ScaleBar();
+  final String label;
+  const _ScaleBar({required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -883,7 +714,7 @@ class _ScaleBar extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            '500 m',
+            label,
             style: TT.mono(size: 9.5, color: TT.text, w: FontWeight.w600),
           ),
         ],
@@ -892,71 +723,57 @@ class _ScaleBar extends StatelessWidget {
   }
 }
 
-// ───────────────────────── RECORDING PANEL ───────────────────────────────────
+// ───────────────────────── LAYER SHEET ROW ───────────────────────────────────
 
-class _RecordingPanel extends StatelessWidget {
+class _LayerOption extends StatelessWidget {
+  final String label;
+  final String iconLabel;
+  final bool selected;
+  final VoidCallback onTap;
+  const _LayerOption({
+    required this.label,
+    required this.iconLabel,
+    required this.selected,
+    required this.onTap,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return _AnimUp(
-      delay: const Duration(milliseconds: 700),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0x000F1318), Color(0xF20B0E12), TT.bg2],
-            stops: [0.0, 0.3, 1.0],
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0x14FF6A2C) : TT.surf,
+          border: Border.all(
+            color: selected ? const Color(0x66FF6A2C) : TT.line,
+            width: 1,
           ),
-          border: Border(top: BorderSide(color: TT.line, width: 1)),
+          borderRadius: BorderRadius.circular(TT.rMd),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Row(
           children: [
-            // Grab handle
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: TT.line3,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: TT.bg2,
+                borderRadius: BorderRadius.circular(TT.rSm),
+                border: Border.all(color: TT.line2),
+              ),
+              child: Text(
+                iconLabel,
+                style: TT.mono(size: 10, color: TT.ember, w: FontWeight.w800),
               ),
             ),
-            // Title row
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Mt. Elbert Summit Trail',
-                        style: TT.title(16, letterSpacing: -0.01 * 16),
-                      ),
-                      const SizedBox(height: 6),
-                      const TTPill(
-                        label: 'IN PROGRESS',
-                        variant: TTPillVariant.live,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _PauseButton(),
-                const SizedBox(width: 8),
-                _StopButton(),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label, style: TT.body(size: 14, w: FontWeight.w700)),
             ),
-            const SizedBox(height: 14),
-            // 3-stat row
-            const _StatRow(),
-            const SizedBox(height: 12),
-            // Mini elevation chart card
-            const _MiniElevCard(),
+            if (selected) const Icon(Icons.check, size: 18, color: TT.ember),
           ],
         ),
       ),
@@ -964,58 +781,247 @@ class _RecordingPanel extends StatelessWidget {
   }
 }
 
-class _PauseButton extends StatelessWidget {
+// ───────────────────────── RECORDING PANEL ───────────────────────────────────
+
+class _RecordingPanel extends StatelessWidget {
+  final AnimationController entryCtl;
+  final Future<void> Function() onStart;
+  const _RecordingPanel({required this.entryCtl, required this.onStart});
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: BoxDecoration(
-        color: TT.ember,
-        borderRadius: BorderRadius.circular(11),
-        boxShadow: TT.shadowEmber,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.pause, size: 12, color: TT.emberInk),
-          const SizedBox(width: 6),
-          Text(
-            'PAUSE',
-            style: TT.body(size: 12, w: FontWeight.w800, color: TT.emberInk)
-                .copyWith(letterSpacing: 0.12 * 12),
+    return Consumer<RecordingProvider>(
+      builder: (_, recording, __) => _AnimUp(
+        delay: const Duration(milliseconds: 700),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x000F1318), Color(0xF20B0E12), TT.bg2],
+              stops: [0.0, 0.3, 1.0],
+            ),
+            border: Border(top: BorderSide(color: TT.line, width: 1)),
           ),
-        ],
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Grab handle.
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: TT.line3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Title row.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _titleFor(recording),
+                          style: TT.title(16, letterSpacing: -0.01 * 16),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (recording.isRecording ||
+                            recording.isPaused) ...[
+                          const SizedBox(height: 6),
+                          TTPill(
+                            label: recording.isPaused
+                                ? 'PAUSED'
+                                : 'IN PROGRESS',
+                            variant: recording.isPaused
+                                ? TTPillVariant.neutral
+                                : TTPillVariant.live,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (recording.isRecording)
+                    _PauseButton(onTap: recording.pause)
+                  else if (recording.isPaused)
+                    _ResumeButton(onTap: () => recording.start())
+                  else
+                    _StartButton(onTap: onStart),
+                  if (recording.isRecording || recording.isPaused) ...[
+                    const SizedBox(width: 8),
+                    _StopButton(onTap: recording.stop),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 14),
+              // 3-stat row.
+              _StatRow(recording: recording),
+              const SizedBox(height: 12),
+              // Mini elevation chart card (only when we have data).
+              if (recording.points.length >= 2)
+                _MiniElevCard(points: recording.points)
+              else
+                _EmptyChartCard(isRecording: recording.isRecording),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _titleFor(RecordingProvider rec) {
+    if (rec.isRecording || rec.isPaused) {
+      return rec.targetTrail?.name ??
+          rec.customName ??
+          'Free-form recording';
+    }
+    return 'Tap PLAY to start recording';
+  }
+}
+
+class _PauseButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _PauseButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: TT.ember,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: TT.shadowEmber,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.pause, size: 12, color: TT.emberInk),
+            const SizedBox(width: 6),
+            Text(
+              'PAUSE',
+              style: TT.body(size: 12, w: FontWeight.w800, color: TT.emberInk)
+                  .copyWith(letterSpacing: 0.12 * 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ResumeButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ResumeButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: TT.ember,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: TT.shadowEmber,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.play_arrow, size: 14, color: TT.emberInk),
+            const SizedBox(width: 6),
+            Text(
+              'RESUME',
+              style: TT.body(size: 12, w: FontWeight.w800, color: TT.emberInk)
+                  .copyWith(letterSpacing: 0.12 * 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StartButton extends StatelessWidget {
+  final Future<void> Function() onTap;
+  const _StartButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: TT.ember,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: TT.shadowEmber,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.play_arrow, size: 14, color: TT.emberInk),
+            const SizedBox(width: 6),
+            Text(
+              'START RECORDING',
+              style: TT.body(size: 12, w: FontWeight.w800, color: TT.emberInk)
+                  .copyWith(letterSpacing: 0.12 * 12),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _StopButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _StopButton({required this.onTap});
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        border: Border.all(color: TT.line3, width: 1),
-        borderRadius: BorderRadius.circular(11),
-      ),
-      child: Text(
-        'STOP',
-        style: TT.body(size: 12, w: FontWeight.w800, color: TT.text2)
-            .copyWith(letterSpacing: 0.12 * 12),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border.all(color: TT.line3, width: 1),
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Text(
+          'STOP',
+          style: TT.body(size: 12, w: FontWeight.w800, color: TT.text2)
+              .copyWith(letterSpacing: 0.12 * 12),
+        ),
       ),
     );
   }
 }
 
 class _StatRow extends StatelessWidget {
-  const _StatRow();
+  final RecordingProvider recording;
+  const _StatRow({required this.recording});
 
   @override
   Widget build(BuildContext context) {
+    // Pace in km/h — derived from RecordingProvider.averageSpeedKmh.
+    final pace = recording.averageSpeedKmh;
+    final elev = recording.totalGainM;
+    final time = recording.duration;
+
     return Container(
       decoration: BoxDecoration(
         color: TT.surf,
@@ -1026,16 +1032,28 @@ class _StatRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(TT.rMd),
         child: Row(
           children: [
-            const Expanded(
-              child: _MiniStat(label: 'Elev', value: '3,950', unit: 'm', ember: true),
+            Expanded(
+              child: _MiniStat(
+                label: 'Elev',
+                value: elev.toString(),
+                unit: 'm',
+                ember: true,
+              ),
             ),
             _StatDivider(),
-            const Expanded(
-              child: _MiniStat(label: 'Pace', value: '3.2', unit: 'km/h'),
+            Expanded(
+              child: _MiniStat(
+                label: 'Pace',
+                value: pace.toStringAsFixed(1),
+                unit: 'km/h',
+              ),
             ),
             _StatDivider(),
-            const Expanded(
-              child: _MiniStat(label: 'Time', value: '02:34', unit: ':56'),
+            Expanded(
+              child: _MiniStat(
+                label: 'Time',
+                value: _formatDurationLong(time),
+              ),
             ),
           ],
         ),
@@ -1080,14 +1098,16 @@ class _MiniStat extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              TTCountUp(
-                text: value,
-                style: TT.numStyle(
-                  size: 19,
-                  color: ember ? TT.ember : TT.text,
-                  letterSpacing: -0.02 * 19,
+              Flexible(
+                child: Text(
+                  value,
+                  style: TT.numStyle(
+                    size: 19,
+                    color: ember ? TT.ember : TT.text,
+                    letterSpacing: -0.02 * 19,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                delay: const Duration(milliseconds: 900),
               ),
               if (unit != null) ...[
                 const SizedBox(width: 3),
@@ -1102,10 +1122,36 @@ class _MiniStat extends StatelessWidget {
 }
 
 class _MiniElevCard extends StatelessWidget {
-  const _MiniElevCard();
+  final List<dynamic> points;
+  const _MiniElevCard({required this.points});
 
   @override
   Widget build(BuildContext context) {
+    // Sample the elevations from the recording points. Cap the number of
+    // samples used for the chart so dense recordings don't bog down paint.
+    const maxSamples = 96;
+    final n = points.length;
+    final stride = math.max(1, (n / maxSamples).ceil());
+    final samples = <double>[];
+    var totalDistKm = 0.0;
+    final distSamples = <double>[]; // cumulative km
+    for (var i = 0; i < n; i += stride) {
+      final p = points[i];
+      samples.add((p.altitude as double));
+      if (i > 0) {
+        final prev = points[i - stride < 0 ? 0 : i - stride];
+        totalDistKm += Geolocator.distanceBetween(
+              prev.latitude as double,
+              prev.longitude as double,
+              p.latitude as double,
+              p.longitude as double,
+            ) /
+            1000.0;
+      }
+      distSamples.add(totalDistKm);
+    }
+    final lastKm = distSamples.isEmpty ? 0.0 : distSamples.last;
+
     return TTCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
@@ -1119,169 +1165,169 @@ class _MiniElevCard extends StatelessWidget {
                 style: TT.label(size: 10.5, color: TT.text2, letterSpacing: 0.14 * 10.5),
               ),
               Text(
-                '0 → 17.5 km',
+                '0 → ${lastKm.toStringAsFixed(1)} km',
                 style: TT.mono(size: 10, color: TT.text3, w: FontWeight.w600),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          const _MiniElevChart(),
+          SizedBox(
+            height: 56,
+            child: CustomPaint(
+              painter: _MiniElevPainter(samples: samples),
+              size: Size.infinite,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _MiniElevChart extends StatefulWidget {
-  const _MiniElevChart();
-  @override
-  State<_MiniElevChart> createState() => _MiniElevChartState();
-}
-
-class _MiniElevChartState extends State<_MiniElevChart>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1600),
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) _ctl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
+class _EmptyChartCard extends StatelessWidget {
+  final bool isRecording;
+  const _EmptyChartCard({required this.isRecording});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 56,
-      child: AnimatedBuilder(
-        animation: _ctl,
-        builder: (_, __) => CustomPaint(
-          painter: _MiniElevPainter(progress: TT.drawCurve.transform(_ctl.value)),
-          size: Size.infinite,
-        ),
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: Row(
+        children: [
+          Icon(
+            isRecording ? Icons.timeline : Icons.show_chart,
+            size: 18,
+            color: TT.text3,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isRecording
+                  ? 'Waiting for GPS fixes — elevation profile will appear shortly.'
+                  : 'Start a recording to see live elevation and pace.',
+              style: TT.body(size: 12, w: FontWeight.w500, color: TT.text3),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _MiniElevPainter extends CustomPainter {
-  final double progress;
-  _MiniElevPainter({required this.progress});
-
-  static const _pts = <double>[
-    1500, 1620, 1850, 2100, 2380, 2740, 3120, 3500,
-    3850, 4200, 4340, 4180, 3900, 3600, 3300, 3000,
-  ];
-  static const _min = 1400.0;
-  static const _max = 4500.0;
+  final List<double> samples;
+  _MiniElevPainter({required this.samples});
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (samples.length < 2) return;
     const pad = 4.0;
-    final n = _pts.length;
+    final n = samples.length;
     final stepX = (size.width - pad * 2) / (n - 1);
+
+    var minV = samples.first;
+    var maxV = samples.first;
+    for (final v in samples) {
+      if (v < minV) minV = v;
+      if (v > maxV) maxV = v;
+    }
+    if (maxV - minV < 1) maxV = minV + 1;
 
     Offset xy(double v, int i) {
       final x = pad + i * stepX;
-      final y = size.height - pad - ((v - _min) / (_max - _min)) * (size.height - pad * 2);
+      final y = size.height -
+          pad -
+          ((v - minV) / (maxV - minV)) * (size.height - pad * 2);
       return Offset(x, y);
     }
 
-    // Full top path
-    final top = Path();
+    final stroke = Path();
     for (var i = 0; i < n; i++) {
-      final p = xy(_pts[i], i);
+      final p = xy(samples[i], i);
       if (i == 0) {
-        top.moveTo(p.dx, p.dy);
+        stroke.moveTo(p.dx, p.dy);
       } else {
-        top.lineTo(p.dx, p.dy);
+        stroke.lineTo(p.dx, p.dy);
       }
     }
 
-    // Partial path up to progress
-    final partial = Path();
-    final progressIdx = progress * (n - 1);
-    final lastIdx = progressIdx.floor().clamp(0, n - 1);
-    for (var i = 0; i <= lastIdx; i++) {
-      final p = xy(_pts[i], i);
-      if (i == 0) {
-        partial.moveTo(p.dx, p.dy);
-      } else {
-        partial.lineTo(p.dx, p.dy);
-      }
-    }
-    if (lastIdx < n - 1 && progress > 0) {
-      final segFrac = progressIdx - lastIdx;
-      final a = xy(_pts[lastIdx], lastIdx);
-      final b = xy(_pts[lastIdx + 1], lastIdx + 1);
-      partial.lineTo(a.dx + (b.dx - a.dx) * segFrac, a.dy + (b.dy - a.dy) * segFrac);
-    }
-
-    // Filled area under partial
-    if (progress > 0) {
-      final lastDrawnX = pad + progressIdx * stepX;
-      final fillPath = Path.from(partial)
-        ..lineTo(lastDrawnX.clamp(pad, size.width - pad), size.height - pad)
-        ..lineTo(pad, size.height - pad)
-        ..close();
-      final fillPaint = Paint()
+    // Fill under the curve.
+    final fillPath = Path.from(stroke)
+      ..lineTo(size.width - pad, size.height - pad)
+      ..lineTo(pad, size.height - pad)
+      ..close();
+    canvas.drawPath(
+      fillPath,
+      Paint()
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [Color(0x8CFF6A2C), Color(0x00FF6A2C)],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-      canvas.drawPath(fillPath, fillPaint);
-    }
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
 
-    // Stroke
-    final stroke = Paint()
-      ..color = TT.ember
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeJoin = StrokeJoin.round
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPath(partial, stroke);
+    canvas.drawPath(
+      stroke,
+      Paint()
+        ..color = TT.ember
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
 
-    // Peak marker (after most of the line is drawn)
-    if (progress > 0.7) {
-      var peakIdx = 0;
-      for (var i = 1; i < n; i++) {
-        if (_pts[i] > _pts[peakIdx]) peakIdx = i;
-      }
-      if (peakIdx <= lastIdx) {
-        final peak = xy(_pts[peakIdx], peakIdx);
-        canvas.drawLine(
-          peak,
-          Offset(peak.dx, size.height - pad),
-          Paint()
-            ..color = const Color(0x4DFFFFFF)
-            ..strokeWidth = 1,
-        );
-        canvas.drawCircle(peak, 3.5, Paint()..color = Colors.white);
-        canvas.drawCircle(
-          peak,
-          3.5,
-          Paint()
-            ..color = TT.ember
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
-        );
-      }
+    // Peak marker.
+    var peakIdx = 0;
+    for (var i = 1; i < n; i++) {
+      if (samples[i] > samples[peakIdx]) peakIdx = i;
     }
+    final peak = xy(samples[peakIdx], peakIdx);
+    canvas.drawLine(
+      peak,
+      Offset(peak.dx, size.height - pad),
+      Paint()
+        ..color = const Color(0x4DFFFFFF)
+        ..strokeWidth = 1,
+    );
+    canvas.drawCircle(peak, 3.5, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      peak,
+      3.5,
+      Paint()
+        ..color = TT.ember
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
   }
 
   @override
-  bool shouldRepaint(_MiniElevPainter old) => old.progress != progress;
+  bool shouldRepaint(_MiniElevPainter old) => old.samples != samples;
+}
+
+// ──────────────────────── FORMATTING HELPERS ─────────────────────────────────
+
+String _formatMiles(double km) {
+  final mi = km * 0.621371;
+  if (mi < 10) return mi.toStringAsFixed(2);
+  return mi.toStringAsFixed(1);
+}
+
+String _formatDurationShort(Duration d) {
+  if (d == Duration.zero) return '0m';
+  final h = d.inHours;
+  final m = d.inMinutes.remainder(60);
+  if (h == 0) return '${m}m';
+  return '${h}h ${m}m';
+}
+
+String _formatDurationLong(Duration d) {
+  final h = d.inHours;
+  final m = d.inMinutes.remainder(60);
+  final s = d.inSeconds.remainder(60);
+  if (h > 0) {
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+  return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
 }
 
 // ──────────────────────── ANIMATION PRIMITIVES ───────────────────────────────
@@ -1319,7 +1365,8 @@ class _AnimUpState extends State<_AnimUp> with SingleTickerProviderStateMixin {
         final t = TT.easeOut.transform(_ctl.value);
         return Opacity(
           opacity: t,
-          child: Transform.translate(offset: Offset(0, (1 - t) * 14), child: widget.child),
+          child: Transform.translate(
+              offset: Offset(0, (1 - t) * 14), child: widget.child),
         );
       },
     );
@@ -1335,7 +1382,8 @@ class _AnimPop extends StatefulWidget {
   State<_AnimPop> createState() => _AnimPopState();
 }
 
-class _AnimPopState extends State<_AnimPop> with SingleTickerProviderStateMixin {
+class _AnimPopState extends State<_AnimPop>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 480));
 
@@ -1362,43 +1410,6 @@ class _AnimPopState extends State<_AnimPop> with SingleTickerProviderStateMixin 
           child: Transform.scale(scale: 0.7 + 0.3 * t, child: widget.child),
         );
       },
-    );
-  }
-}
-
-/// `anim-in` — simple fade in.
-class _AnimIn extends StatefulWidget {
-  final Duration delay;
-  final Widget child;
-  const _AnimIn({required this.delay, required this.child});
-  @override
-  State<_AnimIn> createState() => _AnimInState();
-}
-
-class _AnimInState extends State<_AnimIn> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: TT.dMed);
-
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(widget.delay, () { if (mounted) _ctl.forward(); });
-  }
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctl,
-      builder: (_, __) => Opacity(
-        opacity: TT.easeOut.transform(_ctl.value),
-        child: widget.child,
-      ),
     );
   }
 }
