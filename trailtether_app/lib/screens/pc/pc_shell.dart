@@ -25,11 +25,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../core/design_tokens.dart';
 import '../../providers/auth_provider.dart' as ap;
@@ -37,6 +39,7 @@ import '../../providers/team_provider.dart';
 import '../admin/admin_settings_tab.dart';
 import '../admin/mission_control_tab.dart';
 import '../hike_history_screen.dart';
+import '../team_detail_screen.dart';
 
 // ─────────────────────────── tokens (pc-local) ──────────────────────────────
 //
@@ -103,6 +106,11 @@ class _MainPcShellState extends State<MainPcShell> {
     }
   }
 
+  void _go(_PcSection s) {
+    if (!mounted) return;
+    setState(() => _active = s);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -117,12 +125,12 @@ class _MainPcShellState extends State<MainPcShell> {
                 children: [
                   _PCSidebar(
                     active: _active,
-                    onSelect: (s) => setState(() => _active = s),
+                    onSelect: _go,
                   ),
                   Expanded(
                     child: Container(
                       color: TT.bg,
-                      child: _PcContent(section: _active),
+                      child: _PcContent(section: _active, onNavigate: _go),
                     ),
                   ),
                 ],
@@ -137,17 +145,18 @@ class _MainPcShellState extends State<MainPcShell> {
 
 class _PcContent extends StatelessWidget {
   final _PcSection section;
-  const _PcContent({required this.section});
+  final ValueChanged<_PcSection> onNavigate;
+  const _PcContent({required this.section, required this.onNavigate});
 
   @override
   Widget build(BuildContext context) {
     switch (section) {
       case _PcSection.dashboard:
-        return const _PcDashboard();
+        return _PcDashboard(onNavigate: onNavigate);
       case _PcSection.watch:
-        return const _PcHikeWatch();
+        return _PcHikeWatch(onNavigate: onNavigate);
       case _PcSection.hikers:
-        return const _PcHikersList();
+        return _PcHikersList(onNavigate: onNavigate);
       case _PcSection.history:
         return const _PcHistory();
       case _PcSection.alerts:
@@ -164,6 +173,24 @@ class _PcContent extends StatelessWidget {
 
 class _PCTitleBar extends StatelessWidget {
   const _PCTitleBar();
+
+  bool get _supportsWindowControls =>
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux ||
+      defaultTargetPlatform == TargetPlatform.macOS;
+
+  Future<void> _close()    async { if (_supportsWindowControls) { try { await windowManager.close(); }    catch (_) {} } }
+  Future<void> _minimize() async { if (_supportsWindowControls) { try { await windowManager.minimize(); } catch (_) {} } }
+  Future<void> _toggleMax() async {
+    if (!_supportsWindowControls) return;
+    try {
+      if (await windowManager.isMaximized()) {
+        await windowManager.unmaximize();
+      } else {
+        await windowManager.maximize();
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -182,13 +209,15 @@ class _PCTitleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Traffic-light controls. Hit-targets are padded out to 16x16 so
+          // the click area is comfortable even though the dot is 12x12.
           Row(
             children: [
-              _trafficLight(PC.tlRed),
+              _TrafficLight(color: PC.tlRed,    tooltip: 'Close',          onTap: _close),
               const SizedBox(width: 8),
-              _trafficLight(PC.tlYellow),
+              _TrafficLight(color: PC.tlYellow, tooltip: 'Minimize',       onTap: _minimize),
               const SizedBox(width: 8),
-              _trafficLight(PC.tlGreen),
+              _TrafficLight(color: PC.tlGreen,  tooltip: 'Maximize',       onTap: _toggleMax),
             ],
           ),
           Expanded(
@@ -200,62 +229,57 @@ class _PCTitleBar extends StatelessWidget {
               ),
             ),
           ),
-          _GlobalSearchBox(),
+          // Title-bar right edge — left intentionally empty for now. The
+          // earlier decorative "search trails, hikers, plans…" pill was
+          // removed because the field wasn't wired to anything; a dead
+          // search box is worse than no search box.
+          const SizedBox(width: 0),
         ],
       ),
     );
   }
-
-  Widget _trafficLight(Color bg) => Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: bg,
-          border: Border.all(color: const Color(0x33000000), width: 0.5),
-          boxShadow: const [
-            BoxShadow(color: Color(0x26FFFFFF), blurRadius: 0, spreadRadius: 0.5),
-          ],
-        ),
-      );
 }
 
-class _GlobalSearchBox extends StatelessWidget {
+class _TrafficLight extends StatelessWidget {
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _TrafficLight({
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 240,
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 9),
-      decoration: BoxDecoration(
-        color: const Color(0x0DFFFFFF),
-        border: Border.all(color: TT.line2, width: 1),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.search_rounded, size: 13, color: TT.text3),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Search trails, hikers, plans…',
-              style: TT.body(size: 12, w: FontWeight.w600, color: TT.text3),
-              overflow: TextOverflow.ellipsis,
+    return Tooltip(
+      message: tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            width: 16,
+            height: 16,
+            alignment: Alignment.center,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+                border: Border.all(color: const Color(0x33000000), width: 0.5),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Color(0x26FFFFFF),
+                      blurRadius: 0,
+                      spreadRadius: 0.5),
+                ],
+              ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0x0AFFFFFF),
-              border: Border.all(color: TT.line, width: 1),
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: Text(
-              '^K',
-              style: TT.mono(size: 9.5, color: TT.text4, letterSpacing: 0.06 * 9.5),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -360,60 +384,11 @@ class _PCSidebar extends StatelessWidget {
           ),
 
           // Account footer.
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: TT.surf,
-              border: Border.all(color: TT.line, width: 1),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: TT.blue, width: 2),
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF5AA1D6), Color(0xFF2D6A98)],
-                    ),
-                  ),
-                  child: Text(
-                    _initials(watcherName),
-                    style: TT.body(size: 12, w: FontWeight.w800, color: Colors.white),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(watcherName,
-                          style: TT.body(size: 12, w: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          _PulseDot(),
-                          const SizedBox(width: 4),
-                          Text(
-                            'WATCHING · ${hikerCount > 0 ? hikerCount : 0} HIKERS',
-                            style: TT.mono(
-                                size: 9,
-                                color: TT.green,
-                                letterSpacing: 0.1 * 9),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.more_horiz, size: 14, color: TT.text3),
-              ],
-            ),
+          _AccountFooter(
+            watcherName: watcherName,
+            hikerCount: hikerCount,
+            initials: _initials(watcherName),
+            onOpenSettings: () => onSelect(_PcSection.settings),
           ),
         ],
       ),
@@ -473,6 +448,151 @@ class _PCSidebarItem extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AccountFooter extends StatelessWidget {
+  final String watcherName;
+  final int hikerCount;
+  final String initials;
+  final VoidCallback onOpenSettings;
+  const _AccountFooter({
+    required this.watcherName,
+    required this.hikerCount,
+    required this.initials,
+    required this.onOpenSettings,
+  });
+
+  Future<void> _confirmSignOut(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(TT.rLg),
+          side: const BorderSide(color: TT.line2),
+        ),
+        title: Text('Sign out?', style: TT.title(17)),
+        content: Text(
+          'You’ll need to sign back in to keep watching paired hikers.',
+          style: TT.body(size: 13, color: TT.text2),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel',
+                style: TT.body(size: 13, color: TT.text2)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Sign out',
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!context.mounted) return;
+    await context.read<ap.AuthProvider>().signOut();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: TT.surf,
+        border: Border.all(color: TT.line, width: 1),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: TT.blue, width: 2),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF5AA1D6), Color(0xFF2D6A98)],
+              ),
+            ),
+            child: Text(
+              initials,
+              style: TT.body(size: 12, w: FontWeight.w800, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(watcherName,
+                    style: TT.body(size: 12, w: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    _PulseDot(),
+                    const SizedBox(width: 4),
+                    Text(
+                      'WATCHING · ${hikerCount > 0 ? hikerCount : 0} HIKERS',
+                      style: TT.mono(
+                          size: 9,
+                          color: TT.green,
+                          letterSpacing: 0.1 * 9),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Account',
+            color: TT.surf2,
+            position: PopupMenuPosition.under,
+            icon: const Icon(Icons.more_horiz, size: 16, color: TT.text3),
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: const BorderSide(color: TT.line2),
+            ),
+            onSelected: (v) {
+              if (v == 'settings') onOpenSettings();
+              if (v == 'signout') _confirmSignOut(context);
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem<String>(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    const Icon(Icons.settings_outlined,
+                        size: 14, color: TT.text2),
+                    const SizedBox(width: 10),
+                    Text('Settings',
+                        style: TT.body(size: 12.5, color: TT.text)),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'signout',
+                child: Row(
+                  children: [
+                    const Icon(Icons.logout, size: 14, color: TT.red),
+                    const SizedBox(width: 10),
+                    Text('Sign out',
+                        style: TT.body(
+                            size: 12.5, w: FontWeight.w700, color: TT.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -846,7 +966,8 @@ class PCPill extends StatelessWidget {
 // ─────────────────────────── section: Dashboard ─────────────────────────────
 
 class _PcDashboard extends StatelessWidget {
-  const _PcDashboard();
+  final ValueChanged<_PcSection> onNavigate;
+  const _PcDashboard({required this.onNavigate});
 
   @override
   Widget build(BuildContext context) {
@@ -860,13 +981,16 @@ class _PcDashboard extends StatelessWidget {
             'Live team map + hazard reports · updated each fix',
           ),
           actions: [
-            const PCBtn(label: 'LAYERS', leftIcon: Icons.layers_outlined, ghost: true),
-            const PCBtn(label: 'ALERTS', leftIcon: Icons.notifications_none_rounded),
             PCBtn(
-              label: 'START WATCHING',
-              leftIcon: Icons.play_arrow_rounded,
+              label: 'ALERTS',
+              leftIcon: Icons.notifications_none_rounded,
+              onTap: () => onNavigate(_PcSection.alerts),
+            ),
+            PCBtn(
+              label: 'WATCH HIKE',
+              leftIcon: Icons.visibility_outlined,
               primary: true,
-              onTap: () {},
+              onTap: () => onNavigate(_PcSection.watch),
             ),
           ],
         ),
@@ -885,17 +1009,30 @@ class _PcDashboard extends StatelessWidget {
 // ─────────────────────────── section: Hike Watch ────────────────────────────
 
 class _PcHikeWatch extends StatelessWidget {
-  const _PcHikeWatch();
+  final ValueChanged<_PcSection> onNavigate;
+  const _PcHikeWatch({required this.onNavigate});
 
   @override
   Widget build(BuildContext context) {
+    final teams = context.watch<TeamProvider>().teams;
+    final hasPaired = teams.any((t) => t.members.isNotEmpty);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PCPageHeader(
+        PCPageHeader(
           eyebrow: 'LIVE',
           title: 'Hike Watch',
-          sub: Text('Per-hike deep-dive · elevation profile + alerts + timeline'),
+          sub: const Text('Per-hike deep-dive · elevation profile + alerts + timeline'),
+          actions: hasPaired
+              ? [
+                  PCBtn(
+                    label: 'VIEW HIKERS',
+                    leftIcon: Icons.people_outline,
+                    onTap: () => onNavigate(_PcSection.hikers),
+                  ),
+                ]
+              : const [],
         ),
         Expanded(
           child: Padding(
@@ -905,16 +1042,29 @@ class _PcHikeWatch extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.visibility_outlined, size: 48, color: TT.text3),
+                  const Icon(Icons.visibility_outlined,
+                      size: 48, color: TT.text3),
                   const SizedBox(height: 16),
                   Text('No active hike to watch',
                       style: TT.title(18, letterSpacing: -0.01 * 18)),
                   const SizedBox(height: 8),
                   Text(
-                    'Pair a phone, then start a hike on the mobile app to see live position, elevation, pace, and incident overlay here.',
+                    hasPaired
+                        ? 'A hiker is paired but isn’t recording yet. Start a hike on their mobile app to see live position, elevation, pace, and incident overlay here.'
+                        : 'Pair a phone first, then start a hike on the mobile app to see live position, elevation, pace, and incident overlay here.',
                     textAlign: TextAlign.center,
                     style: TT.body(size: 12, color: TT.text2)
                         .copyWith(height: 1.5),
+                  ),
+                  const SizedBox(height: 20),
+                  PCBtn(
+                    label: hasPaired ? 'OPEN MISSION CONTROL' : 'PAIR A DEVICE',
+                    leftIcon: hasPaired
+                        ? Icons.public
+                        : Icons.qr_code_2_rounded,
+                    primary: true,
+                    onTap: () => onNavigate(
+                        hasPaired ? _PcSection.dashboard : _PcSection.pair),
                   ),
                 ],
               ),
@@ -929,7 +1079,8 @@ class _PcHikeWatch extends StatelessWidget {
 // ─────────────────────────── section: Hikers ────────────────────────────────
 
 class _PcHikersList extends StatelessWidget {
-  const _PcHikersList();
+  final ValueChanged<_PcSection> onNavigate;
+  const _PcHikersList({required this.onNavigate});
 
   @override
   Widget build(BuildContext context) {
@@ -951,9 +1102,13 @@ class _PcHikersList extends StatelessWidget {
                 ? 'No paired hikers yet · pair a device to start watching'
                 : '${members.length} hikers across ${teams.length} teams',
           ),
-          actions: const [
-            PCBtn(label: 'EXPORT', leftIcon: Icons.file_download_outlined, ghost: true),
-            PCBtn(label: 'PAIR DEVICE', leftIcon: Icons.qr_code_2_rounded, primary: true),
+          actions: [
+            PCBtn(
+              label: 'PAIR DEVICE',
+              leftIcon: Icons.qr_code_2_rounded,
+              primary: true,
+              onTap: () => onNavigate(_PcSection.pair),
+            ),
           ],
         ),
         Expanded(
@@ -965,7 +1120,8 @@ class _PcHikersList extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.people_outline, size: 48, color: TT.text3),
+                        const Icon(Icons.people_outline,
+                            size: 48, color: TT.text3),
                         const SizedBox(height: 16),
                         Text('No hikers paired yet',
                             style: TT.title(18, letterSpacing: -0.01 * 18)),
@@ -975,6 +1131,13 @@ class _PcHikersList extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: TT.body(size: 12, color: TT.text2)
                               .copyWith(height: 1.5),
+                        ),
+                        const SizedBox(height: 20),
+                        PCBtn(
+                          label: 'OPEN PAIR DEVICE',
+                          leftIcon: Icons.qr_code_2_rounded,
+                          primary: true,
+                          onTap: () => onNavigate(_PcSection.pair),
                         ),
                       ],
                     ),
@@ -986,32 +1149,51 @@ class _PcHikersList extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (_, i) {
                     final r = members[i];
-                    return PCCard(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                      child: Row(
-                        children: [
-                          _AvatarCircle(name: r.member.displayName),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(r.member.displayName,
-                                    style: TT.body(
-                                        size: 13, w: FontWeight.w800)),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'TEAM · ${r.team.name.toUpperCase()}',
-                                  style: TT.mono(
-                                      size: 9.5,
-                                      color: TT.text3,
-                                      letterSpacing: 0.06 * 9.5),
+                    return MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) =>
+                                TeamDetailScreen(team: r.team),
+                          ));
+                        },
+                        child: PCCard(
+                          padding:
+                              const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          child: Row(
+                            children: [
+                              _AvatarCircle(name: r.member.displayName),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(r.member.displayName,
+                                        style: TT.body(
+                                            size: 13,
+                                            w: FontWeight.w800)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'TEAM · ${r.team.name.toUpperCase()}',
+                                      style: TT.mono(
+                                          size: 9.5,
+                                          color: TT.text3,
+                                          letterSpacing: 0.06 * 9.5),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                              const PCPill(
+                                  label: 'TETHERED', success: true),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.chevron_right,
+                                  size: 18, color: TT.text3),
+                            ],
                           ),
-                          const PCPill(label: 'TETHERED', success: true),
-                        ],
+                        ),
                       ),
                     );
                   },
@@ -1119,15 +1301,29 @@ class _PcAlertsState extends State<_PcAlerts> {
     return List<Map<String, dynamic>>.from(res as List);
   }
 
+  void _refresh() {
+    setState(() {
+      _future = _load();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PCPageHeader(
+        PCPageHeader(
           eyebrow: 'INCOMING',
           title: 'Alerts',
-          sub: Text('Field reports, weather warnings, low-battery pings'),
+          sub: const Text('Field reports, weather warnings, low-battery pings'),
+          actions: [
+            PCBtn(
+              label: 'REFRESH',
+              leftIcon: Icons.refresh_rounded,
+              ghost: true,
+              onTap: _refresh,
+            ),
+          ],
         ),
         Expanded(
           child: FutureBuilder<List<Map<String, dynamic>>>(
