@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 import 'app_shell.dart';
-import 'desktop_shell.dart';
+import 'pc/pc_shell.dart';
 import '../core/design_tokens.dart';
 
 import 'onboarding_screen.dart'
@@ -71,11 +71,14 @@ class _AuthGateState extends State<AuthGate> {
           return const LoginScreen();
         }
 
-        // Determine if we should show desktop or mobile shell
+        // Large screens (Windows / macOS / Linux desktop, plus oversized
+        // tablets) get the dedicated PC base-camp shell. Phones and small
+        // tablets stay on the mobile shell. The new shell is ported from
+        // pc.html — see screens/pc/pc_shell.dart.
         final isLargeScreen = MediaQuery.of(context).size.width > 900;
-        
+
         if (isLargeScreen) {
-          return const MainDesktopShell();
+          return const MainPcShell();
         } else {
           return const AppShell();
         }
