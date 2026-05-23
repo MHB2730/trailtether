@@ -43,16 +43,19 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TT.bg,
-      body: _LazyTabStack(
-        index: _index,
-        children: [
-          TTHomeScreen(embedded: true, onNavigate: _goTo),
-          const TTMapScreen(embedded: true),
-          const TTToolsScreen(embedded: true),
-          const TTCommunityScreen(embedded: true),
-          const TTTeamScreen(embedded: true),
-          const TTProfileScreen(embedded: true),
-        ],
+      body: SafeArea(
+        bottom: false,
+        child: _LazyTabStack(
+          index: _index,
+          children: [
+            TTHomeScreen(embedded: true, onNavigate: _goTo),
+            const TTMapScreen(embedded: true),
+            const TTToolsScreen(embedded: true),
+            const TTCommunityScreen(embedded: true),
+            const TTTeamScreen(embedded: true),
+            const TTProfileScreen(embedded: true),
+          ],
+        ),
       ),
       bottomNavigationBar: TTBottomNav(
         currentIndex: _index,

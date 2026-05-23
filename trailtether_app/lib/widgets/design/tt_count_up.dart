@@ -102,10 +102,24 @@ class TTStagger extends StatelessWidget {
   Widget build(BuildContext context) {
     final wrapped = <Widget>[];
     for (var i = 0; i < children.length; i++) {
-      wrapped.add(_FadeUp(
-        delay: base + step * i,
-        child: children[i],
-      ));
+      final child = children[i];
+      final delay = base + step * i;
+      // If the caller wrapped the row item in Expanded/Flexible, we must keep
+      // that as the *direct* child of the surrounding Row so its ParentData is
+      // honoured. Push the _FadeUp inside instead.
+      Widget entry;
+      if (child is Expanded) {
+        entry = Expanded(flex: child.flex, child: _FadeUp(delay: delay, child: child.child));
+      } else if (child is Flexible) {
+        entry = Flexible(
+          flex: child.flex,
+          fit: child.fit,
+          child: _FadeUp(delay: delay, child: child.child),
+        );
+      } else {
+        entry = _FadeUp(delay: delay, child: child);
+      }
+      wrapped.add(entry);
       if (i < children.length - 1) {
         wrapped.add(SizedBox(
           width: axis == Axis.horizontal ? gap : 0,
