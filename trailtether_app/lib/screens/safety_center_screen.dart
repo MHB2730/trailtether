@@ -34,7 +34,10 @@ class SafetyCenterScreen extends StatefulWidget {
 }
 
 class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
-  static const List<String> _kGearItems = <String>[
+  // Seed values used on first launch. After that the user's actual
+  // list lives in SharedPreferences under `tt_gear_items` and they can
+  // freely add / remove from it.
+  static const List<String> _kGearSeed = <String>[
     'Headlamp',
     'Water',
     'Map',
@@ -44,6 +47,7 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
     'Compass',
     'Spare batteries',
   ];
+  static const String _kGearListKey = 'tt_gear_items';
   static String _gearKey(String item) =>
       'tt_gear_${item.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
 
@@ -56,9 +60,10 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
   bool _planLoaded = false;
 
   // ── Gear checklist state ────────────────────────────────────────────────
-  final Map<String, bool> _gear = <String, bool>{
-    for (final g in _kGearItems) g: false,
-  };
+  // List of items + ticked state. Both persisted in SharedPreferences;
+  // the list itself is editable via the Add/Delete actions in the UI.
+  List<String> _gearItems = const <String>[];
+  final Map<String, bool> _gear = <String, bool>{};
   bool _gearLoaded = false;
 
   @override
@@ -93,7 +98,11 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
 
   Future<void> _loadGear() async {
     final prefs = await SharedPreferences.getInstance();
-    for (final item in _kGearItems) {
+    // List of items: persisted custom list, or seed defaults on first run.
+    final stored = prefs.getStringList(_kGearListKey);
+    _gearItems = stored != null ? List<String>.from(stored) : List<String>.from(_kGearSeed);
+    _gear.clear();
+    for (final item in _gearItems) {
       _gear[item] = prefs.getBool(_gearKey(item)) ?? false;
     }
     if (!mounted) return;
@@ -105,6 +114,30 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
     setState(() => _gear[item] = next);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_gearKey(item), next);
+  }
+
+  Future<void> _addGear(String raw) async {
+    final item = raw.trim();
+    if (item.isEmpty) return;
+    // De-dupe case-insensitive — "Headlamp" and "headlamp" are the same.
+    final lower = item.toLowerCase();
+    if (_gearItems.any((g) => g.toLowerCase() == lower)) return;
+    setState(() {
+      _gearItems = [..._gearItems, item];
+      _gear[item] = false;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kGearListKey, _gearItems);
+  }
+
+  Future<void> _removeGear(String item) async {
+    setState(() {
+      _gearItems = _gearItems.where((g) => g != item).toList(growable: false);
+      _gear.remove(item);
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kGearListKey, _gearItems);
+    await prefs.remove(_gearKey(item));
   }
 
   Future<void> _pickReturnTime() async {
@@ -408,11 +441,13 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
                       ),
                       const SizedBox(height: 14),
                       _GearChecklistCard(
-                        items: _kGearItems,
+                        items: _gearItems,
                         gear: _gear,
                         loaded: _gearLoaded,
                         checked: gearChecked,
                         onToggle: _toggleGear,
+                        onAdd: _addGear,
+                        onRemove: _removeGear,
                       ),
                       const SizedBox(height: 14),
                       _BaseCampTetherLink(onTap: _openBaseCampTether),
@@ -946,12 +981,14 @@ class _GradientAvatar extends StatelessWidget {
 
 // ─────────────────────────────── GEAR CHECKLIST ──────────────────────────────
 
-class _GearChecklistCard extends StatelessWidget {
+class _GearChecklistCard extends StatefulWidget {
   final List<String> items;
   final Map<String, bool> gear;
   final bool loaded;
   final int checked;
   final ValueChanged<String> onToggle;
+  final ValueChanged<String> onAdd;
+  final ValueChanged<String> onRemove;
 
   const _GearChecklistCard({
     required this.items,
@@ -959,12 +996,39 @@ class _GearChecklistCard extends StatelessWidget {
     required this.loaded,
     required this.checked,
     required this.onToggle,
+    required this.onAdd,
+    required this.onRemove,
   });
 
   @override
+  State<_GearChecklistCard> createState() => _GearChecklistCardState();
+}
+
+class _GearChecklistCardState extends State<_GearChecklistCard> {
+  final _addCtrl = TextEditingController();
+  final _addFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _addCtrl.dispose();
+    _addFocus.dispose();
+    super.dispose();
+  }
+
+  void _submitAdd() {
+    final text = _addCtrl.text;
+    if (text.trim().isEmpty) return;
+    widget.onAdd(text);
+    _addCtrl.clear();
+    _addFocus.requestFocus();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final items = widget.items;
+    final gear = widget.gear;
     final total = items.length;
-    final pct = total == 0 ? 0.0 : checked / total;
+    final pct = total == 0 ? 0.0 : widget.checked / total;
 
     return TTCard(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
@@ -977,7 +1041,7 @@ class _GearChecklistCard extends StatelessWidget {
                   color: TT.ember, size: 18),
               const SizedBox(width: 8),
               Expanded(child: Text('Gear checklist', style: TT.title(16))),
-              Text('$checked / $total',
+              Text('${widget.checked} / $total',
                   style:
                       TT.mono(size: 12, color: TT.ember, letterSpacing: 0.8)),
             ],
@@ -1013,7 +1077,7 @@ class _GearChecklistCard extends StatelessWidget {
           const SizedBox(height: 14),
           const Divider(height: 1, thickness: 1, color: TT.line),
           const SizedBox(height: 8),
-          if (!loaded)
+          if (!widget.loaded)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Center(
@@ -1021,13 +1085,77 @@ class _GearChecklistCard extends StatelessWidget {
                     style: TT.body(size: 12, color: TT.text3)),
               ),
             )
-          else
-            for (final item in items)
-              _GearRow(
-                label: item,
-                checked: gear[item] ?? false,
-                onToggle: () => onToggle(item),
-              ),
+          else ...[
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'No gear yet. Add your first item below.',
+                  style: TT.body(size: 12, color: TT.text3),
+                ),
+              )
+            else
+              for (final item in items)
+                _GearRow(
+                  label: item,
+                  checked: gear[item] ?? false,
+                  onToggle: () => widget.onToggle(item),
+                  onRemove: () => widget.onRemove(item),
+                ),
+            const SizedBox(height: 6),
+            const Divider(height: 1, thickness: 1, color: TT.line),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0x14FFFFFF),
+                    border: Border.all(color: TT.line2, width: 1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.add_rounded,
+                      size: 14, color: TT.ember),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _addCtrl,
+                    focusNode: _addFocus,
+                    style: TT.body(size: 13, w: FontWeight.w700),
+                    cursorColor: TT.ember,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submitAdd(),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: 'Add gear (e.g. Sleeping bag, GPS, …)',
+                      hintStyle:
+                          TT.body(size: 13, color: TT.text3, w: FontWeight.w600),
+                      border: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _submitAdd,
+                  style: TextButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text('ADD',
+                      style: TT.mono(
+                          size: 11, color: TT.ember, letterSpacing: 1.4)),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -1038,17 +1166,46 @@ class _GearRow extends StatelessWidget {
   final String label;
   final bool checked;
   final VoidCallback onToggle;
+  final VoidCallback onRemove;
   const _GearRow({
     required this.label,
     required this.checked,
     required this.onToggle,
+    required this.onRemove,
   });
+
+  void _confirmRemove(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Text('Remove "$label"?', style: TT.title(15)),
+        content: Text(
+          'It will be removed from your checklist.',
+          style: TT.body(size: 12, color: TT.text2),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: TT.red),
+            child: const Text('REMOVE'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) onRemove();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onToggle,
+      onLongPress: () => _confirmRemove(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 9),
         child: Row(
@@ -1097,6 +1254,16 @@ class _GearRow extends StatelessWidget {
                 ),
                 child: Text(label),
               ),
+            ),
+            // Tappable trash chip — discoverable for users who don't
+            // know about the long-press affordance.
+            IconButton(
+              onPressed: () => _confirmRemove(context),
+              icon: const Icon(Icons.close_rounded, size: 16, color: TT.text3),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              tooltip: 'Remove',
+              splashRadius: 18,
             ),
           ],
         ),

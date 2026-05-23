@@ -2881,6 +2881,126 @@ class _InfoTool extends StatelessWidget {
           'cold-weather charging trick.',
       detail: _batteryDetail,
     ),
+    _InfoTip(
+      icon: Icons.healing_outlined,
+      title: 'Blisters and foot care',
+      body:
+          'Five minutes of taping saves a day of misery. Catch the hot spot '
+          'BEFORE the blister.',
+      detail: _blistersDetail,
+    ),
+    _InfoTip(
+      icon: Icons.accessible_forward,
+      title: 'Sprains, strains and ankles',
+      body:
+          'The most common hiking injury. RICE in the first hour, walk out on '
+          'poles. Tap for the full protocol.',
+      detail: _sprainDetail,
+    ),
+    _InfoTip(
+      icon: Icons.thermostat,
+      title: 'Heatstroke vs heat exhaustion',
+      body:
+          'Cool clammy = treat. Hot dry + confused = SOS. Knowing the '
+          'difference saves lives.',
+      detail: _heatstrokeDetail,
+    ),
+    _InfoTip(
+      icon: Icons.travel_explore,
+      title: 'Getting lost — the STOP rule',
+      body:
+          'Stop. Think. Observe. Plan. Down beats up — but staying put beats '
+          'wandering.',
+      detail: _gettingLostDetail,
+    ),
+    _InfoTip(
+      icon: Icons.waves,
+      title: 'River and stream crossings',
+      body:
+          'Widest point, unclip the hip belt, face upstream. When in doubt, '
+          'walk away — rivers fall fast.',
+      detail: _riverCrossingDetail,
+    ),
+    _InfoTip(
+      icon: Icons.terrain,
+      title: 'Altitude sickness (AMS)',
+      body:
+          'The escarpment sits at 3,000 m+. Hangover = mild AMS. Confused or '
+          'breathless at rest = descend NOW.',
+      detail: _altitudeDetail,
+    ),
+    _InfoTip(
+      icon: Icons.pets_outlined,
+      title: 'Wild animal encounters',
+      body:
+          'Baboons, snakes, ticks. Most flee — give them the option. Tap for '
+          'species-specific protocols.',
+      detail: _animalsDetail,
+    ),
+    _InfoTip(
+      icon: Icons.signpost_outlined,
+      title: 'Reading maps and trail markers',
+      body:
+          'V points uphill = stream. Two compass bearings = a fix. Sun at '
+          'noon = roughly North (SH).',
+      detail: _navigationDetail,
+    ),
+    _InfoTip(
+      icon: Icons.luggage_outlined,
+      title: 'Pack weight and load',
+      body:
+          '10% bodyweight for day, 20% overnight. Heavy items HIGH and CLOSE '
+          'to your back, not at the bottom.',
+      detail: _packLoadDetail,
+    ),
+    _InfoTip(
+      icon: Icons.hiking,
+      title: 'Trekking poles',
+      body:
+          'Cut knee impact by 25% on descents. Shorten on ups, lengthen on '
+          'downs. Plant opposite leg.',
+      detail: _trekkingPolesDetail,
+    ),
+    _InfoTip(
+      icon: Icons.timer_outlined,
+      title: 'Naismith\'s rule — hike timing',
+      body:
+          '1 hour per 5 km, plus 1 hour per 600 m up. Add 33% for a heavy '
+          'pack. Then multiply by 1.3 for breaks.',
+      detail: _timingDetail,
+    ),
+    _InfoTip(
+      icon: Icons.alarm_outlined,
+      title: 'Turnaround time discipline',
+      body:
+          'Pick the clock time before you leave. Summit fever is the #1 '
+          'killer in mountain accident reports.',
+      detail: _turnaroundDetail,
+    ),
+    _InfoTip(
+      icon: Icons.thunderstorm_outlined,
+      title: 'Drakensberg afternoon storms',
+      body:
+          'Off the escarpment by midday in summer. Towering anvil clouds = '
+          'thunderstorm within 2 h.',
+      detail: _bergStormsDetail,
+    ),
+    _InfoTip(
+      icon: Icons.cottage_outlined,
+      title: 'Cave and shelter etiquette',
+      body:
+          '125 surveyed caves in the bundle. No fires near rock art, no '
+          'trace inside, share the space.',
+      detail: _caveEtiquetteDetail,
+    ),
+    _InfoTip(
+      icon: Icons.opacity_outlined,
+      title: 'Water purification',
+      body:
+          'Looks pristine, carries Giardia. Boil, filter, or treat — always. '
+          'Tap for the three field methods.',
+      detail: _waterDetail,
+    ),
   ];
 
   @override
@@ -3225,6 +3345,367 @@ const _batteryDetail = <_InfoSection>[
     'Carry one power bank with 2x your phone capacity.',
     'Include a short, durable USB-C cable.',
     'Test the kit end-to-end before each trip.',
+  ]),
+];
+
+// ──────────────────────────── NEW FIELD-GUIDE TIPS ──────────────────────────
+// Beginner essentials + experienced-hiker depth. South-Africa /
+// Drakensberg flavoured where relevant. Keep `_InfoSection` blocks
+// to 3-5 short bullets so the detail screen stays scannable.
+
+const _blistersDetail = <_InfoSection>[
+  _InfoSection('Prevent before you hike', [
+    'Break boots in over at least 30 km of normal walking first.',
+    'Wear a synthetic or merino liner sock under a thicker hiking sock — friction goes between the socks, not your skin.',
+    'Tape known hot spots (heel, ball of foot, little toe) with Leukotape or KT-tape BEFORE the hike, not after.',
+    'Trim toenails square and short — long nails crash into the toe box on descents.',
+  ]),
+  _InfoSection('Catch a hot spot fast', [
+    'Any warm or stinging patch = stop now. Five minutes of taping saves a day of misery.',
+    'Dry the foot completely, then apply tape over the hot spot AND about 2 cm of skin around it.',
+    'Check the matching foot — most hikers blister symmetrically.',
+  ]),
+  _InfoSection('When a blister is already there', [
+    'Do not pop a small intact blister — the skin is your dressing.',
+    'For large painful blisters: sterilise a needle, drain from the edge at 2-3 points, leave the skin on.',
+    'Cover with a hydrocolloid (Compeed) and tape over the top so the dressing does not migrate.',
+  ]),
+  _InfoSection('Field repair kit', [
+    'Leukotape P · hydrocolloid plasters · sterile needle · alcohol wipes · scissors.',
+    'Keep it in a ziplock at the top of your pack — buried = useless.',
+  ]),
+];
+
+const _sprainDetail = <_InfoSection>[
+  _InfoSection('Recognise it on the trail', [
+    'Sudden pain + pop or rolling sensation at the ankle/knee.',
+    'Swelling within 30 minutes, bruising within hours.',
+    'Bearing weight is painful but possible = grade I/II sprain; impossible = grade III or fracture, treat as evacuation.',
+  ]),
+  _InfoSection('RICE in the first hour', [
+    'Rest — stop, do not "walk it off" until you have assessed.',
+    'Ice — cold stream water in a buff wrapped around the joint for 15 min.',
+    'Compress — figure-of-eight wrap with an elastic bandage or buff. Snug, not numb.',
+    'Elevate — joint above heart level while you wait.',
+  ]),
+  _InfoSection('Walk out safely', [
+    'Lace boots tight over the joint and use trekking poles as crutches.',
+    'Take the shortest, flattest line out — descend slowly, side-step on steep ground.',
+    'Anti-inflammatory (ibuprofen) helps swelling but masks pain — do not push past your real limit.',
+  ]),
+  _InfoSection('When to call SOS', [
+    'Cannot bear weight after 10 minutes of rest.',
+    'Joint is visibly deformed or you heard a snap.',
+    'Numbness, tingling, or blue toes below the injury — circulation may be compromised.',
+  ]),
+];
+
+const _heatstrokeDetail = <_InfoSection>[
+  _InfoSection('Heat exhaustion (early)', [
+    'Heavy sweating, cool clammy skin, weakness, nausea, headache.',
+    'Pulse is fast but skin temperature is still normal-ish.',
+    'STILL TREATABLE — act now before it tips into heatstroke.',
+  ]),
+  _InfoSection('Heatstroke (life-threatening)', [
+    'Skin is hot and dry OR dripping sweat with confusion / aggression / slurred speech.',
+    'Body core above 40 °C. Without rapid cooling, organ damage in 30 minutes.',
+    'This is a 911-level emergency — trigger SOS while you start treatment.',
+  ]),
+  _InfoSection('Cool aggressively', [
+    'Move to shade or improvise shade with a tarp / rain jacket.',
+    'Strip outer layers. Wet the skin (water, even sweat) and fan continuously — evaporative cooling is the fastest field method.',
+    'Cold packs (improvise with a wet buff in a stream) on neck, armpits, groin.',
+    'If conscious: sip cool water with electrolytes. Never force fluids on an unconscious casualty.',
+  ]),
+  _InfoSection('Prevent it tomorrow', [
+    'Start hydrated — 500 ml on waking, 250 ml every 30 min while moving in heat.',
+    'Add electrolytes (Rehidrat / Game / homemade: 1 L water + ¼ tsp salt + 6 tsp sugar).',
+    'Hike before 10:00 and after 15:00 in summer. Long-sleeved white merino beats sunscreen alone.',
+  ]),
+];
+
+const _gettingLostDetail = <_InfoSection>[
+  _InfoSection('STOP — the four letters that save lives', [
+    'Stop moving the second you realise you are off-track.',
+    'Think — last confirmed landmark, time since, direction.',
+    'Observe — terrain, sun position, water flow, sounds (cars, rivers).',
+    'Plan — do not act on the first idea; pick the safest option.',
+  ]),
+  _InfoSection('Stay put rules', [
+    'If anyone knows your route + return time, stay where you are. Rescue searches outward from your last known plan.',
+    'Make yourself visible: bright clothing on a bush, mirror, headlamp on strobe at dusk.',
+    'Three of anything = international distress (3 whistle blasts, 3 fires, 3 stones).',
+  ]),
+  _InfoSection('Self-rescue priorities (only if no one knows your plan)', [
+    'Down beats up. Follow water downhill — most rivers eventually meet a road.',
+    'Mark your trail (cairns, broken branches pointing back the way you came) so a search team can follow.',
+    'Conserve battery — phone in airplane mode, only check at high points where signal might exist.',
+  ]),
+  _InfoSection('Before the next hike', [
+    'File a tether plan with someone reliable (use Trailtether — that is what it is built for).',
+    'Carry a paper backup map of the area, even with offline tiles loaded.',
+    'Practice triangulating your position from two visible landmarks until it is muscle memory.',
+  ]),
+];
+
+const _riverCrossingDetail = <_InfoSection>[
+  _InfoSection('Read the water first', [
+    'Cross at the WIDEST point — wider means shallower and slower.',
+    'Avoid bends — water is fastest and deepest on the outside of a curve.',
+    'Look 50 m downstream for what happens if you fall — waterfalls, rapids, strainers (fallen trees) = do not cross here.',
+    'Test depth with a trekking pole before each step.',
+  ]),
+  _InfoSection('Technique', [
+    'Unclip hip belt and sternum strap — you must be able to ditch the pack instantly.',
+    'Face upstream and side-step, using two trekking poles as a tripod.',
+    'In a group: link arms in a line PARALLEL to the flow, strongest at the upstream end.',
+    'Footwear stays on. Wet boots beat cut feet on submerged rocks.',
+  ]),
+  _InfoSection('When to walk away', [
+    'Water above mid-thigh on the smallest member of the group.',
+    'You cannot see the bottom (silty / fast).',
+    'Cannot stand still in the current without bracing.',
+    'Camp, wait for levels to drop, or detour. Rivers fall fast after rain — 6 h often halves the flow.',
+  ]),
+  _InfoSection('If you are swept off', [
+    'Feet downstream, on your back, knees bent — push off rocks with your feet, not your hands.',
+    'Aggressively swim across the current (not against it) towards the nearest bank.',
+    'Ditch the pack only if it is dragging you under — otherwise its buoyancy helps.',
+  ]),
+];
+
+const _altitudeDetail = <_InfoSection>[
+  _InfoSection('Where it kicks in', [
+    'Most people feel something above ~2,500 m. The Drakensberg escarpment sits at 3,000–3,400 m — assume mild AMS is normal.',
+    'Symptoms are dose-dependent on how fast you ascended, not just elevation.',
+    'Genetics matter — some hikers never feel it, others do at 2,000 m.',
+  ]),
+  _InfoSection('Recognise AMS (mild)', [
+    'Headache + one of: nausea, fatigue, dizziness, poor sleep.',
+    'It feels like a hangover. If your headache lifts with paracetamol + rest, you are fine to continue cautiously.',
+    'Do NOT ascend further on the day symptoms appear.',
+  ]),
+  _InfoSection('Red flags — descend NOW', [
+    'HACE: confusion, ataxia (cannot walk a straight line, drunk-like), severe headache that ignores paracetamol.',
+    'HAPE: breathlessness AT REST, pink frothy sputum, crackles in chest, blue lips.',
+    'Both are killers in hours, not days. Lose altitude immediately — even 300 m down helps.',
+  ]),
+  _InfoSection('Acclimatise smart', [
+    'Climb high, sleep low. Day hike to the summit, sleep in the valley.',
+    'Hydrate aggressively — high altitude air is brutally dry.',
+    'No alcohol or sleeping pills above 2,500 m on day one.',
+    'Diamox (acetazolamide) helps if started 24 h before ascent. Talk to a doctor before counting on it.',
+  ]),
+];
+
+const _animalsDetail = <_InfoSection>[
+  _InfoSection('Baboons (Drakensberg + Cape)', [
+    'Never look one in the eye — that is a threat display. Eyes down, walk past calmly.',
+    'Do NOT show food. Hide snacks the moment you spot a troop.',
+    'If approached: face them, back away slowly, hold ground. Running triggers chase.',
+    'Carry food in dry-bags inside your pack — a backpack pocket is breakfast.',
+  ]),
+  _InfoSection('Snakes', [
+    'Most SA snakes flee. Stomp the ground as you walk through long grass — vibration warns them.',
+    'Never put hands or feet anywhere you cannot see — under logs, into rock cracks, into your boots in the morning.',
+    'If bitten: stay calm, immobilise the limb, mark the swelling edge with time, evacuate (see Snake bite tip).',
+  ]),
+  _InfoSection('Insects', [
+    'Ticks: check legs, groin, behind knees, hairline at every break. Pull straight out with tweezers, do not twist.',
+    'Bees: if attacked, run downwind in a straight line through dense brush. Do not jump in water — they wait.',
+  ]),
+  _InfoSection('Larger wildlife', [
+    'Eland, antelope: keep 50 m. Mothers with young are unpredictable.',
+    'Leopard sightings in the Berg are extremely rare and they avoid humans. If you do see one: stand tall, do not turn your back, back away slowly.',
+  ]),
+];
+
+const _navigationDetail = <_InfoSection>[
+  _InfoSection('Reading contour lines', [
+    'Close together = steep. Far apart = gentle.',
+    'V or U pointing UPHILL = a stream or valley (water flows through the V).',
+    'V pointing DOWNHILL = a ridge.',
+    'Concentric closed loops = a summit; loops with hachures inside = a depression.',
+  ]),
+  _InfoSection('Trail markers', [
+    'Cairns (stacked rocks): trail goes this way — but verify, vandals build false ones.',
+    'Paint blazes: colour tells you which route; double blaze = turn ahead.',
+    'No markers for 10+ minutes on a "marked" trail = you have probably stepped off. Backtrack to last confirmed marker.',
+  ]),
+  _InfoSection('Triangulating your position', [
+    'Identify two distant landmarks visible on your map (peaks, river bends).',
+    'Take a compass bearing to each, then draw the back-bearings on the map.',
+    'You are where the two lines cross. A third bearing tightens the fix.',
+  ]),
+  _InfoSection('Sun-and-time backup', [
+    'In the Southern Hemisphere, the sun is roughly NORTH at midday.',
+    'Watch trick: point 12 o\'clock at the sun. Halfway between 12 and the hour hand is NORTH.',
+    'Useful when your phone is dead — but always carry a real baseplate compass.',
+  ]),
+];
+
+const _packLoadDetail = <_InfoSection>[
+  _InfoSection('Pack weight rules', [
+    'Day hike: max 10% of bodyweight is comfortable.',
+    'Overnight: 20% is the upper edge for most people.',
+    'Multi-day: under 25% — past that, pace drops 30%+ and injury risk spikes.',
+  ]),
+  _InfoSection('Load it for balance', [
+    'HEAVY items (water, tent, food bag) ride HIGH and CLOSE to your back, between shoulder blades.',
+    'Medium items (clothes, cook kit) wrap around the heavy core.',
+    'Light items (sleeping bag, puffy) sit at the bottom.',
+    'Snacks, map, headlamp, rain jacket = hip-belt pockets / lid for one-handed access.',
+  ]),
+  _InfoSection('Fit it to your body', [
+    'Hip belt sits on the iliac crest (top of hip bones), not the waist. It carries 80% of the load.',
+    'Shoulder straps SNUG, not pulling down. Sternum strap horizontal across the chest.',
+    'Load lifters: 45° angle between top of strap and pack — if they are flat, the pack is too small.',
+  ]),
+  _InfoSection('Cut weight smart', [
+    'Weigh everything once. The "Big 3" (pack + shelter + sleep system) is where 60% of the weight lives.',
+    'Repackage food and toiletries — no boxes, no bottles, no aerosols.',
+    'Two of anything is one too many, except socks and emergency comms.',
+  ]),
+];
+
+const _trekkingPolesDetail = <_InfoSection>[
+  _InfoSection('Why they matter', [
+    'Reduce knee impact on descents by up to 25%.',
+    'Add two more "legs" for balance on river crossings, scree, and uneven ground.',
+    'Engage upper body — you carry more weight further with less leg fatigue.',
+  ]),
+  _InfoSection('Get the length right', [
+    'Standing on flat ground: elbow at 90° when the tip touches the ground.',
+    'Going UP: shorten by ~5 cm. Going DOWN: lengthen by ~5 cm.',
+    'Most modern poles are flick-lock — twist-locks slip when wet, prefer flick.',
+  ]),
+  _InfoSection('Technique', [
+    'Opposite arm + opposite leg, like a natural walk. Hand goes UP through the strap from below.',
+    'Plant the pole at the same time as the opposite foot, slightly ahead.',
+    'On steep descent: plant both poles together a step ahead, then walk down to them.',
+  ]),
+  _InfoSection('Care', [
+    'Disassemble after every wet hike. Trapped water rusts the springs and freezes joints.',
+    'Replace rubber tips before they wear through to metal — metal slips on rock.',
+  ]),
+];
+
+const _timingDetail = <_InfoSection>[
+  _InfoSection('Naismith\'s rule (1892, still works)', [
+    '1 hour per 5 km of horizontal distance.',
+    'Plus 1 hour per 600 m of ascent.',
+    'Example: 12 km with 900 m up = (12/5) + (900/600) = 2.4 + 1.5 = 3.9 hours moving time.',
+  ]),
+  _InfoSection('Adjustments', [
+    'Add 33% for a heavy pack (over 15 kg).',
+    'Add 25% for technical terrain (scrambling, boulder fields, soft snow).',
+    'Add 1 hr per 300 m of descent below 1,500 m (descent fatigue is real, especially on knees).',
+    'Group of 4+: add 20%. You move at the pace of the slowest member, plus regrouping time.',
+  ]),
+  _InfoSection('Break time matters', [
+    'Naismith does not include breaks. Add 10 min snack stop every 2 hours, plus 30-60 min for a real lunch.',
+    'Total trip time = moving time × 1.3-1.5 is a realistic plan.',
+  ]),
+  _InfoSection('Calibrate to YOU', [
+    'After every recorded hike, compare actual moving time to Naismith\'s estimate.',
+    'Your personal multiplier (e.g. 1.15× faster, 0.9× slower) is more useful than the formula.',
+  ]),
+];
+
+const _turnaroundDetail = <_InfoSection>[
+  _InfoSection('Pick the time before you leave', [
+    'A turnaround time is a CLOCK — not a place. "We turn at 14:00 wherever we are."',
+    'Calculate it as: sunset − descent time − 1 hr safety buffer.',
+    'In the Berg in summer, sunset ~19:00 = turnaround often 13:00-14:00 for a long route.',
+  ]),
+  _InfoSection('Why it is non-negotiable', [
+    'Most mountain accidents happen on the descent, in fading light, on tired legs.',
+    '"Summit fever" — pushing for the top despite slipping schedule — is the #1 killer in alpine accident reports.',
+    'A summit you do not reach today is a summit you can reach next month.',
+  ]),
+  _InfoSection('Adjust en route', [
+    'If you hit the halfway point AFTER 50% of your moving budget, turn around there. You will not catch up.',
+    'Weather closing in (cumulus building, wind shift, temp drop) = bring turnaround forward, not back.',
+    'Slowest member sets the pace. Their fitness IS the group\'s capability.',
+  ]),
+  _InfoSection('Failure modes', [
+    'Phone clock not adjusted to local time / DST. Set it manually at the trailhead.',
+    'Group disagreement at the deadline. Decide the rule BEFORE you start, not at 13:55 with the summit in sight.',
+  ]),
+];
+
+const _bergStormsDetail = <_InfoSection>[
+  _InfoSection('The Drakensberg pattern', [
+    'October-April: classic afternoon thunderstorm cycle. Build from ~13:00, peak 15:00-17:00, often clear by 19:00.',
+    'Winter (May-Aug): cold fronts sweep in fast from the SW. Snow above 2,500 m is normal.',
+    'Mist forms in valleys overnight, lifts by 09:00. If it sits past 10:00, expect rain.',
+  ]),
+  _InfoSection('Read the sky', [
+    'Towering cumulus with anvil tops = thunderstorm within 2 hours. Get off the escarpment.',
+    'Lenticular cloud (lens-shaped) over peaks = high winds aloft, often a front incoming.',
+    'Halo around sun or moon = ice crystals high up, warm front in 12-24 h, likely rain.',
+  ]),
+  _InfoSection('Pre-storm checklist', [
+    'Be off ridges and summits by midday in summer. No exceptions on the Amphitheatre.',
+    'Identify your bail-out cave or shelter before you commit to the high ground.',
+    'Trekking poles + camera tripod = lightning rods. Stow them.',
+  ]),
+  _InfoSection('Caught out anyway', [
+    'Lightning safety: see the Lightning Safety tip — count flash-to-thunder, crouch-and-cover at <30 s.',
+    'In hail: face away from the strike direction, hood up, kneel low. Most hail in the Berg is pea-sized but stings.',
+    'After the front passes: rivers rise fast. Re-evaluate any planned crossings.',
+  ]),
+];
+
+const _caveEtiquetteDetail = <_InfoSection>[
+  _InfoSection('Find them safely', [
+    'The 125 surveyed caves in Trailtether are real overhang shelters, not show-caves.',
+    'Approach from below, in daylight. Many entrances are hidden by overhangs and hard to spot from above.',
+    'Some are accessed via short scrambles — assess before committing.',
+  ]),
+  _InfoSection('Leave-no-trace inside', [
+    'No fires inside caves with rock art — soot destroys irreplaceable San paintings.',
+    'Sleep on a groundsheet, never directly on the cave floor (sand-and-bone middens are archaeology).',
+    'Pack out EVERY scrap of food + wrapper. Baboons learn caves and become problem animals.',
+    'No graffiti, no carving, no rock-stacking inside cave entrances.',
+  ]),
+  _InfoSection('Share fairly', [
+    'First-come picks their spot, but always leave room for late arrivals — they may be in worse shape than you.',
+    'Multi-night occupants take the back; through-hikers get the easy-access front.',
+    'Quiet hours from sundown — sound carries oddly inside.',
+  ]),
+  _InfoSection('Hazards', [
+    'Snakes shelter in cracks. Check before placing kit, sleeping in alcoves, or reaching into gear bags.',
+    'Loose roof flakes — never camp directly under a fresh-looking scar in the rock.',
+    'Floor often slopes towards a drip line. Pitch uphill of any visible water marks.',
+  ]),
+];
+
+const _waterDetail = <_InfoSection>[
+  _InfoSection('Why you must treat it', [
+    'Drakensberg streams look pristine but most carry Giardia, Cryptosporidium, or bacterial contamination from livestock.',
+    'Symptoms hit 1-7 days after drinking — by then you are off the mountain and have already infected your travel partners.',
+    'Even crystal-clear water above the snowline is not safe — wild animals defaecate everywhere.',
+  ]),
+  _InfoSection('Method 1: boil', [
+    'Bring water to a ROLLING boil. At sea level, instant kill. Above 2,000 m, hold for 3 minutes.',
+    'Slowest method but kills everything (bacteria, viruses, protozoa).',
+    'Burns fuel — not the best multi-day choice.',
+  ]),
+  _InfoSection('Method 2: filter', [
+    'Squeeze filters (Sawyer, Katadyn BeFree) remove bacteria + protozoa, not viruses. Fine for SA mountains.',
+    'Backflush after every use — pore clogging is the #1 failure mode.',
+    'Freezing destroys hollow-fibre filters. In winter, sleep with the filter in your sleeping bag.',
+  ]),
+  _InfoSection('Method 3: chemical', [
+    'Aquatabs / iodine: 30 min contact time, double for cold or murky water.',
+    'Lightest backup option (3 g per trip). Always carry as a redundancy for a broken filter.',
+    'Pre-filter visibly cloudy water through a buff or coffee filter first.',
+  ]),
+  _InfoSection('When you cannot treat', [
+    'Source matters: highest possible point on a flowing stream, above any visible animal trail.',
+    'Avoid still pools, stagnant tarns, anything downstream of a campsite.',
+    'Better thirsty for 2 hours than sick for 2 weeks — but in true emergency, drink. Dehydration kills faster than Giardia.',
   ]),
 ];
 
