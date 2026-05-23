@@ -147,8 +147,28 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
+                      // v3.0 feature graphic — keeps original logo in app_icon,
+                      // adds photographic depth behind the animated scenes.
+                      Positioned.fill(
+                        child: Opacity(
+                          opacity: 0.32,
+                          child: ShaderMask(
+                            shaderCallback: (rect) => const LinearGradient(
+                              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                              colors: [Colors.white, Colors.transparent],
+                              stops: [0.5, 1.0],
+                            ).createShader(rect),
+                            blendMode: BlendMode.dstIn,
+                            child: Image.asset(
+                              'assets/icon/feature_graphic.png',
+                              fit: BoxFit.cover,
+                              alignment: const Alignment(0, -0.2),
+                            ),
+                          ),
+                        ),
+                      ),
                       const Positioned.fill(
-                        child: Opacity(opacity: 0.35, child: TTTopoBackdrop()),
+                        child: Opacity(opacity: 0.25, child: TTTopoBackdrop()),
                       ),
                       // Color-following radial glow.
                       Positioned.fill(
