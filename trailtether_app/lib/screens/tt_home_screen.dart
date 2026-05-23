@@ -38,7 +38,7 @@ import '../widgets/design/tt_elev_chart.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
 import 'create_hike_plan_screen.dart';
-import 'hike_history_screen.dart' show HikeDetailScreen;
+import 'hike_history_screen.dart' show HikeDetailScreen, HikeHistoryScreen;
 import 'hike_plan_detail_screen.dart';
 import 'incident_detail_sheet.dart';
 import 'sos_screen.dart';
@@ -2159,16 +2159,15 @@ class _LastHikeCardState extends State<_LastHikeCard> with SingleTickerProviderS
     );
   }
 
-  /// Open the most recent hike's detail screen — or, if there is no recorded
-  /// hike yet, send the user to the Map tab where they can start one. This
-  /// keeps the "VIEW ALL →" affordance always actionable.
+  /// "VIEW ALL" → push the full activity history list. Previously this
+  /// jumped straight to the most recent hike or bounced to the Map tab,
+  /// which surprised users — the affordance reads as "show me all my
+  /// activities", so that's what it now does. The list itself handles
+  /// empty state.
   void _onViewAll() {
-    final hikes = context.read<HikeHistoryProvider>().hikes;
-    if (hikes.isNotEmpty) {
-      _openHike(hikes.first);
-    } else {
-      widget.onNavigateToMap();
-    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const HikeHistoryScreen()),
+    );
   }
 
   @override

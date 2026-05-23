@@ -283,6 +283,26 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                   TTPageAppBar(
                     title: 'Team',
                     trailing: [
+                      // Live tracking — opens the full-screen map with
+                      // every team member's last known position.
+                      TTIconBtn(
+                        icon: Icons.radar,
+                        ember: true,
+                        onTap: team == null
+                            ? null
+                            : () => _openLiveMap(context),
+                      ),
+                      // Scan a QR to join ANOTHER team (the user might
+                      // belong to multiple). Previously you could only
+                      // scan when you had zero teams.
+                      TTIconBtn(
+                        icon: Icons.qr_code_scanner,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const JoinTeamScreen(),
+                          ),
+                        ),
+                      ),
                       TTIconBtn(
                         icon: Icons.chat_bubble_outline,
                         onTap: team == null

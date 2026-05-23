@@ -19,6 +19,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1168,12 +1169,178 @@ class _MembersTabState extends State<_MembersTab> {
     }
   }
 
+  /// Confirm + remove a member, refresh the team list, and surface the
+  /// result via a snackbar. Previously the row's onTap fired
+  /// removeMember() directly with no dialog or refresh — the RPC
+  /// succeeded server-side but the local team data stayed stale so it
+  /// looked like the delete didn't happen.
+  Future<void> _confirmAndRemove(TeamMember member) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Text('Remove ${member.displayName}?', style: TT.title(15)),
+        content: Text(
+          'They will lose access to the team chat, hike plans, and live tracking. They can be re-invited later.',
+          style: TT.body(size: 12, color: TT.text2),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: TT.red),
+            child: const Text('REMOVE'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final teamProv = context.read<TeamProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await teamProv.removeMember(widget.team.id, member);
+    if (!mounted) return;
+    if (success) {
+      // Refresh so the row disappears from the live UI.
+      await teamProv.refresh();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${member.displayName} removed.',
+              style: TT.body(size: 13, color: TT.text)),
+          backgroundColor: TT.surf2,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+              'Could not remove ${member.displayName}. ${teamProv.error ?? "Try again."}',
+              style: TT.body(size: 13, color: TT.text)),
+          backgroundColor: TT.surf2,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _shareInviteLink() async {
+    final code = widget.team.inviteCode;
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No invite code yet — open the QR screen to generate one.',
+            style: TT.body(size: 13, color: TT.text),
+          ),
+          backgroundColor: TT.surf2,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    await Share.share(
+      'Join my Trailtether team "${widget.team.name}"!\n\n'
+      'Open the app → Teams → Join Team, and enter code:\n\n'
+      '  $code\n\n'
+      'See you on the trail!',
+      subject: 'Join ${widget.team.name} on Trailtether',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
       children: [
         if (widget.isAdmin) ...[
+          TTCard(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('SHARE INVITE LINK',
+                    style: TT.label(color: TT.ember)),
+                const SizedBox(height: 8),
+                Text(
+                  'Send the team code via WhatsApp, email, SMS, or any installed share target. The recipient enters it in Teams → Join Team.',
+                  style:
+                      TT.body(size: 12, color: TT.text2).copyWith(height: 1.4),
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _shareInviteLink,
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(TT.rMd),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [TT.ember2, TT.ember],
+                      ),
+                      boxShadow: TT.shadowEmber,
+                    ),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.share_outlined,
+                            color: TT.emberInk, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          'SHARE INVITE',
+                          style: TT.label(
+                              size: 12, color: TT.emberInk, letterSpacing: 1.6),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (widget.team.inviteCode.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'CODE  ${widget.team.inviteCode}',
+                          style: TT.mono(
+                              size: 12,
+                              color: TT.text2,
+                              letterSpacing: 1.2),
+                        ),
+                      ),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          Clipboard.setData(
+                              ClipboardData(text: widget.team.inviteCode));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Code copied!',
+                                  style: TT.body(size: 13, color: TT.text)),
+                              backgroundColor: TT.surf2,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Icon(Icons.copy_rounded,
+                              size: 16, color: TT.text3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           TTCard(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             child: Column(
@@ -1268,9 +1435,7 @@ class _MembersTabState extends State<_MembersTab> {
               isMe: widget.team.members[i].uid == widget.currentUid,
               canRemove: widget.isAdmin &&
                   widget.team.members[i].uid != widget.team.createdBy,
-              onRemove: () => context
-                  .read<TeamProvider>()
-                  .removeMember(widget.team.id, widget.team.members[i]),
+              onRemove: () => _confirmAndRemove(widget.team.members[i]),
             ),
           ),
       ],
