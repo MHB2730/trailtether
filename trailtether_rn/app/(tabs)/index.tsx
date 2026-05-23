@@ -20,10 +20,11 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '@components/primitives/Card';
 import { DifficultyChip, Pill } from '@components/primitives/Pill';
 import { ScreenShell } from '@components/primitives/ScreenShell';
-import { IconBtn, TTAppBar } from '@components/primitives/TTAppBar';
+import { IconBtn } from '@components/primitives/TTAppBar';
 import { ErrorState, LoadingState } from '@components/primitives/States';
 import { Icon, IconName } from '@components/Icon';
 import { font, fz, ls, motion, radius, sp, tt } from '@theme/tokens';
@@ -58,22 +59,16 @@ export default function HomeScreen() {
   const subEyebrow = weatherLocationEyebrow(weatherLocation);
 
   return (
-    <ScreenShell>
-      <TTAppBar
-        sub={subEyebrow}
-        right={
-          <View style={styles.actions}>
-            <IconBtn name="bell" onPress={() => router.push('/notifications')} />
-            <IconBtn name="search" onPress={() => router.push('/search')} />
-          </View>
-        }
+    <ScreenShell contentContainerStyle={{ paddingTop: 0 }}>
+      <HomeHero
+        snow={snow}
+        displayName={displayName}
+        subEyebrow={subEyebrow}
+        onPressBell={() => router.push('/notifications')}
+        onPressSearch={() => router.push('/search')}
       />
 
-      <HomeHero snow={snow} />
-
       <View style={styles.body}>
-        <Greeting name={displayName} />
-        <View style={{ height: sp.s7 }} />
         <QuickActions router={router} />
         <View style={{ height: sp.s7 }} />
         <UpcomingHikeCard router={router} />
@@ -106,11 +101,24 @@ function weatherLocationEyebrow(
 }
 
 // ── Hero ───────────────────────────────────────────────────────────────
+//
+// Matches `screens/home.jsx#HomeHero`: full-bleed mountain image fills
+// a 260-tall header band, with the brand row pinned to the top and the
+// "WELCOME BACK · {name}." greeting pinned to the bottom. A vertical
+// gradient at the foot of the image fades into the body bg so the
+// QuickActions strip flows out of the hero cleanly.
 
-function HomeHero({ snow }: { snow: boolean }) {
-  // Slow breathing pulse for the trail glow — placeholder for the full
-  // SVG burnt-trail animation in the handoff (lands in a follow-up pass
-  // when we port the InteractiveTrailExplorer mechanics).
+interface HomeHeroProps {
+  snow: boolean;
+  displayName: string;
+  subEyebrow: string | undefined;
+  onPressBell: () => void;
+  onPressSearch: () => void;
+}
+
+function HomeHero({ snow, displayName, subEyebrow, onPressBell, onPressSearch }: HomeHeroProps) {
+  // Slow breathing pulse for the summit ember glow — stands in for the
+  // SVG comet animation in the handoff until it's ported.
   const glow = useSharedValue(0);
   React.useEffect(() => {
     glow.value = withRepeat(
@@ -127,6 +135,8 @@ function HomeHero({ snow }: { snow: boolean }) {
     opacity: 0.4 + glow.value * 0.35,
   }));
 
+  const avatar = displayName.trim().slice(0, 2).toUpperCase() || 'TT';
+
   return (
     <View style={styles.hero}>
       <Image
@@ -138,23 +148,46 @@ function HomeHero({ snow }: { snow: boolean }) {
         style={styles.heroImg}
         resizeMode="cover"
       />
-      {/* Top-to-bottom darken scrim so the greeting below stays legible. */}
-      <View pointerEvents="none" style={styles.heroScrim} />
+      {/* Summit ember halo — sits over the central peak in the photo. */}
       <Animated.View pointerEvents="none" style={[styles.heroGlow, glowStyle]} />
+      {/* Bottom fade into app bg for QuickActions legibility. */}
+      <View pointerEvents="none" style={styles.heroFade} />
+
+      {/* Overlay 1: brand + actions at the top of the hero. */}
+      <SafeAreaView edges={['top']} style={styles.heroAppbar}>
+        <View style={styles.heroBrand}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.heroLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.heroWordmark}>
+            TRAIL<Text style={{ color: tt.ember }}>TETHER</Text>
+          </Text>
+        </View>
+        <View style={styles.heroActionsRow}>
+          <IconBtn name="bell" onPress={onPressBell} />
+          <IconBtn name="search" onPress={onPressSearch} />
+          <View style={styles.heroAvatar}>
+            <Text style={styles.heroAvatarText}>{avatar}</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+
+      {/* Overlay 2: greeting pinned to the bottom of the hero. */}
+      <View style={styles.heroGreeting} pointerEvents="none">
+        {subEyebrow && (
+          <Text style={styles.heroRegion}>{subEyebrow}</Text>
+        )}
+        <Text style={styles.heroEyebrow}>WELCOME BACK,</Text>
+        <Text style={styles.heroName}>{displayName}.</Text>
+      </View>
+
       {snow && (
         <View style={styles.snowTag}>
           <Text style={styles.snowTagText}>❄ SNOW · UP TO 14CM</Text>
         </View>
       )}
-    </View>
-  );
-}
-
-function Greeting({ name }: { name: string }) {
-  return (
-    <View>
-      <Text style={styles.eyebrow}>WELCOME BACK,</Text>
-      <Text style={styles.heroName}>{name}.</Text>
     </View>
   );
 }
@@ -514,25 +547,110 @@ function FieldIntelCard({ center }: { center: { lat: number; lon: number } | nul
 
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8 },
-  body: { paddingHorizontal: sp.screen, paddingTop: sp.s8 },
+  body: { paddingHorizontal: sp.screen, paddingTop: sp.s7 },
   hero: {
     width: '100%',
-    height: 220,
+    height: 280,
     overflow: 'hidden',
     backgroundColor: tt.bg2,
+    position: 'relative',
   },
-  heroImg: { width: '100%', height: '100%' },
-  heroScrim: {
+  heroImg: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(7,9,12,0.45)',
+    width: '100%',
+    height: '100%',
   },
   heroGlow: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,106,44,0.04)',
+    position: 'absolute',
+    top: 28,
+    left: '32%',
+    right: '32%',
+    height: 80,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,138,77,0.28)',
+  },
+  // Bottom-to-top fade into the app background so QuickActions has
+  // somewhere to land. Built from a stack of decreasing-alpha views
+  // because we don't ship expo-linear-gradient — close enough.
+  heroFade: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    backgroundColor: tt.bg,
+    opacity: 0,
+  },
+  heroAppbar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: sp.screen,
+    paddingTop: sp.s2,
+    paddingBottom: sp.s5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sp.s4,
+  },
+  heroBrand: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  heroLogo: { width: 22, height: 22 },
+  heroWordmark: {
+    fontFamily: font.uiHeavy,
+    fontSize: 13,
+    letterSpacing: ls.monoWide * 13,
+    color: tt.text,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  heroActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: tt.ember,
+    borderWidth: 2,
+    borderColor: tt.ember,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroAvatarText: {
+    fontFamily: font.uiHeavy,
+    fontSize: 13,
+    color: '#1a0d04',
+    letterSpacing: ls.tight * 13,
+  },
+  heroGreeting: {
+    position: 'absolute',
+    left: 22,
+    right: 22,
+    bottom: 26,
+  },
+  heroRegion: {
+    fontFamily: font.monoBold,
+    fontSize: 9.5,
+    color: tt.text2,
+    letterSpacing: ls.monoWide * 9.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  heroEyebrow: {
+    fontFamily: font.monoBold,
+    fontSize: 11,
+    color: tt.ember,
+    letterSpacing: ls.monoWide * 11,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
   snowTag: {
     position: 'absolute',
-    top: 12,
+    top: 78,
     left: 14,
     paddingHorizontal: 9,
     paddingVertical: 4,
@@ -598,11 +716,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1 * 10.5,
   },
   heroName: {
-    marginTop: 4,
+    marginTop: 6,
     fontFamily: font.uiHeavy,
-    fontSize: fz.hero2,
+    fontSize: 34,
+    lineHeight: 34,
     color: tt.text,
-    letterSpacing: ls.tight * fz.hero2,
+    letterSpacing: ls.tight * 34,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 16,
   },
   actionGrid: {
     flexDirection: 'row',
