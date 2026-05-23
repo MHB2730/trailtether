@@ -403,7 +403,7 @@ class _WelcomePage extends StatelessWidget {
       children: [
         Positioned.fill(
           child: Image.asset(
-            'assets/icon/hero_mountain.png',
+            'assets/icon/hero_mountain.jpg',
             fit: BoxFit.cover,
           ),
         ),

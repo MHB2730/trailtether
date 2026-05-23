@@ -114,7 +114,7 @@ class _HomeTabState extends State<HomeTab> {
                       Hero(
                         tag: 'home_banner',
                         child: Image.asset(
-                          'assets/icon/hero_mountain.png',
+                          'assets/icon/hero_mountain.jpg',
                           width: double.infinity,
                           fit: BoxFit.contain,
                           errorBuilder: (_, __, ___) => const SizedBox.shrink(),

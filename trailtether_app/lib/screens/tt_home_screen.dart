@@ -148,7 +148,7 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
                     secondCurve: Curves.easeOut,
                     sizeCurve: Curves.easeOut,
                     firstChild: Image.asset(
-                      'assets/icon/hero_mountain.png',
+                      'assets/icon/hero_mountain.jpg',
                       fit: BoxFit.fitWidth,
                       alignment: Alignment.topCenter,
                       filterQuality: FilterQuality.medium,
@@ -156,7 +156,7 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
                           const SizedBox(height: 720),
                     ),
                     secondChild: Image.asset(
-                      'assets/icon/hero_snow.png',
+                      'assets/icon/hero_snow.jpg',
                       fit: BoxFit.fitWidth,
                       alignment: Alignment.topCenter,
                       filterQuality: FilterQuality.medium,

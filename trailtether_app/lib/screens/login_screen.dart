@@ -510,7 +510,7 @@ class _HeroPanel extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Image.asset(
-                'assets/icon/hero_mountain.png',
+                'assets/icon/hero_mountain.jpg',
                 fit: BoxFit.cover,
                 alignment: const Alignment(0, -0.2),
                 filterQuality: FilterQuality.medium,
