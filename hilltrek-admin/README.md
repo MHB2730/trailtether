@@ -192,6 +192,85 @@ HTTP error per file. Most failures are either:
 - The API token has been revoked → regenerate and update `CPANEL_API_TOKEN`
 - `CPANEL_HOME` path is wrong → verify against cPanel "Home Directory"
 
+### Payment gateways — Yoco and / or PayFast
+
+The checkout tries gateways in this priority order: **Yoco → PayFast →
+email-fallback**. Set credentials for whichever you've onboarded with;
+the rest are skipped automatically (each Edge Function returns 503 when
+its secrets aren't set, and the frontend moves on).
+
+You can run with just one, both, or neither — neither degrades the
+shop's UX gracefully into a "pending, we'll email you" confirmation.
+
+### One-time setup for Yoco (recommended — fastest SA onboarding)
+
+Yoco is a South African card payments processor. Fast onboarding (often
+within a day), no slow KYC queue. Same checkout UX as PayFast — shopper
+gets redirected to a Yoco-hosted payment page, returns to your site
+when done.
+
+**1. Sign up.**
+
+- Create an account at <https://www.yoco.com/za/>
+- Activate online payments in the dashboard
+
+**2. Grab your API key.**
+
+- Yoco dashboard → **Sell Online** → **API keys** (or **Settings → API**
+  depending on version)
+- Copy your **Secret Key**:
+  - **Test mode**: starts with `sk_test_…` — use this first
+  - **Live mode**: starts with `sk_live_…` — use once you're ready
+
+**3. Create a webhook endpoint.**
+
+- Yoco dashboard → **Webhooks** → **Create endpoint**
+- URL: `https://xuqmdujupbmxahyhkdwl.supabase.co/functions/v1/yoco-webhook`
+- Events to subscribe: `payment.succeeded`, `payment.failed`,
+  `payment.cancelled` (or simply "all events" if Yoco's UI offers that)
+- After creating, copy the **Signing Secret** — looks like
+  `whsec_xxxxxxxxxxxxxxxxxxxxxxx`
+
+**4. Set 2 secrets in Supabase.**
+
+Dashboard → **Edge Functions** → **Secrets**:
+
+| Name                  | Value                                                       |
+| --------------------- | ----------------------------------------------------------- |
+| `YOCO_SECRET_KEY`     | The `sk_test_…` (or `sk_live_…`) key from step 2            |
+| `YOCO_WEBHOOK_SECRET` | The `whsec_…` signing secret from step 3                    |
+
+**5. Test in sandbox.**
+
+- With `sk_test_…` set, place a test order from `/merch/`
+- Yoco's sandbox shows a test-card form. Use one of:
+  - Visa  `4242 4242 4242 4242` / any future expiry / any CVV
+  - See <https://developer.yoco.com/online/testing> for failure cards
+- After payment you should land on `/order-confirmation/?id=…` with
+  status `paid` (give it a few seconds for the webhook to fire)
+- Admin → **Orders** → see the order with provider `yoco` and a
+  `pf_payment_id` / Yoco checkout id reference
+
+**6. Go live.**
+
+- Swap `YOCO_SECRET_KEY` for the `sk_live_…` value
+- Re-create the webhook against live (different signing secret) and
+  update `YOCO_WEBHOOK_SECRET`
+- Place one small real order to verify before announcing
+
+**Troubleshooting.**
+
+- Order stays `pending` after a paid card → webhook didn't reach us, or
+  the signature mismatched. Check Supabase → Edge Functions →
+  `yoco-webhook` → Logs. Also `select * from site_payment_events where
+  provider='yoco' order by received_at desc limit 5;` shows what we
+  received.
+- "signature_valid = false" in `site_payment_events` → wrong
+  `YOCO_WEBHOOK_SECRET`, or you regenerated it in Yoco without updating
+  Supabase.
+- Yoco returns "Invalid Idempotency-Key" → benign; means the shopper
+  resubmitted. The function dedupes safely.
+
 ### One-time setup for PayFast (card payments, Phase C)
 
 PayFast is a South African payment gateway. Cards, EFT, SnapScan, all

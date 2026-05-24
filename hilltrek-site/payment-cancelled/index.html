@@ -251,38 +251,47 @@
       }
     }
 
+    // Same gateway priority as /checkout/. First gateway with credentials
+    // configured wins; we fall back through the list automatically.
+    const PAYMENT_GATEWAYS = ['yoco', 'payfast'];
+
+    async function startPayment(oid) {
+      for (const gw of PAYMENT_GATEWAYS) {
+        try {
+          const resp = await fetch(`${SUPABASE_URL}/functions/v1/${gw}-checkout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'apikey':        SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ order_id: oid }),
+          });
+          if (resp.status === 503) continue;
+          const data = await resp.json().catch(() => ({}));
+          if (resp.ok && data.redirect_url) return data.redirect_url;
+        } catch { /* try next gateway */ }
+      }
+      return null;
+    }
+
     async function retry() {
       const errEl = document.getElementById('retry-error');
       errEl.classList.add('hide');
       const btn = document.getElementById('btn-retry');
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> Connecting to PayFast…';
-      try {
-        const resp = await fetch(`${SUPABASE_URL}/functions/v1/payfast-checkout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'apikey':        SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({ order_id: orderId }),
-        });
-        const pf = await resp.json().catch(() => ({}));
-        if (resp.ok && pf.redirect_url) {
-          window.location.href = pf.redirect_url;
-          return;
-        }
-        const msg = pf.detail || pf.error || `HTTP ${resp.status}`;
-        errEl.textContent = `Couldn't reconnect to PayFast: ${msg}. Email info@hilltrek.co.za and reference your order number.`;
-        errEl.classList.remove('hide');
-        btn.disabled = false;
-        btn.textContent = 'Pay now →';
-      } catch (err) {
-        errEl.textContent = `Connection error: ${err?.message || err}. Email info@hilltrek.co.za.`;
-        errEl.classList.remove('hide');
-        btn.disabled = false;
-        btn.textContent = 'Pay now →';
+      btn.innerHTML = '<span class="spinner"></span> Connecting to payment…';
+
+      const redirectUrl = await startPayment(orderId);
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+        return;
       }
+
+      errEl.textContent = "Couldn't reach a payment gateway right now. Email info@hilltrek.co.za and reference your order number — we'll send EFT details.";
+      errEl.classList.remove('hide');
+      btn.disabled = false;
+      btn.textContent = 'Pay now →';
     }
 
     document.getElementById('btn-retry').addEventListener('click', retry);

@@ -378,6 +378,36 @@
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // Payment gateways tried in priority order. Each Edge Function
+    // returns 503 if its credentials aren't set in Supabase Secrets — we
+    // skip to the next. First one that returns a redirect URL wins.
+    // Add a new gateway here by deploying its <name>-checkout function
+    // and listing the name.
+    const PAYMENT_GATEWAYS = ['yoco', 'payfast'];
+
+    async function startPayment(orderId) {
+      for (const gw of PAYMENT_GATEWAYS) {
+        try {
+          const resp = await fetch(`${SUPABASE_URL}/functions/v1/${gw}-checkout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'apikey':        SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ order_id: orderId }),
+          });
+          if (resp.status === 503) continue;  // gateway not configured
+          const data = await resp.json().catch(() => ({}));
+          if (resp.ok && data.redirect_url) return data.redirect_url;
+          console.warn(`[checkout] ${gw} returned`, resp.status, data);
+        } catch (err) {
+          console.warn(`[checkout] ${gw} fetch failed:`, err);
+        }
+      }
+      return null;
+    }
+
     async function fetchShippingCents() {
       try {
         const { data } = await supabase
@@ -500,39 +530,20 @@
         if (error) throw error;
         if (!data || !data.id) throw new Error('No order id returned.');
 
-        // Order is in the DB as pending. Now try to start a PayFast
-        // payment. If PayFast isn't configured (503) or unreachable, we
-        // fall through to the Phase B confirmation flow and the admin
-        // can email payment details manually.
-        btn.innerHTML = '<span class="spinner"></span> Redirecting to PayFast…';
-        try {
-          const pfResp = await fetch(`${SUPABASE_URL}/functions/v1/payfast-checkout`, {
-            method: 'POST',
-            headers: {
-              'Content-Type':  'application/json',
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'apikey':        SUPABASE_ANON_KEY,
-            },
-            body: JSON.stringify({ order_id: data.id }),
-          });
-          const pf = await pfResp.json().catch(() => ({}));
-          if (pfResp.ok && pf.redirect_url) {
-            window.HilltrekCart.clear();
-            window.location.href = pf.redirect_url;
-            return;
-          }
-          // 503 = PayFast not configured — silently fall back. Other
-          // errors get logged but we still fall through; the order is
-          // saved, the admin will follow up.
-          if (pfResp.status !== 503) {
-            console.warn('[checkout] PayFast init returned', pfResp.status, pf);
-          }
-        } catch (pfErr) {
-          console.warn('[checkout] PayFast fetch failed:', pfErr);
+        // Order is in the DB as pending. Try the available payment
+        // gateways in priority order. Each returns 503 if its credentials
+        // aren't set; we move on. If ALL are unconfigured, we fall back
+        // to the Phase B confirmation flow ("we'll email you").
+        btn.innerHTML = '<span class="spinner"></span> Redirecting to payment…';
+        const redirectUrl = await startPayment(data.id);
+        if (redirectUrl) {
+          window.HilltrekCart.clear();
+          window.location.href = redirectUrl;
+          return;
         }
 
-        // Fallback path: clear cart, send shopper to the confirmation
-        // page. Status stays 'pending' until the admin updates it.
+        // Fallback: no gateway available. Land on confirmation; admin
+        // contacts the customer with EFT details manually.
         window.HilltrekCart.clear();
         window.location.href = '/order-confirmation/?id=' + encodeURIComponent(data.id);
       } catch (err) {

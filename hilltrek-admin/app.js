@@ -27,7 +27,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // Visible client version. Bump whenever app.js changes meaningfully. Shows
 // in the topbar so we can verify which build is actually running in a given
 // browser session (cache-busted by ?v=N on the script tag).
-const ADMIN_VERSION = 'v8';
+const ADMIN_VERSION = 'v9';
 
 // ----------------------------------------------------------------------------
 // Hang protection
@@ -2005,21 +2005,35 @@ async function renderSettings() {
     </div>
 
     <div class="card" style="max-width: 640px; margin-top: 18px;">
-      <h3 style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 6px;">PayFast (card payments)</h3>
-      <p class="muted" style="font-size: 13.5px; margin-bottom: 18px;">
+      <h3 style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 6px;">Payment gateways</h3>
+      <p class="muted" style="font-size: 13.5px; margin-bottom: 6px;">
         Credentials live in <strong>Supabase Edge Function Secrets</strong> — not in this database — so they never travel to the public site.
-        Set these 4 secrets in <a href="https://supabase.com/dashboard/project/xuqmdujupbmxahyhkdwl/settings/functions" target="_blank" rel="noopener" class="subtle-link">Dashboard → Edge Functions → Secrets</a>:
+        Set them in <a href="https://supabase.com/dashboard/project/xuqmdujupbmxahyhkdwl/settings/functions" target="_blank" rel="noopener" class="subtle-link">Dashboard → Edge Functions → Secrets</a>.
       </p>
-      <div style="font-family: var(--font-mono); font-size: 12.5px; line-height: 1.85; background: var(--surface-2); padding: 14px 18px; border-radius: var(--r-md); border: 1px solid var(--border);">
-        <div><span class="ember">PAYFAST_MERCHANT_ID</span>  <span class="dim">— from your PayFast merchant dashboard</span></div>
-        <div><span class="ember">PAYFAST_MERCHANT_KEY</span> <span class="dim">— from your PayFast merchant dashboard</span></div>
-        <div><span class="ember">PAYFAST_PASSPHRASE</span>   <span class="dim">— from PayFast settings (leave blank if not enabled)</span></div>
-        <div><span class="ember">PAYFAST_MODE</span>         <span class="dim">— "sandbox" for testing, "production" when live</span></div>
+      <p class="dim" style="font-size: 12.5px; margin-bottom: 18px; line-height: 1.55;">
+        The checkout tries gateways in priority order: <strong>Yoco</strong> first, then <strong>PayFast</strong>.
+        Whichever has credentials configured handles the payment. If neither, checkout falls back to a "pending, we'll email you" flow.
+      </p>
+
+      <h4 style="font-size: 12.5px; font-family: var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ember); margin-bottom: 10px;">Yoco — recommended</h4>
+      <p class="muted" style="font-size: 12.5px; margin-bottom: 10px; line-height: 1.55;">
+        SA-built, fast onboarding (usually within a day). Sign up at <a href="https://www.yoco.com/za/" target="_blank" rel="noopener" class="subtle-link">yoco.com</a>, then create a webhook in their dashboard pointing to <code style="font-size: 11px;">${SUPABASE_URL}/functions/v1/yoco-webhook</code>.
+      </p>
+      <div style="font-family: var(--font-mono); font-size: 12.5px; line-height: 1.85; background: var(--surface-2); padding: 12px 16px; border-radius: var(--r-md); border: 1px solid var(--border); margin-bottom: 22px;">
+        <div><span class="ember">YOCO_SECRET_KEY</span>     <span class="dim">— sk_test_… or sk_live_… (prefix selects env)</span></div>
+        <div><span class="ember">YOCO_WEBHOOK_SECRET</span> <span class="dim">— whsec_… returned when you create the webhook</span></div>
       </div>
-      <p class="dim" style="font-size: 12px; margin-top: 14px; line-height: 1.55;">
-        Until these are set, the <code>payfast-checkout</code> function returns 503 and the checkout page silently falls back to a "pending payment, we'll email you" flow.
-        Once set, every checkout redirects shoppers straight to PayFast.
+
+      <h4 style="font-size: 12.5px; font-family: var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ember); margin-bottom: 10px;">PayFast</h4>
+      <p class="muted" style="font-size: 12.5px; margin-bottom: 10px; line-height: 1.55;">
+        Industry-standard SA gateway. Verification can take a week. Sign up at <a href="https://www.payfast.co.za/" target="_blank" rel="noopener" class="subtle-link">payfast.co.za</a>.
       </p>
+      <div style="font-family: var(--font-mono); font-size: 12.5px; line-height: 1.85; background: var(--surface-2); padding: 12px 16px; border-radius: var(--r-md); border: 1px solid var(--border);">
+        <div><span class="ember">PAYFAST_MERCHANT_ID</span>  <span class="dim">— PayFast → Settings → Integration</span></div>
+        <div><span class="ember">PAYFAST_MERCHANT_KEY</span> <span class="dim">— PayFast → Settings → Integration</span></div>
+        <div><span class="ember">PAYFAST_PASSPHRASE</span>   <span class="dim">— set in PayFast dashboard (recommended)</span></div>
+        <div><span class="ember">PAYFAST_MODE</span>         <span class="dim">— "sandbox" or "production"</span></div>
+      </div>
     </div>
   `;
 
