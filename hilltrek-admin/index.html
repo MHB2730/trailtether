@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hilltrek Admin</title>
+  <meta name="theme-color" content="#0a0908" />
+  <meta name="robots" content="noindex,nofollow" />
+
+  <!-- Preconnect to the three external origins so DNS+TCP+TLS happen in
+       parallel with HTML/CSS parsing. Saves ~200ms on first paint. -->
+  <link rel="preconnect" href="https://xuqmdujupbmxahyhkdwl.supabase.co" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <link rel="icon" href="/assets/logo.png" type="image/png" />
+
+  <!-- Fonts: loaded in parallel via <link> instead of CSS @import (which is
+       render-blocking and serial). display=swap means render isn't blocked
+       by font download — fallback fonts paint first, real fonts swap in. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+
+  <link rel="stylesheet" href="/styles.css?v=6" />
+</head>
+<body>
+
+  <!-- ============================ BOOT VIEW (initial paint) ============================ -->
+  <!-- Shown by default while the JS bundle downloads + initial auth check
+       runs. Hidden once the app decides whether to show login or app shell.
+       Without this, the user sees a blank page for 1-2 seconds. -->
+  <div id="view-boot" class="boot-screen">
+    <div class="boot-mark"><img src="/assets/logo.png" alt="Hilltrek" /></div>
+    <span class="spinner"></span>
+    <p class="boot-label">Connecting to Hilltrek</p>
+  </div>
+
+  <!-- ============================ LOGIN VIEW ============================ -->
+  <div id="view-login" class="center hide">
+    <div class="login-card">
+      <div class="login-mark"><img src="/assets/logo.png" alt="Hilltrek" /></div>
+      <h1>Hilltrek Admin</h1>
+      <p class="sub">Sign in to manage hikes, gear and merch.</p>
+
+      <form id="login-form" class="login-form">
+        <div class="field">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" required autocomplete="email" placeholder="you@example.co.za" />
+        </div>
+        <div class="field">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn-primary" id="login-submit" style="margin-top: 8px; justify-content: center;">
+          Sign in
+        </button>
+        <p class="dim" style="text-align: center; font-size: 12px; margin-top: 8px;">
+          Lost your password? Reset it from the Supabase dashboard.
+        </p>
+      </form>
+
+      <!-- MFA challenge (shown after password if 2FA is enrolled) -->
+      <form id="mfa-form" class="login-form hide" style="margin-top: 10px;">
+        <div class="field">
+          <label for="mfa-code">2FA code</label>
+          <input id="mfa-code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                 autocomplete="one-time-code" required placeholder="123456"
+                 style="font-family: var(--font-mono); font-size: 22px; letter-spacing: 0.4em; text-align: center;" />
+          <div class="field-help">6-digit code from your authenticator app</div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="mfa-submit" style="justify-content: center;">
+          Verify code
+        </button>
+        <button type="button" id="mfa-cancel" class="btn btn-ghost" style="justify-content: center;">
+          Cancel
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================ APP SHELL ============================ -->
+  <div id="view-app" class="hide">
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a href="#/" class="brand">
+          <span class="brand-mark"><img src="/assets/logo.png" alt="Hilltrek" /></span>
+          <span class="brand-name">
+            <span class="label">HILLTREK</span>
+            <strong>Admin</strong>
+          </span>
+        </a>
+        <nav class="topbar-nav" aria-label="Admin sections">
+          <a href="#/" data-nav="dashboard">Dashboard</a>
+          <a href="#/hikes" data-nav="hikes">Hikes</a>
+          <a href="#/products" data-nav="products">Products</a>
+          <a href="#/security" data-nav="security">Security</a>
+          <a href="https://hilltrek.co.za" target="_blank" rel="noopener" class="ghost">View site ↗</a>
+          <button id="btn-logout" class="ghost">Sign out</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="page">
+      <div class="container">
+        <!-- Routed content gets injected here -->
+        <div id="route-outlet"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================ TOAST ============================ -->
+  <div id="toast" class="toast hide" role="status" aria-live="polite">
+    <span id="toast-msg" class="toast-msg"></span>
+    <span id="toast-meta" class="toast-meta"></span>
+  </div>
+
+  <script type="module" src="/app.js?v=6"></script>
+</body>
+</html>

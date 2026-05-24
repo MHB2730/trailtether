@@ -1,0 +1,88 @@
+# ============================================================================
+# Hilltrek admin — Apache hardening for admin.hilltrek.co.za
+# ============================================================================
+# This config locks down the admin subdomain. Keep it strict on purpose —
+# the admin is a single-user tool and we'd rather break weird edge cases
+# than leave attack surface open.
+# ============================================================================
+
+# 1. Force HTTPS (Afrihost gives the cert via Let's Encrypt automatically)
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# 2. Don't let search engines index this
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+</IfModule>
+
+# 3. Security headers
+<IfModule mod_headers.c>
+  # HSTS: force HTTPS for 1 year. includeSubDomains makes browsers refuse
+  # plaintext on any *.hilltrek.co.za subdomain too. preload would let us
+  # submit to the HSTS preload list (optional later).
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+  # CSP: explicitly allow Supabase + jsdelivr + Google Fonts. Block everything else.
+  # If you add a new external dependency (e.g. PayFast JS), it needs to be
+  # added to the matching directive below or the browser blocks it.
+  # NOTE: switched from esm.sh to cdn.jsdelivr.net (faster + more reliable).
+  Header always set Content-Security-Policy "\
+    default-src 'self'; \
+    script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://*.supabase.co; \
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+    font-src 'self' https://fonts.gstatic.com data:; \
+    img-src 'self' data: https://*.supabase.co https://hilltrek.co.za https://*.hilltrek.co.za; \
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; \
+    frame-ancestors 'none'; \
+    base-uri 'self'; \
+    form-action 'self'; \
+    object-src 'none';"
+
+  # Disallow framing entirely (no iframes of the admin from anywhere)
+  Header always set X-Frame-Options "DENY"
+
+  # Stop MIME-sniffing
+  Header always set X-Content-Type-Options "nosniff"
+
+  # Referrer privacy — don't leak the admin URL to any external site
+  Header always set Referrer-Policy "no-referrer"
+
+  # Cross-origin policy — admin shouldn't be embedded or shared
+  Header always set Cross-Origin-Opener-Policy "same-origin"
+  Header always set Cross-Origin-Resource-Policy "same-origin"
+
+  # Disable browser features the admin doesn't use
+  Header always set Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+
+  # Cache control: don't aggressively cache the SPA shell, but DO cache static assets
+  <FilesMatch "\.(html)$">
+    Header set Cache-Control "no-store, max-age=0"
+  </FilesMatch>
+  <FilesMatch "\.(css|js|png|jpg|jpeg|svg|woff2)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>
+
+# 4. Disable directory listing
+Options -Indexes
+
+# 5. Block access to sensitive files (.git, dotenv, README, etc.)
+<FilesMatch "^\.(?!well-known)|README|requirements\.txt|package(-lock)?\.json|\.env|\.htaccess$">
+  Require all denied
+</FilesMatch>
+
+# Allow .htaccess to control itself (above rule would block it from being read)
+<Files ".htaccess">
+  Require all denied
+</Files>
+
+# 6. 404
+ErrorDocument 404 /index.html
+# (SPA pattern: any 404 falls through to the SPA, which decides what to render.
+# If someone hits /xyz, the admin loads and shows its own "not found" view.)
+
+# 7. Compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+</IfModule>

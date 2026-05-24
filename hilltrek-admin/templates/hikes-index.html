@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hikes — Hilltrek route logs from the Drakensberg</title>
+  <meta name="description" content="Past hikes documented with photos, route notes and trail intel. Real days in the Berg." />
+  <meta name="theme-color" content="#0a0908" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+
+  <style>
+    .page-hero {{ padding: 80px 0 30px; border-bottom: 1px solid var(--border); }}
+    .page-hero h1 {{
+      font-size: clamp(36px, 5vw, 60px);
+      font-weight: 700; letter-spacing: -0.035em;
+      line-height: 1.02; margin-bottom: 16px;
+      max-width: 18ch; text-wrap: balance;
+    }}
+    .page-hero p {{ color: var(--muted); max-width: 60ch; font-size: 17px; }}
+    .hike-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; margin-top: 56px; }}
+    .hike-card {{ display: flex; flex-direction: column; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); overflow: hidden; color: inherit; transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }}
+    .hike-card:hover {{ transform: translateY(-4px); border-color: var(--border-2); box-shadow: 0 16px 40px -16px rgba(0,0,0,0.6); }}
+    .hike-media {{ aspect-ratio: 16 / 10; overflow: hidden; position: relative; background: var(--surface-2); }}
+    .hike-media img {{ width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }}
+    .hike-card:hover .hike-media img {{ transform: scale(1.04); }}
+    .hike-tag {{ position: absolute; top: 16px; left: 16px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: var(--r-pill); background: rgba(10,9,8,0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text); }}
+    .hike-tag .pill {{ width: 5px; height: 5px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--ember); }}
+    .hike-tag.featured {{ background: var(--ember); color: #110a04; border-color: rgba(255,255,255,0.15); }}
+    .hike-tag.featured .pill {{ background: #110a04; box-shadow: none; }}
+    .hike-body {{ padding: 26px 28px 28px; }}
+    .hike-meta {{ font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ember); margin-bottom: 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }}
+    .hike-meta .pill {{ width: 5px; height: 5px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--ember); }}
+    .hike-meta .dot {{ width: 4px; height: 4px; border-radius: 50%; background: var(--dim); }}
+    .hike-body h3 {{ font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 10px; line-height: 1.15; }}
+    .hike-body p {{ color: var(--muted); font-size: 15px; line-height: 1.55; }}
+    .hike-link {{ display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ember); }}
+    .hike-link svg {{ width: 14px; height: 14px; transition: transform 0.2s ease; }}
+    .hike-card:hover .hike-link svg {{ transform: translateX(4px); }}
+    @media (max-width: 760px) {{ .hike-grid {{ grid-template-columns: 1fr; }} }}
+  </style>
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="Hilltrek home"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="46" height="46" /></span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/">Mission Control</a>
+        <a href="/hikes/" class="active">Hikes</a>
+        <a href="/reviews/">Reviews</a>
+        <a href="/trailtether/">TrailTether</a>
+        <a href="/merch/">Merch</a>
+        <a href="/reach-out/">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta" data-apk-link>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg>
+          Get the App
+        </a>
+      </nav>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">// Past hikes</span>
+      <h1>Route logs from real days in the Berg.</h1>
+      <p>Each hike below is one we've actually walked. Photos, route notes and what we learned — the stuff that doesn't fit on a topo map.</p>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="container">
+      <div class="hike-grid">
+{cards_html}
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col">
+          <a href="/" class="brand brand-sm" style="margin-bottom: 14px;"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="36" height="36" /></span><span class="brand-name">(PTY) LTD</span></a>
+          <p>Drakensberg-rooted outdoor community. Makers of Trailtether. Built for the people who keep going when the trail goes quiet.</p>
+          <div class="foot-social">
+            <a href="https://www.facebook.com/profile.php?id=61584133487681" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H8v-2.9h2.4V9.4c0-2.4 1.4-3.7 3.6-3.7 1 0 2.1.2 2.1.2v2.3h-1.2c-1.2 0-1.5.7-1.5 1.5v1.8h2.6l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg></a>
+            <a href="https://www.instagram.com/hilltrek.co.za/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+          </div>
+        </div>
+        <div class="foot-col"><h5>Explore</h5><ul><li><a href="/">Mission Control</a></li><li><a href="/hikes/">Hikes</a></li><li><a href="/reviews/">Reviews</a></li><li><a href="/merch/">Merch</a></li></ul></div>
+        <div class="foot-col"><h5>Product</h5><ul><li><a href="/trailtether/">Trailtether app</a></li><li><a href="/trailtether/#download">Download APK</a></li><li><a href="/trailtether/#faq">FAQ</a></li></ul></div>
+        <div class="foot-col"><h5>Company</h5><ul><li><a href="/reach-out/">Reach Out</a></li><li><a href="/legal-notice/">Legal Notice</a></li><li><a href="/privacy/">Privacy Policy</a></li></ul></div>
+      </div>
+      <div class="foot-bottom"><span>© <span id="year"></span> Hilltrek (Pty) Ltd · All rights reserved.</span><span class="dim">Made in the Drakensberg.</span></div>
+    </div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script src="/assets/js/site.js" defer></script>
+</body>
+</html>

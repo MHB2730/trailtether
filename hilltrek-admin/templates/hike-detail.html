@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{title} — Hilltrek hike log</title>
+  <meta name="description" content="{meta_description}" />
+  <meta name="theme-color" content="#0a0908" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+
+  <style>
+    .hike-hero {{
+      position: relative; isolation: isolate; overflow: hidden;
+      padding: 100px 0 80px;
+      min-height: 600px;
+      display: flex; align-items: flex-end;
+    }}
+    .hike-hero-bg {{
+      position: absolute; inset: 0; z-index: -2;
+      background:
+        linear-gradient(180deg, rgba(10,9,8,0.35) 0%, rgba(10,9,8,0.5) 40%, rgba(10,9,8,0.95) 90%, var(--bg) 100%),
+        url('{hero_image_url}') center / cover no-repeat;
+    }}
+    .hike-hero h1 {{
+      font-size: clamp(40px, 6.4vw, 76px);
+      font-weight: 700; letter-spacing: -0.04em;
+      line-height: 1.02; margin: 22px 0 14px;
+      max-width: 16ch; text-wrap: balance;
+    }}
+    .hike-hero .meta-row {{
+      display: flex; flex-wrap: wrap; gap: 16px;
+      font-family: var(--font-mono); font-size: 12.5px;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--muted); margin-top: 6px;
+    }}
+    .hike-hero .meta-row span {{ display: inline-flex; align-items: center; gap: 8px; }}
+    .hike-hero .meta-row .pill {{ width: 5px; height: 5px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--ember); }}
+    .hike-hero .meta-row .dot {{ width: 3px; height: 3px; border-radius: 50%; background: var(--dim); }}
+    .breadcrumb {{ font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ember); }}
+    .breadcrumb a {{ color: var(--muted); }}
+    .breadcrumb a:hover {{ color: var(--ember); }}
+
+    .stats-panel {{ padding: 50px 0; border-bottom: 1px solid var(--border); }}
+    .stats-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }}
+    .stat-cell {{ padding: 10px 24px; border-left: 1px solid var(--border); }}
+    .stat-cell:first-child {{ border-left: 0; padding-left: 0; }}
+    .stat-cell .label {{ font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }}
+    .stat-cell .val {{ font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }}
+    @media (max-width: 760px) {{
+      .stats-row {{ grid-template-columns: 1fr 1fr; gap: 24px; }}
+      .stat-cell {{ border-left: 0; padding: 0; }}
+    }}
+
+    .log-body {{ padding: 70px 0 60px; }}
+    .log-text {{ max-width: 65ch; margin: 0 auto; }}
+    .log-text h2 {{ font-size: clamp(24px, 2.6vw, 30px); font-weight: 700; letter-spacing: -0.02em; margin: 36px 0 14px; line-height: 1.2; }}
+    .log-text h2:first-child {{ margin-top: 0; }}
+    .log-text h3 {{ font-size: 19px; font-weight: 600; margin: 28px 0 10px; }}
+    .log-text p {{ color: rgba(244,241,237,0.88); font-size: 16.5px; line-height: 1.75; margin-bottom: 14px; }}
+    .log-text ul {{ display: grid; gap: 8px; margin: 14px 0 18px 0; }}
+    .log-text ul li {{ position: relative; padding-left: 20px; color: var(--muted); font-size: 15.5px; list-style: none; }}
+    .log-text ul li::before {{ content: ""; position: absolute; left: 0; top: 11px; width: 8px; height: 1px; background: var(--ember); }}
+    .log-text a {{ color: var(--ember); text-decoration: underline; }}
+    .log-text strong {{ color: var(--text); }}
+
+    .gallery {{ padding: 80px 0; border-top: 1px solid var(--border); }}
+    .gallery-grid {{
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      grid-auto-rows: 200px; gap: 12px; margin-top: 32px;
+    }}
+    .gallery-tile {{
+      position: relative; overflow: hidden;
+      border-radius: var(--r-md);
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }}
+    .gallery-tile img {{ width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }}
+    .gallery-tile:hover img {{ transform: scale(1.04); }}
+    .gallery-tile.g1 {{ grid-column: span 2; grid-row: span 2; }}
+    .gallery-tile.g2 {{ grid-column: span 2; grid-row: span 1; }}
+    .gallery-tile.g3 {{ grid-column: span 1; grid-row: span 1; }}
+    .gallery-tile.g4 {{ grid-column: span 1; grid-row: span 1; }}
+    .gallery-tile.g5 {{ grid-column: span 2; grid-row: span 1; }}
+    .gallery-tile.g6 {{ grid-column: span 2; grid-row: span 1; }}
+    @media (max-width: 760px) {{
+      .gallery-grid {{ grid-template-columns: repeat(2, 1fr); grid-auto-rows: 160px; }}
+      .gallery-tile.g1 {{ grid-column: span 2; grid-row: span 2; }}
+      .gallery-tile.g2, .gallery-tile.g3, .gallery-tile.g4, .gallery-tile.g5, .gallery-tile.g6 {{ grid-column: span 1; grid-row: span 1; }}
+    }}
+
+    .next-hikes {{ padding: 60px 0 100px; border-top: 1px solid var(--border); }}
+    .next-hikes h2 {{ font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 24px; }}
+    .next-hikes-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }}
+    .next-card {{ display: flex; gap: 16px; align-items: center; padding: 18px 22px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); color: inherit; transition: border-color 0.2s ease, transform 0.15s ease; }}
+    .next-card:hover {{ border-color: var(--ember); transform: translateY(-2px); }}
+    .next-card .thumb {{ width: 72px; height: 72px; flex-shrink: 0; border-radius: var(--r-sm); overflow: hidden; }}
+    .next-card .thumb img {{ width: 100%; height: 100%; object-fit: cover; }}
+    .next-card .body .dir {{ font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ember); margin-bottom: 4px; }}
+    .next-card .body h4 {{ font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }}
+    @media (max-width: 760px) {{ .next-hikes-grid {{ grid-template-columns: 1fr; }} }}
+  </style>
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="Hilltrek home"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="46" height="46" /></span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/">Mission Control</a>
+        <a href="/hikes/" class="active">Hikes</a>
+        <a href="/reviews/">Reviews</a>
+        <a href="/trailtether/">TrailTether</a>
+        <a href="/merch/">Merch</a>
+        <a href="/reach-out/">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta" data-apk-link>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg>
+          Get the App
+        </a>
+      </nav>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="hike-hero">
+    <div class="hike-hero-bg" aria-hidden="true"></div>
+    <div class="container">
+      <span class="breadcrumb"><a href="/hikes/">← All hikes</a> // {title}</span>
+      <h1>{title}</h1>
+      <p style="color: rgba(244,241,237,0.82); font-size: clamp(17px,1.5vw,19px); max-width: 60ch; text-wrap: pretty;">{intro}</p>
+      <div class="meta-row">{pills_html}</div>
+    </div>
+  </section>
+
+  <section class="stats-panel">
+    <div class="container">
+      <div class="stats-row">
+{stats_html}
+      </div>
+    </div>
+  </section>
+
+  <section class="log-body">
+    <div class="container">
+      <div class="log-text">
+{body_html}
+      </div>
+    </div>
+  </section>
+
+  <section class="gallery">
+    <div class="container">
+      <span class="eyebrow">// Gallery</span>
+      <h2 style="font-size: clamp(24px, 2.8vw, 32px); font-weight: 700; letter-spacing: -0.02em; margin-top: 6px;">From the route.</h2>
+      <div class="gallery-grid">
+{gallery_html}
+      </div>
+    </div>
+  </section>
+
+  <section class="next-hikes">
+    <div class="container">
+      <h2>Other Hilltrek hikes</h2>
+      <div class="next-hikes-grid">
+{next_hikes_html}
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col">
+          <a href="/" class="brand brand-sm" style="margin-bottom: 14px;"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="36" height="36" /></span><span class="brand-name">(PTY) LTD</span></a>
+          <p>Drakensberg-rooted outdoor community. Makers of Trailtether. Built for the people who keep going when the trail goes quiet.</p>
+          <div class="foot-social">
+            <a href="https://www.facebook.com/profile.php?id=61584133487681" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H8v-2.9h2.4V9.4c0-2.4 1.4-3.7 3.6-3.7 1 0 2.1.2 2.1.2v2.3h-1.2c-1.2 0-1.5.7-1.5 1.5v1.8h2.6l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg></a>
+            <a href="https://www.instagram.com/hilltrek.co.za/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+          </div>
+        </div>
+        <div class="foot-col"><h5>Explore</h5><ul><li><a href="/">Mission Control</a></li><li><a href="/hikes/">Hikes</a></li><li><a href="/reviews/">Reviews</a></li><li><a href="/merch/">Merch</a></li></ul></div>
+        <div class="foot-col"><h5>Product</h5><ul><li><a href="/trailtether/">Trailtether app</a></li><li><a href="/trailtether/#download">Download APK</a></li><li><a href="/trailtether/#faq">FAQ</a></li></ul></div>
+        <div class="foot-col"><h5>Company</h5><ul><li><a href="/reach-out/">Reach Out</a></li><li><a href="/legal-notice/">Legal Notice</a></li><li><a href="/privacy/">Privacy Policy</a></li></ul></div>
+      </div>
+      <div class="foot-bottom"><span>© <span id="year"></span> Hilltrek (Pty) Ltd · All rights reserved.</span><span class="dim">Made in the Drakensberg.</span></div>
+    </div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script src="/assets/js/site.js" defer></script>
+</body>
+</html>
