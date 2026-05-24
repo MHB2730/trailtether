@@ -148,6 +148,11 @@ class TeamTrackingProvider extends ChangeNotifier {
       }
       // If team changes, force an immediate report if active
       if (_isTracking) _reportNow();
+      // Refresh teamLocations so the Teams screen + live map populate from
+      // server state. Without this the screen reads an empty list and shows
+      // every member as "off grid" forever, regardless of who is actually
+      // publishing GPS fixes.
+      _watchTeamLocations(p.selectedTeam?.id);
     }
   }
 
@@ -381,10 +386,61 @@ class TeamTrackingProvider extends ChangeNotifier {
     }
   }
 
+  // ─── Watch team_member_locations for the currently-selected team ────────
+  //
+  // Without this the Teams screen + live map never populate — they read
+  // `teamLocations`, which was an empty list because nothing ever called
+  // `refreshTeamLocations`. We now: (a) refresh immediately when the team
+  // changes, (b) poll every 10 s as a safety net, and (c) subscribe to
+  // realtime INSERT/UPDATE events so a teammate's fresh ping appears within
+  // ~1 s instead of waiting for the next poll tick.
+  String? _watchingTeamId;
+  Timer? _teamPollTimer;
+  StreamSubscription<List<Map<String, dynamic>>>? _teamLocSub;
+
+  void _watchTeamLocations(String? teamId) {
+    if (teamId == _watchingTeamId) return;
+    _watchingTeamId = teamId;
+    _teamPollTimer?.cancel();
+    _teamPollTimer = null;
+    _teamLocSub?.cancel();
+    _teamLocSub = null;
+    if (teamId == null || !kSupabaseAvailable) {
+      _teamLocations = const [];
+      _safeNotify();
+      return;
+    }
+    // (a) instant refresh
+    refreshTeamLocations(teamId);
+    // (b) 10s safety-net poll — catches any realtime event we miss
+    _teamPollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      refreshTeamLocations(teamId);
+    });
+    // (c) realtime stream filtered to this team
+    try {
+      _teamLocSub = Supabase.instance.client
+          .from('team_member_locations')
+          .stream(primaryKey: ['uid'])
+          .eq('team_id', teamId)
+          .listen((rows) {
+        if (_disposed) return;
+        _teamLocations = rows
+            .map((m) => TeamMemberLocation.fromMap(m))
+            .toList();
+        _safeNotify();
+      });
+    } catch (e, stack) {
+      LoggerService.error('TRACKING',
+          'team_member_locations stream subscribe failed: $e', stack);
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _reportTimer?.cancel();
+    _teamPollTimer?.cancel();
+    _teamLocSub?.cancel();
     super.dispose();
   }
 }

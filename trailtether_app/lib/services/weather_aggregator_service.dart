@@ -35,10 +35,24 @@ class WeatherAggregatorService {
     final primaryFuture = WeatherService.fetch(lat: lat, lon: lon);
     final metNoFuture = _fetchMetNo(lat: lat, lon: lon);
 
-    final results = await Future.wait([
-      primaryFuture,
-      metNoFuture,
-    ]);
+    // Defensive outer timeout. The inner HTTP calls already cap connect /
+    // close at 10-15s each, but a hung TLS handshake or DNS stall on the
+    // platform side can occasionally slip past those — observed in the
+    // wild as the Home tab "Fetching… CONNECTING TO STATIONS" spinner
+    // sitting forever with no completion notification. 25s is a hard
+    // ceiling for the combined fan-out; beyond that the user gets a
+    // tappable retry instead of an infinite spinner.
+    List<dynamic> results;
+    try {
+      results = await Future.wait([
+        primaryFuture,
+        metNoFuture,
+      ]).timeout(const Duration(seconds: 25));
+    } on TimeoutException {
+      LoggerService.error(
+          'WEATHER', 'fetch timed out after 25s — both providers slow/blocked');
+      return null;
+    }
 
     final primary = results[0] as WeatherData?;
     final metNo = results[1] as _MetNoCurrent?;
