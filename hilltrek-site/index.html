@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hilltrek — Drakensberg-rooted hikers. Makers of Trailtether.</title>
+  <meta name="description" content="Hilltrek is a Drakensberg-based community of hikers, podcasters and builders. We make Trailtether — the GPS, group safety and SOS companion for serious hikers." />
+  <meta name="theme-color" content="#0a0908" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+
+  <meta property="og:title" content="Hilltrek — Built for trails most apps won't follow." />
+  <meta property="og:description" content="Drakensberg-rooted hikers. Makers of Trailtether — the GPS + safety companion engineered for places where signal disappears." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://hilltrek.co.za/" />
+  <meta property="og:image" content="https://xuqmdujupbmxahyhkdwl.supabase.co/storage/v1/object/public/website-assets/hero.jpg" />
+
+  <link rel="stylesheet" href="/assets/css/site.css" />
+
+  <style>
+    /* ===== Page-specific (Home) ===== */
+    .hero {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      padding: 100px 0 110px;
+      min-height: 700px;
+      display: flex;
+      align-items: center;
+    }
+    /* Two stacked hero photos crossfade on a 16s loop. Each layer has its
+       own dark gradient baked in so the title stays legible whichever frame
+       is showing. */
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      will-change: opacity;
+    }
+    .hero-bg-tent {
+      background-image:
+        linear-gradient(180deg, rgba(10,9,8,0.45) 0%, rgba(10,9,8,0.5) 35%, rgba(10,9,8,0.9) 80%, var(--bg) 100%),
+        url('/assets/img/hikes/tent-night.jpg');
+      animation: hero-fade-tent 16s ease-in-out infinite;
+    }
+    .hero-bg-berg {
+      background-image:
+        linear-gradient(180deg, rgba(10,9,8,0.45) 0%, rgba(10,9,8,0.5) 35%, rgba(10,9,8,0.9) 80%, var(--bg) 100%),
+        url('/assets/img/hikes/berg-amphitheatre.jpg');
+      animation: hero-fade-berg 16s ease-in-out infinite;
+    }
+    .hero-glow {
+      position: absolute; inset: 0; z-index: -1;
+      pointer-events: none;
+      background: radial-gradient(ellipse at 70% 40%, rgba(255,122,26,0.18), transparent 60%);
+    }
+    @keyframes hero-fade-tent {
+      0%, 40%  { opacity: 1; }
+      50%, 90% { opacity: 0; }
+      100%     { opacity: 1; }
+    }
+    @keyframes hero-fade-berg {
+      0%, 40%  { opacity: 0; }
+      50%, 90% { opacity: 1; }
+      100%     { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-bg-tent, .hero-bg-berg { animation: none; }
+      .hero-bg-berg { opacity: 0; }
+    }
+
+    /* Slideshow indicator dots */
+    .hero-dots {
+      position: absolute;
+      bottom: 32px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+      display: flex; gap: 10px;
+    }
+    .hero-dots .dot-i {
+      width: 32px; height: 3px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.2);
+      overflow: hidden;
+      position: relative;
+    }
+    .hero-dots .dot-i::after {
+      content: ""; position: absolute; inset: 0;
+      background: var(--ember);
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+    .hero-dots .dot-i.dot-tent::after { animation: dot-tent 16s linear infinite; }
+    .hero-dots .dot-i.dot-berg::after { animation: dot-berg 16s linear infinite; }
+    @keyframes dot-tent {
+      0%, 40%, 100% { transform: scaleX(1); }
+      45%, 95%      { transform: scaleX(0); }
+    }
+    @keyframes dot-berg {
+      0%, 40%       { transform: scaleX(0); }
+      50%, 90%      { transform: scaleX(1); }
+      100%          { transform: scaleX(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-dots .dot-i::after { animation: none; transform: scaleX(0); }
+      .hero-dots .dot-tent::after { transform: scaleX(1); }
+    }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 14px 6px 8px;
+      border-radius: var(--r-pill);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      font-size: 13px;
+      color: var(--muted);
+      backdrop-filter: blur(8px);
+    }
+    .hero-eyebrow .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--ember);
+      box-shadow: 0 0 12px var(--ember);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .hero h1 {
+      font-weight: 700;
+      font-size: clamp(40px, 6.4vw, 76px);
+      line-height: 1.02;
+      letter-spacing: -0.035em;
+      margin: 22px 0 22px;
+      max-width: 14ch;
+      text-wrap: balance;
+    }
+    .hero-sub {
+      font-size: clamp(17px, 1.5vw, 19px);
+      color: rgba(244,241,237,0.82);
+      max-width: 60ch;
+      margin: 0 0 36px;
+      text-wrap: pretty;
+    }
+    .hero-cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }
+    .hero-meta {
+      margin-top: 44px;
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .hero-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
+    }
+    .hero-meta-item svg { width: 14px; height: 14px; color: var(--ember); }
+
+    /* ===== Mission strip ===== */
+    .mission {
+      padding: 100px 0 80px;
+      border-top: 1px solid var(--border);
+    }
+    .mission-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+    .mission-grid h2 {
+      font-size: clamp(28px, 3.4vw, 42px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.05;
+      margin-bottom: 20px;
+      text-wrap: balance;
+    }
+    .mission-grid p {
+      color: var(--muted);
+      font-size: 16.5px;
+      margin-bottom: 16px;
+      max-width: 55ch;
+    }
+    .mission-quote {
+      padding: 32px 30px;
+      border-radius: var(--r-lg);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--ember);
+      font-family: var(--font-sans);
+      font-size: 17px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .mission-quote .who {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ember);
+      margin-top: 18px;
+    }
+    @media (max-width: 880px) {
+      .mission-grid { grid-template-columns: 1fr; gap: 36px; }
+    }
+
+    /* ===== Trailtether spotlight ===== */
+    .tt-spotlight {
+      position: relative;
+      padding: 120px 0;
+      background:
+        radial-gradient(ellipse at 75% 40%, rgba(255,122,26,0.16), transparent 65%),
+        var(--bg-2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .tt-spotlight-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+    .tt-spotlight h2 {
+      font-size: clamp(32px, 4.4vw, 52px);
+      font-weight: 700;
+      line-height: 1.03;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+      text-wrap: balance;
+    }
+    .tt-spotlight p {
+      color: var(--muted);
+      font-size: 17px;
+      margin-bottom: 24px;
+      max-width: 52ch;
+    }
+    .tt-spotlight ul {
+      display: grid;
+      gap: 14px;
+      margin: 28px 0 36px;
+    }
+    .tt-spotlight ul li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      color: rgba(244,241,237,0.85);
+      font-size: 15px;
+    }
+    .tt-spotlight ul svg {
+      flex-shrink: 0;
+      width: 18px; height: 18px;
+      color: var(--ember);
+      margin-top: 2px;
+    }
+    .tt-spotlight-visual {
+      position: relative;
+      aspect-ratio: 4 / 3;
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .tt-spotlight-visual img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .tt-spotlight-visual::after {
+      content: "";
+      position: absolute; inset: 0;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+      pointer-events: none;
+      border-radius: inherit;
+    }
+    @media (max-width: 880px) {
+      .tt-spotlight-grid { grid-template-columns: 1fr; gap: 40px; }
+      .tt-spotlight { padding: 80px 0; }
+    }
+
+    /* ===== Discover grid (Hikes / Reviews / Merch) ===== */
+    .discover { padding: 110px 0; }
+    .discover-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    @media (max-width: 880px) {
+      .discover-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ===== From-the-trail photo strip ===== */
+    .field-journal {
+      padding: 100px 0;
+      border-top: 1px solid var(--border);
+    }
+    .field-journal .section-header { margin-bottom: 48px; }
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-auto-rows: 180px;
+      gap: 12px;
+    }
+    .photo-tile {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--r-md);
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .photo-tile img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.5s ease;
+    }
+    .photo-tile:hover img { transform: scale(1.05); }
+    .photo-tile::after {
+      content: ""; position: absolute; inset: 0;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+      pointer-events: none;
+      border-radius: inherit;
+    }
+    /* tile layout — varied sizes for visual interest */
+    .photo-tile.tile-1 { grid-column: span 3; grid-row: span 2; }
+    .photo-tile.tile-2 { grid-column: span 3; grid-row: span 1; }
+    .photo-tile.tile-3 { grid-column: span 2; grid-row: span 1; }
+    .photo-tile.tile-4 { grid-column: span 2; grid-row: span 2; }
+    .photo-tile.tile-5 { grid-column: span 2; grid-row: span 1; }
+    .photo-tile.tile-6 { grid-column: span 3; grid-row: span 1; }
+    .photo-tile.tile-7 { grid-column: span 3; grid-row: span 1; }
+    @media (max-width: 880px) {
+      .photo-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 140px; }
+      .photo-tile.tile-1, .photo-tile.tile-2, .photo-tile.tile-3,
+      .photo-tile.tile-4, .photo-tile.tile-5, .photo-tile.tile-6, .photo-tile.tile-7 {
+        grid-column: span 1; grid-row: span 1;
+      }
+      .photo-tile.tile-1 { grid-column: span 2; grid-row: span 2; }
+    }
+
+    /* ===== Preston / mailing list strip ===== */
+    .preston {
+      padding: 100px 0;
+      border-top: 1px solid var(--border);
+    }
+    .preston-card {
+      position: relative;
+      border-radius: 28px;
+      padding: 60px;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        radial-gradient(ellipse at 80% 30%, rgba(255,122,26,0.22), transparent 60%),
+        linear-gradient(180deg, #1a1410 0%, #0d0a08 100%);
+      border: 1px solid var(--border-2);
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    .preston-card::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(160deg, rgba(255,122,26,0.5), transparent 40%, transparent 60%, rgba(255,122,26,0.2));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+    .preston-card h2 {
+      font-size: clamp(28px, 3.4vw, 40px);
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-bottom: 16px;
+      text-wrap: balance;
+    }
+    .preston-card p {
+      color: var(--muted);
+      margin-bottom: 26px;
+      max-width: 48ch;
+    }
+    .preston-card form {
+      display: flex;
+      gap: 10px;
+      max-width: 100%;
+    }
+    .preston-card input[type="email"] {
+      flex: 1;
+      min-width: 0;
+      padding: 14px 18px;
+      border-radius: var(--r-md);
+      border: 1px solid var(--border-2);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 15px;
+    }
+    .preston-card input[type="email"]:focus {
+      outline: none;
+      border-color: var(--ember);
+      box-shadow: 0 0 0 3px var(--glow-soft);
+    }
+    @media (max-width: 880px) {
+      .preston-card { grid-template-columns: 1fr; padding: 36px 28px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================ NAV ============================ -->
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="Hilltrek home">
+        <span class="brand-mark">
+          <img src="/assets/img/logo.png" alt="Hilltrek" width="46" height="46" />
+        </span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/" class="active">Mission Control</a>
+        <a href="/hikes/">Hikes</a>
+        <a href="/reviews/">Reviews</a>
+        <a href="/trailtether/">TrailTether</a>
+        <a href="/merch/">Merch</a>
+        <a href="/reach-out/">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/>
+          </svg>
+          Get the App
+        </a>
+      </nav>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============================ HERO ============================ -->
+  <section class="hero">
+    <div class="hero-bg hero-bg-tent" aria-hidden="true"></div>
+    <div class="hero-bg hero-bg-berg" aria-hidden="true"></div>
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="container">
+      <span class="hero-eyebrow">
+        <span class="dot"></span>
+        Drakensberg-based · Outdoor community
+      </span>
+      <h1>Built for trails<br/>most apps <span class="ember-grad">won't follow.</span></h1>
+      <p class="hero-sub">Hilltrek is a community of hikers, podcasters and builders rooted in the Berg. We make <strong>Trailtether</strong> — the GPS, group safety and SOS companion engineered for places where signal disappears.</p>
+
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="/trailtether/#download" data-apk-link>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v13"/><path d="m6 10 6 6 6-6"/><path d="M5 21h14"/>
+          </svg>
+          <span class="btn-stack">
+            <span class="sub">Free · Android APK</span>
+            <span class="main">Download Trailtether</span>
+          </span>
+        </a>
+        <a class="btn btn-ghost" href="/hikes/">Browse our hikes</a>
+      </div>
+
+      <div class="hero-dots" aria-hidden="true">
+        <span class="dot-i dot-tent"></span>
+        <span class="dot-i dot-berg"></span>
+      </div>
+
+      <div class="hero-meta">
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-7 8-13a8 8 0 0 0-16 0c0 6 8 13 8 13z"/><circle cx="12" cy="9" r="2.5"/></svg>
+          OFFLINE-FIRST
+        </span>
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z"/></svg>
+          PRIVACY-FOCUSED
+        </span>
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
+          BUILT IN THE BERG
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ MISSION ============================ -->
+  <section class="mission">
+    <div class="container">
+      <div class="mission-grid">
+        <div class="reveal">
+          <span class="eyebrow">// Who we are</span>
+          <h2>A collective of explorers, conservationists and outdoor learners.</h2>
+          <p>Hilltrek (Pty) Ltd was established by a collective of outdoor enthusiasts united by a deep appreciation for hiking, mountaineering, and the natural world. What began as a shared pastime among friends has evolved into a purpose-driven venture committed to fostering a vibrant community of explorers.</p>
+          <p>Our mission is to inspire, educate, and connect individuals through the power of authentic hiking experiences — curating route accounts, gear reviews, environmental insights and multimedia content that reflect the spirit and challenges of backcountry exploration across Southern Africa.</p>
+        </div>
+        <div class="mission-quote reveal">
+          Whether you are a seasoned trekker or a first-time hiker, Hilltrek exists to support your journey — providing practical guidance, promoting responsible outdoor ethics, and celebrating the landscapes that make adventure possible.
+          <span class="who">— Hilltrek (Pty) Ltd</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ TRAILTETHER SPOTLIGHT ============================ -->
+  <section class="tt-spotlight">
+    <div class="container">
+      <div class="tt-spotlight-grid">
+        <div class="reveal">
+          <span class="eyebrow">// Our flagship product</span>
+          <h2>Trailtether keeps your group found.</h2>
+          <p>Offline topographic maps, live team tracking, and a one-tap emergency beacon — engineered for the places where Berg signal disappears. Free, open beta, Android.</p>
+
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg> Pre-downloaded topo maps with sub-metre precision</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg> Live pins for your whole hiking group, even off-grid</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg> One-tap SOS that broadcasts on every channel available</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg> Health Connect & Apple Health sync</li>
+          </ul>
+
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="/trailtether/">
+              <span class="btn-stack">
+                <span class="sub">See features</span>
+                <span class="main">Explore Trailtether</span>
+              </span>
+            </a>
+            <a class="btn btn-ghost" href="/trailtether/#download">Download APK</a>
+          </div>
+        </div>
+        <div class="tt-spotlight-visual reveal">
+          <span class="media-badge"><span class="pill"></span> LIVE TRACK</span>
+          <img src="https://xuqmdujupbmxahyhkdwl.supabase.co/storage/v1/object/public/website-assets/tablet-maps.png" alt="Trailtether map view showing live hiking route over topographical terrain" loading="lazy" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ DISCOVER GRID ============================ -->
+  <section class="discover">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="eyebrow">// More from Hilltrek</span>
+        <h2>Built in the Berg.<br/>Shared with everyone.</h2>
+        <p class="lead">Hike journals, gear we trust, and the podcast where we work it all out loud.</p>
+      </div>
+
+      <div class="discover-grid">
+        <a class="feature-card reveal" href="/hikes/">
+          <div class="media">
+            <span class="media-badge"><span class="pill"></span> RECENT HIKE</span>
+            <img src="/assets/img/hikes/valley-crew.jpg" alt="Hilltrek crew under the Drakensberg amphitheatre" loading="lazy" />
+          </div>
+          <div class="body">
+            <div class="tag">01 · Hikes</div>
+            <h3>Route logs from real days in the Berg.</h3>
+            <p>Every hike documented — photos, notes, what worked, what we'd do differently. Start with our latest: a chilled day out to MJ Cave.</p>
+          </div>
+        </a>
+
+        <a class="feature-card reveal" href="/reviews/">
+          <div class="media">
+            <span class="media-badge"><span class="pill"></span> PODCAST + GEAR</span>
+            <img src="/assets/img/review-fire-maple.png" alt="Fire Maple stove on a rocky outcrop" loading="lazy" />
+          </div>
+          <div class="body">
+            <div class="tag">02 · Reviews & Podcast</div>
+            <h3>Trusted gear. Proven performance.</h3>
+            <p>Honest reviews of the stable kit we carry, plus the Hilltrek podcast — informal conversations grounded in actual hikes.</p>
+          </div>
+        </a>
+
+        <a class="feature-card reveal" href="/merch/">
+          <div class="media">
+            <span class="media-badge" style="background: rgba(255,122,26,0.85); border-color: rgba(255,255,255,0.15);"><span class="pill" style="background:#fff; box-shadow: 0 0 8px #fff;"></span> COMING SOON</span>
+            <img src="/assets/img/review-bg-1.png" alt="Hilltrek merchandise concept" loading="lazy" />
+          </div>
+          <div class="body">
+            <div class="tag">03 · Merch</div>
+            <h3>The Hilltrek store, opening soon.</h3>
+            <p>Essentials and apparel for trail enthusiasts — designed for everyday use, tested where it matters.</p>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ FROM THE TRAIL ============================ -->
+  <section class="field-journal">
+    <div class="container">
+      <div class="section-header left reveal">
+        <span class="eyebrow">// From the trail</span>
+        <h2 style="font-size: clamp(28px, 3.4vw, 42px);">Moments we'd remember without the camera.</h2>
+        <p class="lead" style="max-width: 60ch;">Drakensberg overnights, summit thumbs-ups, riverside camps, and the occasional misty crew shot when the weather flips on you.</p>
+      </div>
+      <div class="photo-grid reveal">
+        <a class="photo-tile tile-1" href="/hikes/hike-to-tugela-falls/"><img src="/assets/img/hikes/cairn-peaks.jpg" alt="Hikers at a stone cairn beneath dramatic Drakensberg peaks" loading="lazy" /></a>
+        <a class="photo-tile tile-2" href="/hikes/hike-to-tugela-falls/"><img src="/assets/img/hikes/summit-pose.jpg" alt="Hiker arms-up under a Berg peak" loading="lazy" /></a>
+        <a class="photo-tile tile-3" href="/hikes/bushmans-cave-to-thamathu-cave/"><img src="/assets/img/hikes/camo-mask.jpg" alt="Cold-morning camp selfie" loading="lazy" /></a>
+        <a class="photo-tile tile-4" href="/hikes/bushmans-cave-to-thamathu-cave/"><img src="/assets/img/hikes/river-cave.jpg" alt="Glowing tent at a boulder cave by a Berg river" loading="lazy" /></a>
+        <a class="photo-tile tile-5" href="/hikes/mj-cave/"><img src="/assets/img/hikes/boots-pov.jpg" alt="Boots-eye view over Drakensberg valleys" loading="lazy" /></a>
+        <a class="photo-tile tile-6" href="/hikes/bushmans-cave-to-thamathu-cave/"><img src="/assets/img/hikes/mist-crew.jpg" alt="Hilltrek crew selfie in the mist" loading="lazy" /></a>
+        <a class="photo-tile tile-7" href="/hikes/hike-to-tugela-falls/"><img src="/assets/img/hikes/misty-trail.jpg" alt="Two hikers on a misty Berg trail" loading="lazy" /></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ PRESTON / MAILING LIST ============================ -->
+  <section class="preston">
+    <div class="container">
+      <div class="preston-card reveal">
+        <div>
+          <span class="eyebrow">// Stay in the loop</span>
+          <h2>Hike notes, gear drops, podcast episodes — straight to your inbox.</h2>
+          <p>Low-volume, no spam. Mostly when there's a new hike journal, a fresh gear review, or a Trailtether release worth knowing about.</p>
+          <form action="/reach-out/" method="get" novalidate>
+            <input type="email" name="email" placeholder="your@email.co.za" aria-label="Email address" required />
+            <button type="submit" class="btn btn-primary"><span class="btn-stack"><span class="sub">Free</span><span class="main">Join the list</span></span></button>
+          </form>
+          <p class="dim" style="font-size: 13px; margin-top: 18px;">By signing up you agree to our <a href="/privacy/" class="muted" style="text-decoration: underline;">Privacy Policy</a>.</p>
+        </div>
+        <div>
+          <div class="card card-glow" style="padding: 32px;">
+            <span class="eyebrow" style="margin-bottom: 12px;">// Support a guide</span>
+            <h3 style="font-size: 22px; letter-spacing: -0.02em; margin-bottom: 10px;">Back Preston's journey</h3>
+            <p class="muted" style="font-size: 14.5px; margin-bottom: 20px;">Help Preston complete his certified mountain adventure guide training, including essential guiding equipment.</p>
+            <a class="btn btn-ghost" href="/reach-out/" style="padding: 12px 18px; font-size: 14px;">Learn more →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ FOOTER ============================ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col">
+          <a href="/" class="brand brand-sm" style="margin-bottom: 14px;">
+            <span class="brand-mark">
+              <img src="/assets/img/logo.png" alt="Hilltrek" width="36" height="36" />
+            </span>
+            <span class="brand-name">(PTY) LTD</span>
+          </a>
+          <p>Drakensberg-rooted outdoor community. Makers of Trailtether. Built for the people who keep going when the trail goes quiet.</p>
+          <div class="foot-social">
+            <a href="https://www.facebook.com/profile.php?id=61584133487681" target="_blank" rel="noopener" aria-label="Facebook">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H8v-2.9h2.4V9.4c0-2.4 1.4-3.7 3.6-3.7 1 0 2.1.2 2.1.2v2.3h-1.2c-1.2 0-1.5.7-1.5 1.5v1.8h2.6l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg>
+            </a>
+            <a href="https://www.instagram.com/hilltrek.co.za/" target="_blank" rel="noopener" aria-label="Instagram">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            </a>
+          </div>
+        </div>
+        <div class="foot-col">
+          <h5>Explore</h5>
+          <ul>
+            <li><a href="/">Mission Control</a></li>
+            <li><a href="/hikes/">Hikes</a></li>
+            <li><a href="/reviews/">Reviews</a></li>
+            <li><a href="/merch/">Merch</a></li>
+          </ul>
+        </div>
+        <div class="foot-col">
+          <h5>Product</h5>
+          <ul>
+            <li><a href="/trailtether/">Trailtether app</a></li>
+            <li><a href="/trailtether/#download">Download APK</a></li>
+            <li><a href="/trailtether/#faq">FAQ</a></li>
+          </ul>
+        </div>
+        <div class="foot-col">
+          <h5>Company</h5>
+          <ul>
+            <li><a href="/reach-out/">Reach Out</a></li>
+            <li><a href="/legal-notice/">Legal Notice</a></li>
+            <li><a href="/privacy/">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span>© <span id="year"></span> Hilltrek (Pty) Ltd · All rights reserved.</span>
+        <span class="dim">Made in the Drakensberg.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script src="/assets/js/site.js" defer></script>
+</body>
+</html>

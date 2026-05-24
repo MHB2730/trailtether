@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Off-trail — Hilltrek</title>
+  <meta name="description" content="That page wandered off the trail. Use the buttons below to get back to Mission Control." />
+  <meta name="theme-color" content="#0a0908" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+
+  <style>
+    .nf {
+      min-height: calc(100vh - var(--nav-h));
+      display: flex; align-items: center; justify-content: center;
+      padding: 60px 24px;
+      text-align: center;
+    }
+    .nf-inner { max-width: 560px; }
+    .nf-mark {
+      width: 96px; height: 96px;
+      margin: 0 auto 28px;
+      filter: drop-shadow(0 0 40px var(--glow));
+    }
+    .nf-mark img { width: 100%; height: 100%; object-fit: contain; }
+    .nf-code {
+      font-family: var(--font-mono);
+      font-size: 13px; letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ember);
+      margin-bottom: 18px;
+    }
+    .nf h1 {
+      font-size: clamp(40px, 5.5vw, 64px);
+      font-weight: 700; letter-spacing: -0.035em;
+      line-height: 1.05; margin-bottom: 18px;
+      text-wrap: balance;
+    }
+    .nf p {
+      color: var(--muted); font-size: 17px;
+      margin-bottom: 32px; max-width: 50ch; margin-inline: auto;
+    }
+    .nf-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="Hilltrek home">
+        <span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="46" height="46" /></span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/">Mission Control</a>
+        <a href="/hikes/">Hikes</a>
+        <a href="/reviews/">Reviews</a>
+        <a href="/trailtether/">TrailTether</a>
+        <a href="/merch/">Merch</a>
+        <a href="/reach-out/">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg>
+          Get the App
+        </a>
+      </nav>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="nf">
+    <div class="nf-inner">
+      <div class="nf-mark"><img src="/assets/img/logo.png" alt="Hilltrek" /></div>
+      <div class="nf-code">404 · Off-trail</div>
+      <h1>That page wandered off the trail.</h1>
+      <p>The path you followed doesn't exist anymore — maybe the route was rerouted, or the URL got muddy. Let's get you back to a known waypoint.</p>
+      <div class="nf-actions">
+        <a class="btn btn-primary" href="/">
+          <span class="btn-stack"><span class="sub">Mission Control</span><span class="main">Back to Hilltrek</span></span>
+        </a>
+        <a class="btn btn-ghost" href="/trailtether/">Or check Trailtether</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/js/site.js" defer></script>
+</body>
+</html>

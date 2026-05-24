@@ -1,0 +1,45 @@
+# ============================================================================
+# Hilltrek — Apache config for static hosting on cPanel
+# ============================================================================
+
+# 1. Force HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# 2. Redirect the old Sitejet /trailtether-app/ URL to the new /trailtether/
+RewriteRule ^trailtether-app/?$ /trailtether/ [R=301,L]
+RewriteRule ^trailtether-app/(.*)$ /trailtether/$1 [R=301,L]
+
+# 3. Clean URLs — let /hikes/ serve /hikes/index.html (Apache does this by
+#    default with DirectoryIndex, but make it explicit)
+DirectoryIndex index.html
+
+# 4. Custom 404
+ErrorDocument 404 /404.html
+
+# 5. Compression — speeds up everything
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+# 6. Cache static assets aggressively (CSS/JS get versioned via filename so
+#    long cache is safe; images don't change often)
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css                "access plus 7 days"
+  ExpiresByType application/javascript  "access plus 7 days"
+  ExpiresByType image/jpeg              "access plus 30 days"
+  ExpiresByType image/png               "access plus 30 days"
+  ExpiresByType image/webp              "access plus 30 days"
+  ExpiresByType image/x-icon            "access plus 30 days"
+  ExpiresByType text/html               "access plus 0 seconds"
+</IfModule>
+
+# 7. Security headers
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>

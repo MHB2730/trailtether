@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Self Reliance Outfitters Canteen Cooking Set - Hilltrek gear review</title>
+  <meta name="description" content="Durable canteen-based cookset for short hikes and bushcraft. Hilltrek review of the SRO Canteen Cooking Set - R1000." />
+  <meta name="theme-color" content="#0a0908" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+  <style>
+    .gear-hero { position: relative; padding: 70px 0 50px; border-bottom: 1px solid var(--border); overflow: hidden; }
+    .gear-hero-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 56px; align-items: center; }
+    .gear-hero-photo { aspect-ratio: 1/1; background: var(--surface); border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--border); }
+    .gear-hero-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .breadcrumb { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ember); }
+    .breadcrumb a { color: var(--muted); }
+    .breadcrumb a:hover { color: var(--ember); }
+    .gear-hero h1 { font-size: clamp(34px, 4.6vw, 52px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; margin: 16px 0 18px; text-wrap: balance; }
+    .gear-hero .price-row { display: flex; align-items: baseline; gap: 18px; margin-bottom: 14px; flex-wrap: wrap; }
+    .gear-hero .price { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
+    .gear-hero .price .cur { font-size: 16px; color: var(--ember); margin-right: 2px; }
+    .gear-hero .cat { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); padding: 5px 11px; border-radius: var(--r-pill); background: rgba(255,255,255,0.05); border: 1px solid var(--border-2); }
+    .gear-hero p.intro { color: rgba(244,241,237,0.85); font-size: 17px; line-height: 1.55; margin-bottom: 22px; max-width: 52ch; }
+    .verdict { padding: 18px 22px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--ember); margin-top: 18px; }
+    .verdict h3 { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ember); margin-bottom: 8px; }
+    .verdict p { color: var(--text); font-size: 15px; line-height: 1.55; margin: 0; }
+    @media (max-width: 880px) { .gear-hero-grid { grid-template-columns: 1fr; gap: 32px; } }
+
+    .review-body { padding: 80px 0 60px; }
+    .review-grid { display: grid; grid-template-columns: minmax(0, 2fr) 1fr; gap: 56px; align-items: flex-start; }
+    .review-text { max-width: 64ch; }
+    .review-text h2 { font-size: clamp(22px, 2.4vw, 28px); font-weight: 700; letter-spacing: -0.02em; margin: 32px 0 12px; }
+    .review-text h2:first-child { margin-top: 0; }
+    .review-text p { color: rgba(244,241,237,0.88); font-size: 16.5px; line-height: 1.75; margin-bottom: 12px; }
+    .review-text ul { display: grid; gap: 8px; margin: 12px 0 16px 0; }
+    .review-text ul li { position: relative; padding-left: 20px; color: var(--muted); font-size: 15.5px; }
+    .review-text ul li::before { content: ""; position: absolute; left: 0; top: 11px; width: 8px; height: 1px; background: var(--ember); }
+    .review-aside { position: sticky; top: calc(var(--nav-h) + 24px); padding: 24px 26px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); }
+    .review-aside h3 { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ember); margin-bottom: 16px; }
+    .review-aside p { color: var(--muted); font-size: 14.5px; margin-bottom: 10px; }
+    .review-aside strong { color: var(--text); }
+    @media (max-width: 880px) { .review-grid { grid-template-columns: 1fr; gap: 32px; } .review-aside { position: static; } }
+
+    .next-gear { padding: 60px 0 100px; border-top: 1px solid var(--border); }
+    .next-gear h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 24px; }
+    .next-gear-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .next-card { display: flex; gap: 14px; align-items: center; padding: 16px 18px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); color: inherit; transition: border-color 0.2s ease, transform 0.15s ease; }
+    .next-card:hover { border-color: var(--ember); transform: translateY(-2px); }
+    .next-card .thumb { width: 56px; height: 56px; flex-shrink: 0; border-radius: var(--r-sm); overflow: hidden; background: var(--surface-2); }
+    .next-card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .next-card .body h4 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+    .next-card .body .price { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--ember); margin-top: 4px; }
+    @media (max-width: 760px) { .next-gear-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="Hilltrek home"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="46" height="46" /></span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/">Mission Control</a>
+        <a href="/hikes/">Hikes</a>
+        <a href="/reviews/" class="active">Reviews</a>
+        <a href="/trailtether/">TrailTether</a>
+        <a href="/merch/">Merch</a>
+        <a href="/reach-out/">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg> Get the App</a>
+      </nav>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
+  </header>
+
+  <section class="gear-hero">
+    <div class="container">
+      <span class="breadcrumb"><a href="/reviews/">&larr; All reviews</a> // SRO Canteen Cooking Set</span>
+      <div class="gear-hero-grid" style="margin-top: 14px;">
+        <div class="gear-hero-photo">
+          <img src="/assets/img/products/sro-canteen-set.jpg" alt="Self Reliance Outfitters Canteen Cooking Set" />
+        </div>
+        <div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
+            <span class="cat">Cookset</span>
+            <span class="cat" style="background: rgba(255,122,26,0.15); border-color: rgba(255,122,26,0.3); color: var(--ember);">Hilltrek go-to</span>
+          </div>
+          <h1>Self Reliance Outfitters Canteen Cooking Set</h1>
+          <div class="price-row">
+            <div class="price">R1000</div>
+            <span style="font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim);">Price as reviewed</span>
+          </div>
+          <p class="intro">A canteen-based cookset that doubles as a water carrier and stove platform. Built to bushcraft standards, suited to short hikes where you'd rather over-build than under-build.</p>
+          <div class="verdict">
+            <h3>Hilltrek verdict</h3>
+            <p>Heavier than the ultra-light setups but considerably more capable. If you value durability and multi-use kit over gram-counting, this earns its spot.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="review-body">
+    <div class="container">
+      <div class="review-grid">
+        <div class="review-text">
+          <h2>Why we trust it</h2>
+          <p>This is a different philosophy from the gas-stove / titanium-pot crowd. The Self Reliance Outfitters set leans into bushcraft - solid stainless construction, fire-friendly, no fragile coatings to scratch off.</p>
+          <p>We use it on shorter outings where the load weight matters less and the durability matters more. A great primer for anyone learning fire-based cooking before committing to a stove-driven system.</p>
+
+          <h2>What it does well</h2>
+          <ul>
+            <li>Built like a tank - survives drops, fires, and rough handling</li>
+            <li>Canteen base doubles as a water carrier</li>
+            <li>Works over open fire as well as on a stove</li>
+            <li>Multi-piece kit that nests cleanly</li>
+          </ul>
+
+          <h2>Watch-outs</h2>
+          <ul>
+            <li>Heavier than equivalent ultra-light cooksets - not a thru-hiker choice</li>
+            <li>Stainless takes longer to boil than aluminium</li>
+            <li>Cleaning a fire-blackened bottom is a real chore</li>
+          </ul>
+        </div>
+        <aside class="review-aside">
+          <h3>// At a glance</h3>
+          <p><strong>Category:</strong><br/>Cookset</p>
+          <p><strong>Price as reviewed:</strong><br/>R1000</p>
+          <p><strong>Best for:</strong><br/>Bushcraft-style trips, short hikes, fire-cooking enthusiasts, anyone tired of fragile cooksets</p>
+          <p><strong>Weight class:</strong><br/>Stainless / heavyweight</p>
+          <p style="margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--dim); font-size: 13px;">Used this kit yourself? <a href="mailto:info@hilltrek.co.za?subject=SRO%20Canteen%20Cookset%20-%20my%20experience" class="ember" style="text-decoration: underline;">Send us your take</a>.</p>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="next-gear">
+    <div class="container">
+      <h2>Other gear we trust</h2>
+      <div class="next-gear-grid">
+        <a class="next-card" href="/reviews/fire-maple-fire-force-stove/">
+          <div class="thumb"><img src="/assets/img/review-bg-2.png" alt="" /></div>
+          <div class="body"><h4>Fire Maple Fire Force Stove</h4><div class="price">R459</div></div>
+        </a>
+        <a class="next-card" href="/reviews/firemaple-hiking-kettle/">
+          <div class="thumb"><img src="/assets/img/products/firemaple-kettle.jpg" alt="" /></div>
+          <div class="body"><h4>Firemaple Hiking Kettle</h4><div class="price">R350</div></div>
+        </a>
+        <a class="next-card" href="/reviews/merrell-speed-strike-2-mid-ltr-wp/">
+          <div class="thumb"><img src="/assets/img/products/merrell-boots.jpg" alt="" /></div>
+          <div class="body"><h4>Merrell Speed Strike 2 Mid LTR WP</h4><div class="price">Price on request</div></div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col">
+          <a href="/" class="brand brand-sm" style="margin-bottom: 14px;"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="36" height="36" /></span><span class="brand-name">(PTY) LTD</span></a>
+          <p>Drakensberg-rooted outdoor community. Makers of Trailtether. Built for the people who keep going when the trail goes quiet.</p>
+          <div class="foot-social">
+            <a href="https://www.facebook.com/profile.php?id=61584133487681" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H8v-2.9h2.4V9.4c0-2.4 1.4-3.7 3.6-3.7 1 0 2.1.2 2.1.2v2.3h-1.2c-1.2 0-1.5.7-1.5 1.5v1.8h2.6l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg></a>
+            <a href="https://www.instagram.com/hilltrek.co.za/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+          </div>
+        </div>
+        <div class="foot-col"><h5>Explore</h5><ul><li><a href="/">Mission Control</a></li><li><a href="/hikes/">Hikes</a></li><li><a href="/reviews/">Reviews</a></li><li><a href="/merch/">Merch</a></li></ul></div>
+        <div class="foot-col"><h5>Product</h5><ul><li><a href="/trailtether/">Trailtether app</a></li><li><a href="/trailtether/#download">Download APK</a></li><li><a href="/trailtether/#faq">FAQ</a></li></ul></div>
+        <div class="foot-col"><h5>Company</h5><ul><li><a href="/reach-out/">Reach Out</a></li><li><a href="/legal-notice/">Legal Notice</a></li><li><a href="/privacy/">Privacy Policy</a></li></ul></div>
+      </div>
+      <div class="foot-bottom"><span>(c) <span id="year"></span> Hilltrek (Pty) Ltd - All rights reserved.</span><span class="dim">Made in the Drakensberg.</span></div>
+    </div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script src="/assets/js/site.js" defer></script>
+
+</body>
+</html>

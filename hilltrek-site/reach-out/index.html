@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Reach Out — Join the Hilltrek mailing list</title>
+  <meta name="description" content="Join the Hilltrek mailing list for hike notes, gear drops, and Trailtether updates. Plus help back Preston's mountain guide journey." />
+  <meta name="theme-color" content="#0a0908" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+
+  <style>
+    .page-hero { padding: 80px 0 30px; border-bottom: 1px solid var(--border); }
+    .page-hero h1 {
+      font-size: clamp(36px, 5vw, 60px);
+      font-weight: 700; letter-spacing: -0.035em; line-height: 1.02;
+      margin-bottom: 16px; max-width: 18ch; text-wrap: balance;
+    }
+    .page-hero p { color: var(--muted); max-width: 60ch; font-size: 17px; }
+
+    .reach-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 40px;
+      margin-top: 56px;
+    }
+    .signup-card, .preston-card {
+      padding: 40px;
+      border-radius: var(--r-lg);
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .signup-card {
+      position: relative;
+      background:
+        radial-gradient(ellipse at 80% 30%, rgba(255,122,26,0.16), transparent 60%),
+        var(--surface);
+    }
+    .signup-card h2 {
+      font-size: clamp(24px, 2.8vw, 32px);
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+      margin-bottom: 14px;
+      text-wrap: balance;
+    }
+    .signup-card p { color: var(--muted); margin-bottom: 22px; max-width: 50ch; }
+    .signup-form {
+      display: grid; gap: 12px;
+    }
+    .form-row label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .form-row input[type="email"] {
+      width: 100%;
+      padding: 14px 18px;
+      border-radius: var(--r-md);
+      border: 1px solid var(--border-2);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      font-family: inherit; font-size: 15px;
+    }
+    .form-row input[type="email"]:focus {
+      outline: none;
+      border-color: var(--ember);
+      box-shadow: 0 0 0 3px var(--glow-soft);
+    }
+    .form-check {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 13.5px; color: var(--muted);
+      margin: 14px 0 4px;
+    }
+    .form-check input[type="checkbox"] {
+      width: 18px; height: 18px;
+      flex-shrink: 0;
+      accent-color: var(--ember);
+      margin-top: 2px;
+    }
+    .signup-form button { width: fit-content; }
+
+    .preston-card {
+      position: relative;
+      border-color: var(--border-2);
+    }
+    .preston-card .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-radius: var(--r-pill);
+      background: rgba(255,122,26,0.15);
+      border: 1px solid rgba(255,122,26,0.3);
+      font-family: var(--font-mono);
+      font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--ember);
+      margin-bottom: 18px;
+    }
+    .preston-card h2 {
+      font-size: clamp(22px, 2.4vw, 28px);
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .preston-card p { color: var(--muted); margin-bottom: 14px; font-size: 15px; }
+    .preston-card .progress-row {
+      display: flex; gap: 10px; align-items: center;
+      margin: 22px 0 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: 13px; color: var(--muted);
+    }
+    .preston-card .progress-row svg {
+      width: 18px; height: 18px; color: var(--ember); flex-shrink: 0;
+    }
+
+    .socials-strip {
+      padding: 56px 0 100px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+      margin-top: 60px;
+    }
+    .socials-strip h3 {
+      font-size: 22px; letter-spacing: -0.02em; margin-bottom: 8px;
+    }
+    .socials-strip p { color: var(--muted); margin-bottom: 24px; }
+    .socials-strip .links { display: inline-flex; gap: 16px; }
+    .socials-strip .links a {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 20px;
+      border-radius: var(--r-pill);
+      border: 1px solid var(--border-2);
+      color: var(--text);
+      font-size: 14.5px;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+    .socials-strip .links a:hover { border-color: var(--ember); background: var(--glow-soft); }
+    .socials-strip svg { width: 16px; height: 16px; }
+
+    @media (max-width: 880px) {
+      .reach-grid { grid-template-columns: 1fr; gap: 28px; }
+      .signup-card, .preston-card { padding: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="Hilltrek home">
+        <span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="46" height="46" /></span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/">Mission Control</a>
+        <a href="/hikes/">Hikes</a>
+        <a href="/reviews/">Reviews</a>
+        <a href="/trailtether/">TrailTether</a>
+        <a href="/merch/">Merch</a>
+        <a href="/reach-out/" class="active">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg>
+          Get the App
+        </a>
+      </nav>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">// Reach Out</span>
+      <h1>Stay in the loop. Back the journey.</h1>
+      <p>Sign up to hear when new hikes, gear notes or podcast episodes drop. And — if you're so inclined — help fund Preston's path to becoming a certified mountain adventure guide.</p>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="container">
+      <div class="reach-grid">
+
+        <!-- Signup card -->
+        <div class="signup-card reveal">
+          <span class="eyebrow">// Mailing list</span>
+          <h2>Hike notes, gear drops, podcast episodes — straight to your inbox.</h2>
+          <p>Low-volume, no spam. We email when there's something genuinely worth your time — a new route log, a fresh review, or a Trailtether release.</p>
+
+          <form class="signup-form" action="mailto:info@hilltrek.co.za" method="post" enctype="text/plain">
+            <div class="form-row">
+              <label for="email">Email address</label>
+              <input type="email" id="email" name="email" placeholder="you@example.co.za" required />
+            </div>
+            <div class="form-check">
+              <input type="checkbox" id="consent" name="consent" required />
+              <label for="consent" style="margin: 0; text-transform: none; letter-spacing: 0; font-family: inherit;">
+                I have read and understand the <a href="/privacy/" class="ember" style="text-decoration: underline;">Privacy Policy</a>.
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top: 12px;">
+              <span class="btn-stack"><span class="sub">Free · 1-click unsubscribe</span><span class="main">Join the mailing list</span></span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Preston card -->
+        <div class="preston-card reveal">
+          <span class="badge">Support a guide</span>
+          <h2>Back Preston's journey.</h2>
+          <p>Help Preston complete his certified mountain adventure guide training, including the essential guiding equipment he needs to take groups out safely.</p>
+          <p>Every contribution goes directly toward his course fees, field equipment, and the certification that will let him lead Hilltrek hikes professionally.</p>
+          <div class="progress-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-7 8-13a8 8 0 0 0-16 0c0 6 8 13 8 13z"/><circle cx="12" cy="9" r="2.5"/></svg>
+            Currently funding: certification + essential guiding kit
+          </div>
+          <a class="btn btn-primary" href="mailto:info@hilltrek.co.za?subject=Backing%20Preston's%20journey">
+            <span class="btn-stack"><span class="sub">Get in touch</span><span class="main">I want to help</span></span>
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Socials strip -->
+  <section class="socials-strip">
+    <div class="container">
+      <h3>Find us elsewhere</h3>
+      <p>Follow Hilltrek for hike snippets, behind-the-scenes, and podcast drops.</p>
+      <div class="links">
+        <a href="https://www.facebook.com/profile.php?id=61584133487681" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H8v-2.9h2.4V9.4c0-2.4 1.4-3.7 3.6-3.7 1 0 2.1.2 2.1.2v2.3h-1.2c-1.2 0-1.5.7-1.5 1.5v1.8h2.6l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg>
+          Facebook
+        </a>
+        <a href="https://www.instagram.com/hilltrek.co.za/" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+          Instagram
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col">
+          <a href="/" class="brand brand-sm" style="margin-bottom: 14px;">
+            <span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="36" height="36" /></span>
+            <span class="brand-name">(PTY) LTD</span>
+          </a>
+          <p>Drakensberg-rooted outdoor community. Makers of Trailtether. Built for the people who keep going when the trail goes quiet.</p>
+          <div class="foot-social">
+            <a href="https://www.facebook.com/profile.php?id=61584133487681" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H8v-2.9h2.4V9.4c0-2.4 1.4-3.7 3.6-3.7 1 0 2.1.2 2.1.2v2.3h-1.2c-1.2 0-1.5.7-1.5 1.5v1.8h2.6l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg></a>
+            <a href="https://www.instagram.com/hilltrek.co.za/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+          </div>
+        </div>
+        <div class="foot-col">
+          <h5>Explore</h5>
+          <ul>
+            <li><a href="/">Mission Control</a></li>
+            <li><a href="/hikes/">Hikes</a></li>
+            <li><a href="/reviews/">Reviews</a></li>
+            <li><a href="/merch/">Merch</a></li>
+          </ul>
+        </div>
+        <div class="foot-col">
+          <h5>Product</h5>
+          <ul>
+            <li><a href="/trailtether/">Trailtether app</a></li>
+            <li><a href="/trailtether/#download">Download APK</a></li>
+            <li><a href="/trailtether/#faq">FAQ</a></li>
+          </ul>
+        </div>
+        <div class="foot-col">
+          <h5>Company</h5>
+          <ul>
+            <li><a href="/reach-out/">Reach Out</a></li>
+            <li><a href="/legal-notice/">Legal Notice</a></li>
+            <li><a href="/privacy/">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span>© <span id="year"></span> Hilltrek (Pty) Ltd · All rights reserved.</span>
+        <span class="dim">Made in the Drakensberg.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script src="/assets/js/site.js" defer></script>
+</body>
+</html>

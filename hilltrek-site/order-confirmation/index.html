@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Order received — Hilltrek</title>
+  <meta name="description" content="Your Hilltrek order has been received." />
+  <meta name="theme-color" content="#0a0908" />
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+
+  <style>
+    .confirm-hero {
+      padding: 80px 0 30px;
+      border-bottom: 1px solid var(--border);
+    }
+    .confirm-hero .mark {
+      display: inline-grid; place-items: center;
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: rgba(34,197,94,0.18);
+      color: #22c55e;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 18px;
+    }
+    .confirm-hero h1 {
+      font-size: clamp(36px, 5vw, 56px);
+      font-weight: 700; letter-spacing: -0.035em;
+      line-height: 1.04; margin-bottom: 10px;
+      max-width: 22ch; text-wrap: balance;
+    }
+    .confirm-hero p { color: var(--muted); max-width: 60ch; font-size: 17px; }
+    .confirm-hero .order-no {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 6px 14px;
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-pill);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      color: var(--ember);
+    }
+
+    .confirm-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 36px;
+      margin-top: 48px;
+    }
+    @media (max-width: 900px) { .confirm-grid { grid-template-columns: 1fr; } }
+
+    .confirm-card {
+      padding: 26px 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+    }
+    .confirm-card h3 {
+      font-size: 12.5px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ember);
+      margin: 0 0 18px;
+      font-weight: 500;
+    }
+
+    .confirm-items { display: grid; gap: 16px; }
+    .confirm-item {
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .confirm-item:last-child { border-bottom: 0; padding-bottom: 0; }
+    .confirm-item-img {
+      width: 64px; height: 64px;
+      border-radius: var(--r-sm);
+      background: #f4f1ed;
+      overflow: hidden;
+      display: grid; place-items: center;
+    }
+    .confirm-item-img img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+    .confirm-item-body h4 {
+      font-size: 14.5px; font-weight: 600;
+      margin: 0 0 4px;
+    }
+    .confirm-item-meta {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+    .confirm-item-total {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      font-size: 15px;
+      white-space: nowrap;
+    }
+
+    .summary-row {
+      display: flex; justify-content: space-between;
+      padding: 8px 0; font-size: 14px; color: var(--muted);
+    }
+    .summary-row span:last-child { color: var(--text); font-family: var(--font-mono); }
+    .summary-row.total {
+      margin-top: 6px; padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 18px; color: var(--text); font-weight: 700;
+    }
+    .summary-row.total span:last-child {
+      font-family: inherit; letter-spacing: -0.02em;
+    }
+
+    .next-steps {
+      margin-top: 18px;
+      padding: 16px 18px;
+      background: var(--surface-2, rgba(255,122,26,0.05));
+      border: 1px solid rgba(255,122,26,0.18);
+      border-radius: var(--r-md);
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .next-steps strong { color: var(--text); }
+
+    .actions {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      margin-top: 28px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 18px;
+      border-radius: var(--r-pill);
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .btn-primary { background: var(--ember); color: #110a04; }
+    .btn-ghost { background: rgba(255,255,255,0.04); color: var(--text); border: 1px solid var(--border-2); }
+
+    .confirm-error {
+      padding: 36px 28px;
+      text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      color: var(--muted);
+    }
+    .confirm-error h2 {
+      font-size: 20px; font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .confirm-load {
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .hide { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="Hilltrek home"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="46" height="46" /></span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/">Mission Control</a>
+        <a href="/hikes/">Hikes</a>
+        <a href="/reviews/">Reviews</a>
+        <a href="/trailtether/">TrailTether</a>
+        <a href="/merch/">Merch</a>
+        <a href="/reach-out/">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta" data-apk-link>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg>
+          Get the App
+        </a>
+      </nav>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="confirm-hero">
+    <div class="container">
+      <div class="mark" aria-hidden="true">✓</div>
+      <h1 id="confirm-h1">Order received.</h1>
+      <p id="confirm-sub">Thanks for choosing Hilltrek. We've logged your order and sent a copy to your email.</p>
+      <span class="order-no" id="confirm-order-no" style="visibility: hidden;">—</span>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="container">
+      <div id="confirm-loading" class="confirm-load">Loading your order…</div>
+
+      <div id="confirm-error" class="confirm-error hide">
+        <h2>We couldn't find that order.</h2>
+        <p id="confirm-error-msg">The link may be expired or incorrect.</p>
+        <p style="margin-top: 20px;"><a href="/merch/" class="btn btn-primary">Back to merch</a></p>
+      </div>
+
+      <div id="confirm-content" class="confirm-grid hide">
+        <div>
+          <div class="confirm-card">
+            <h3>What you ordered</h3>
+            <div class="confirm-items" id="confirm-items"></div>
+          </div>
+
+          <div class="next-steps">
+            <strong>What happens next.</strong> We'll review your order and email
+            you EFT / payment instructions within 24 hours. Once payment reflects,
+            we pack and ship within 2-5 business days. You'll get a tracking
+            number when it leaves the workshop.
+            <br><br>
+            Questions? Reply to the order email, or hit
+            <a href="/reach-out/" style="color: var(--ember); text-decoration: underline;">Reach Out</a>.
+          </div>
+
+          <div class="actions">
+            <a href="/merch/" class="btn btn-ghost">Keep shopping</a>
+            <a href="/" class="btn btn-ghost">Back to home</a>
+          </div>
+        </div>
+
+        <aside>
+          <div class="confirm-card">
+            <h3>Summary</h3>
+            <div class="summary-row"><span>Subtotal</span><span id="confirm-subtotal">—</span></div>
+            <div class="summary-row"><span>Shipping</span><span id="confirm-shipping">—</span></div>
+            <div class="summary-row total"><span>Total</span><span id="confirm-total">—</span></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col">
+          <a href="/" class="brand brand-sm" style="margin-bottom: 14px;"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="36" height="36" /></span><span class="brand-name">(PTY) LTD</span></a>
+          <p>Drakensberg-rooted outdoor community. Makers of Trailtether. Built for the people who keep going when the trail goes quiet.</p>
+          <div class="foot-social">
+            <a href="https://www.facebook.com/profile.php?id=61584133487681" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H8v-2.9h2.4V9.4c0-2.4 1.4-3.7 3.6-3.7 1 0 2.1.2 2.1.2v2.3h-1.2c-1.2 0-1.5.7-1.5 1.5v1.8h2.6l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg></a>
+            <a href="https://www.instagram.com/hilltrek.co.za/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+          </div>
+        </div>
+        <div class="foot-col"><h5>Explore</h5><ul><li><a href="/">Mission Control</a></li><li><a href="/hikes/">Hikes</a></li><li><a href="/reviews/">Reviews</a></li><li><a href="/merch/">Merch</a></li></ul></div>
+        <div class="foot-col"><h5>Product</h5><ul><li><a href="/trailtether/">Trailtether app</a></li><li><a href="/trailtether/#download">Download APK</a></li><li><a href="/trailtether/#faq">FAQ</a></li></ul></div>
+        <div class="foot-col"><h5>Company</h5><ul><li><a href="/reach-out/">Reach Out</a></li><li><a href="/legal-notice/">Legal Notice</a></li><li><a href="/privacy/">Privacy Policy</a></li></ul></div>
+      </div>
+      <div class="foot-bottom"><span>© <span id="year"></span> Hilltrek (Pty) Ltd · All rights reserved.</span><span class="dim">Made in the Drakensberg.</span></div>
+    </div>
+  </footer>
+
+  <script src="/assets/js/site.js" defer></script>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm';
+
+    const SUPABASE_URL      = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function priceString(cents) {
+      const n = parseInt(cents, 10) || 0;
+      if (n % 100 === 0) return 'R' + (n / 100).toFixed(0);
+      return 'R' + (n / 100).toFixed(2);
+    }
+    function variantString(variants) {
+      const entries = Object.entries(variants || {});
+      if (!entries.length) return '';
+      return entries.map(([k, v]) => `${k}: ${v}`).join(' · ');
+    }
+
+    function showError(msg) {
+      document.getElementById('confirm-loading').classList.add('hide');
+      document.getElementById('confirm-content').classList.add('hide');
+      const errEl = document.getElementById('confirm-error');
+      errEl.classList.remove('hide');
+      if (msg) document.getElementById('confirm-error-msg').textContent = msg;
+    }
+
+    async function load() {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      if (!id) {
+        showError('No order ID provided.');
+        return;
+      }
+
+      let data, error;
+      try {
+        const res = await supabase.rpc('get_order_for_confirmation', { p_order_id: id });
+        data = res.data; error = res.error;
+      } catch (e) {
+        return showError(e?.message || 'Connection error.');
+      }
+
+      if (error) return showError(error.message);
+      if (!data) return showError('Order not found.');
+
+      // Hide loading, show content.
+      document.getElementById('confirm-loading').classList.add('hide');
+      document.getElementById('confirm-content').classList.remove('hide');
+
+      // Personalised heading
+      const firstName = (data.customer_name || '').split(' ')[0];
+      if (firstName) {
+        document.getElementById('confirm-h1').textContent = `Thanks, ${firstName}.`;
+      }
+      const orderNoEl = document.getElementById('confirm-order-no');
+      orderNoEl.textContent = data.order_number;
+      orderNoEl.style.visibility = 'visible';
+
+      // Items
+      document.getElementById('confirm-items').innerHTML = (data.items || []).map(it => {
+        const variants = variantString(it.variants);
+        return `
+          <div class="confirm-item">
+            <div class="confirm-item-img">${it.product_image ? `<img src="${esc(it.product_image)}" alt="">` : ''}</div>
+            <div class="confirm-item-body">
+              <h4>${esc(it.product_name)} × ${it.quantity}</h4>
+              ${variants ? `<div class="confirm-item-meta">${esc(variants)}</div>` : ''}
+            </div>
+            <div class="confirm-item-total">${priceString(it.line_total_cents)}</div>
+          </div>
+        `;
+      }).join('');
+
+      // Totals
+      document.getElementById('confirm-subtotal').textContent = priceString(data.subtotal_cents);
+      document.getElementById('confirm-shipping').textContent = priceString(data.shipping_cents);
+      document.getElementById('confirm-total').textContent    = priceString(data.total_cents);
+    }
+
+    load();
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
