@@ -11,6 +11,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -592,16 +593,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                     const SizedBox(height: 20),
                     _FadeUp(
                       delay: const Duration(milliseconds: 1600),
-                      child: Center(
-                        child: Text(
-                          'TRAILTETHER v2.0',
-                          style: TT.mono(
-                            size: 9.5,
-                            color: TT.text4,
-                            letterSpacing: 0.16 * 9.5,
-                          ),
-                        ),
-                      ),
+                      child: const Center(child: _AppVersionLabel()),
                     ),
                   ],
                 ),
@@ -1831,6 +1823,50 @@ class _UnitsOptionTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Reads the live app version from pubspec via package_info_plus instead
+/// of the old hardcoded "TRAILTETHER v2.0" label that was lying to users
+/// (everything past v3.0.x still rendered as v2.0). Falls back gracefully
+/// if package_info hasn't loaded yet so the footer never goes blank.
+class _AppVersionLabel extends StatefulWidget {
+  const _AppVersionLabel();
+
+  @override
+  State<_AppVersionLabel> createState() => _AppVersionLabelState();
+}
+
+class _AppVersionLabelState extends State<_AppVersionLabel> {
+  String _label = 'TRAILTETHER';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() => _label = 'TRAILTETHER v${info.version} · ${info.buildNumber}');
+    } catch (_) {
+      // Swallow — keep the bare "TRAILTETHER" if the platform channel
+      // somehow fails. Never crash the profile footer over a label.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _label,
+      style: TT.mono(
+        size: 9.5,
+        color: TT.text4,
+        letterSpacing: 0.16 * 9.5,
       ),
     );
   }

@@ -90,13 +90,19 @@ class WeatherService {
       'forecast_days': '7',
     });
 
+    // Open-Meteo is the primary signal — if it doesn't return inside ~8s
+    // there's something wrong with the network, not the API. Was 10s
+    // connect + 10s req + 15s read (= up to 25s worst case). Tightened
+    // to 5s + 4s + 6s (= 15s worst case) so the user sees data within
+    // 2-3s in the common case and a "TAP TO RETRY" within 15s if the
+    // connection is dead.
     final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 10);
+      ..connectionTimeout = const Duration(seconds: 5);
     try {
       final request =
-          await client.getUrl(uri).timeout(const Duration(seconds: 10));
+          await client.getUrl(uri).timeout(const Duration(seconds: 4));
       final response =
-          await request.close().timeout(const Duration(seconds: 15));
+          await request.close().timeout(const Duration(seconds: 6));
       if (response.statusCode != 200) return null;
       final body = await response.transform(utf8.decoder).join();
 

@@ -96,13 +96,19 @@ class WeatherAggregatorService {
       'lon': lon.toStringAsFixed(4),
     });
 
+    // Tight Met Norway budget. This source is the *secondary* signal —
+    // the aggregator already returns Open-Meteo on its own if Met Norway
+    // is null, so we'd rather give the user a fast Open-Meteo render
+    // than wait up to 18s for a blended one. Was 8s connect + 10s read
+    // (=18s worst case); now 3s + 4s (=7s) which keeps Met Norway
+    // available when fast, drops it cleanly when slow.
     final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 8);
+      ..connectionTimeout = const Duration(seconds: 3);
     try {
-      final request = await client.getUrl(uri);
+      final request = await client.getUrl(uri).timeout(const Duration(seconds: 3));
       request.headers.set(HttpHeaders.userAgentHeader, _userAgent);
       final response =
-          await request.close().timeout(const Duration(seconds: 10));
+          await request.close().timeout(const Duration(seconds: 4));
       if (response.statusCode != 200) {
         debugPrint('met.no returned ${response.statusCode}');
         return null;
