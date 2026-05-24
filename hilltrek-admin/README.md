@@ -191,3 +191,74 @@ HTTP error per file. Most failures are either:
 - The four secrets aren't set (or have typos) → fix in Supabase Dashboard
 - The API token has been revoked → regenerate and update `CPANEL_API_TOKEN`
 - `CPANEL_HOME` path is wrong → verify against cPanel "Home Directory"
+
+### One-time setup for PayFast (card payments, Phase C)
+
+PayFast is a South African payment gateway. Cards, EFT, SnapScan, all
+clear into your Hilltrek bank account.
+
+The integration runs entirely server-side via two Edge Functions:
+
+- `payfast-checkout` — generates the signed redirect URL when a shopper
+  clicks "Place order"
+- `payfast-itn` — receives PayFast's server-to-server notification when
+  payment completes (or fails / cancels), verifies the signature three
+  ways, and stamps the order as paid
+
+**Both functions are already deployed.** All you need is credentials.
+
+**1. Sign up + grab credentials.**
+
+- Create a merchant account at <https://www.payfast.co.za/>
+- Activate sandbox mode first for testing: tick "Sandbox" on the dashboard
+- Go to **Settings → Integration**
+- Copy: `Merchant ID`, `Merchant Key`, `Passphrase`
+  - Passphrase is optional but **highly recommended** — without it,
+    signatures are unsalted. Set one in PayFast's dashboard before
+    copying it.
+
+**2. Set the 4 secrets in Supabase.**
+
+Dashboard → **Edge Functions** → **Secrets** (top-level, applies to all
+functions). Add:
+
+| Name                  | Value                                                                  |
+| --------------------- | ---------------------------------------------------------------------- |
+| `PAYFAST_MERCHANT_ID` | From PayFast dashboard (e.g. `10000100`)                               |
+| `PAYFAST_MERCHANT_KEY`| From PayFast dashboard (e.g. `46f0cd694581a`)                          |
+| `PAYFAST_PASSPHRASE`  | From PayFast dashboard (or leave empty)                                |
+| `PAYFAST_MODE`        | `sandbox` while testing, `production` when going live                  |
+
+(The cPanel secrets from the Publish button setup stay where they are —
+PayFast just adds 4 more.)
+
+**3. Test in sandbox.**
+
+- Make sure `PAYFAST_MODE=sandbox`
+- Place a test order from `/merch/`
+- PayFast sandbox shows a test card form — use any of these:
+  - Visa `4000 0000 0000 0002` / any expiry / any CVV
+  - See <https://developers.payfast.co.za/docs#testing> for more
+- After completing, you should:
+  - Land on `/order-confirmation/?id=...` with status "paid" (give it
+    a few seconds — the ITN may arrive after the redirect)
+  - See the order in admin → **Orders** with status "paid", payment
+    provider "payfast", and the PayFast `pf_payment_id` visible
+
+**4. Go live.**
+
+- Flip `PAYFAST_MODE` to `production`
+- Replace `PAYFAST_MERCHANT_ID` / `MERCHANT_KEY` / `PASSPHRASE` with
+  the production values from PayFast dashboard
+- Place a small real order to verify before announcing
+
+**Troubleshooting.**
+
+- "PayFast not configured" toast on checkout → 503 from
+  `payfast-checkout`, meaning `PAYFAST_MERCHANT_ID` or `MERCHANT_KEY`
+  isn't set. Check Edge Function Secrets.
+- Payment completes but order stays "pending" → ITN didn't reach us.
+  Check Supabase → Edge Functions → `payfast-itn` → Logs. Common cause:
+  signature mismatch from a passphrase typo.
+- All ITNs logged in `site_payment_events` for forensics — query via
+  SQL Editor: `select * from site_payment_events order by received_at desc limit 20;`

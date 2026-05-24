@@ -500,7 +500,39 @@
         if (error) throw error;
         if (!data || !data.id) throw new Error('No order id returned.');
 
-        // Success — clear local cart and redirect.
+        // Order is in the DB as pending. Now try to start a PayFast
+        // payment. If PayFast isn't configured (503) or unreachable, we
+        // fall through to the Phase B confirmation flow and the admin
+        // can email payment details manually.
+        btn.innerHTML = '<span class="spinner"></span> Redirecting to PayFast…';
+        try {
+          const pfResp = await fetch(`${SUPABASE_URL}/functions/v1/payfast-checkout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'apikey':        SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ order_id: data.id }),
+          });
+          const pf = await pfResp.json().catch(() => ({}));
+          if (pfResp.ok && pf.redirect_url) {
+            window.HilltrekCart.clear();
+            window.location.href = pf.redirect_url;
+            return;
+          }
+          // 503 = PayFast not configured — silently fall back. Other
+          // errors get logged but we still fall through; the order is
+          // saved, the admin will follow up.
+          if (pfResp.status !== 503) {
+            console.warn('[checkout] PayFast init returned', pfResp.status, pf);
+          }
+        } catch (pfErr) {
+          console.warn('[checkout] PayFast fetch failed:', pfErr);
+        }
+
+        // Fallback path: clear cart, send shopper to the confirmation
+        // page. Status stays 'pending' until the admin updates it.
         window.HilltrekCart.clear();
         window.location.href = '/order-confirmation/?id=' + encodeURIComponent(data.id);
       } catch (err) {

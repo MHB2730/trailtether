@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Payment cancelled — Hilltrek</title>
+  <meta name="description" content="Your Hilltrek payment was cancelled. Your order is held — pay anytime to release it for shipping." />
+  <meta name="theme-color" content="#0a0908" />
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+
+  <style>
+    .cancel-hero {
+      padding: 80px 0 30px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cancel-hero .mark {
+      display: inline-grid; place-items: center;
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: rgba(255,153,77,0.18);
+      color: var(--ember);
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 18px;
+    }
+    .cancel-hero h1 {
+      font-size: clamp(34px, 4.8vw, 52px);
+      font-weight: 700; letter-spacing: -0.035em;
+      line-height: 1.04; margin-bottom: 10px;
+      max-width: 22ch; text-wrap: balance;
+    }
+    .cancel-hero p { color: var(--muted); max-width: 60ch; font-size: 17px; }
+    .order-no {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 6px 14px;
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-pill);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      color: var(--ember);
+    }
+
+    .panel {
+      margin-top: 48px;
+      padding: 32px;
+      max-width: 640px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+    }
+    .panel h2 {
+      font-size: 20px; font-weight: 700;
+      letter-spacing: -0.02em; margin-bottom: 8px;
+    }
+    .panel p { color: var(--muted); font-size: 15px; line-height: 1.55; }
+
+    .actions {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      margin-top: 24px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 20px;
+      border: 0;
+      border-radius: var(--r-pill);
+      font-weight: 600;
+      font-size: 14.5px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: transform 0.12s ease, box-shadow 0.2s ease, opacity 0.15s ease;
+    }
+    .btn:disabled { opacity: 0.5; cursor: wait; }
+    .btn-primary {
+      background: var(--ember);
+      color: #110a04;
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 32px -8px rgba(255,122,26,0.45);
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      border: 1px solid var(--border-2);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.08); }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(17,10,4,0.25);
+      border-top-color: #110a04;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .retry-error {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: var(--r-md);
+      background: rgba(220,38,38,0.1);
+      border: 1px solid rgba(220,38,38,0.3);
+      color: #fca5a5;
+      font-size: 13px;
+    }
+
+    .cancel-load {
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .hide { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="Hilltrek home"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="46" height="46" /></span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/">Mission Control</a>
+        <a href="/hikes/">Hikes</a>
+        <a href="/reviews/">Reviews</a>
+        <a href="/trailtether/">TrailTether</a>
+        <a href="/merch/">Merch</a>
+        <a href="/reach-out/">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta" data-apk-link>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg>
+          Get the App
+        </a>
+      </nav>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="cancel-hero">
+    <div class="container">
+      <div class="mark" aria-hidden="true">!</div>
+      <h1>Payment cancelled.</h1>
+      <p>No problem — you didn't get charged and your order is still saved. Pay anytime below and we'll release it for shipping.</p>
+      <span class="order-no" id="order-no" style="visibility: hidden;">—</span>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="container">
+      <div id="cancel-loading" class="cancel-load">Loading…</div>
+
+      <div id="cancel-content" class="panel hide">
+        <h2 id="panel-title">Try again?</h2>
+        <p id="panel-body">Your order total is <strong id="order-total">—</strong>. Hitting <em>Pay now</em> takes you straight back to PayFast for the same order.</p>
+
+        <div class="actions">
+          <button id="btn-retry" class="btn btn-primary">Pay now →</button>
+          <a href="/merch/" class="btn btn-ghost">Keep shopping</a>
+        </div>
+
+        <div id="retry-error" class="retry-error hide"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col">
+          <a href="/" class="brand brand-sm" style="margin-bottom: 14px;"><span class="brand-mark"><img src="/assets/img/logo.png" alt="Hilltrek" width="36" height="36" /></span><span class="brand-name">(PTY) LTD</span></a>
+          <p>Drakensberg-rooted outdoor community. Makers of Trailtether. Built for the people who keep going when the trail goes quiet.</p>
+          <div class="foot-social">
+            <a href="https://www.facebook.com/profile.php?id=61584133487681" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H8v-2.9h2.4V9.4c0-2.4 1.4-3.7 3.6-3.7 1 0 2.1.2 2.1.2v2.3h-1.2c-1.2 0-1.5.7-1.5 1.5v1.8h2.6l-.4 2.9h-2.2v7A10 10 0 0 0 22 12z"/></svg></a>
+            <a href="https://www.instagram.com/hilltrek.co.za/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+          </div>
+        </div>
+        <div class="foot-col"><h5>Explore</h5><ul><li><a href="/">Mission Control</a></li><li><a href="/hikes/">Hikes</a></li><li><a href="/reviews/">Reviews</a></li><li><a href="/merch/">Merch</a></li></ul></div>
+        <div class="foot-col"><h5>Product</h5><ul><li><a href="/trailtether/">Trailtether app</a></li><li><a href="/trailtether/#download">Download APK</a></li><li><a href="/trailtether/#faq">FAQ</a></li></ul></div>
+        <div class="foot-col"><h5>Company</h5><ul><li><a href="/reach-out/">Reach Out</a></li><li><a href="/legal-notice/">Legal Notice</a></li><li><a href="/privacy/">Privacy Policy</a></li></ul></div>
+      </div>
+      <div class="foot-bottom"><span>© <span id="year"></span> Hilltrek (Pty) Ltd · All rights reserved.</span><span class="dim">Made in the Drakensberg.</span></div>
+    </div>
+  </footer>
+
+  <script src="/assets/js/site.js" defer></script>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm';
+
+    const SUPABASE_URL      = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function priceString(cents) {
+      const n = parseInt(cents, 10) || 0;
+      if (n % 100 === 0) return 'R' + (n / 100).toFixed(0);
+      return 'R' + (n / 100).toFixed(2);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get('id');
+
+    async function load() {
+      if (!orderId) {
+        // No order id — just show generic message.
+        document.getElementById('cancel-loading').classList.add('hide');
+        document.getElementById('cancel-content').classList.remove('hide');
+        document.getElementById('panel-title').textContent = 'Cancelled.';
+        document.getElementById('panel-body').textContent = 'No order context found. Head back to the store and try again.';
+        document.getElementById('btn-retry').classList.add('hide');
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('get_order_for_confirmation', { p_order_id: orderId });
+      document.getElementById('cancel-loading').classList.add('hide');
+      document.getElementById('cancel-content').classList.remove('hide');
+
+      if (error || !data) {
+        document.getElementById('panel-title').textContent = 'Order not found.';
+        document.getElementById('panel-body').textContent = error?.message || 'We could not look up that order.';
+        document.getElementById('btn-retry').classList.add('hide');
+        return;
+      }
+
+      const orderNoEl = document.getElementById('order-no');
+      orderNoEl.textContent = data.order_number;
+      orderNoEl.style.visibility = 'visible';
+      document.getElementById('order-total').textContent = priceString(data.total_cents);
+
+      // If the order already paid / cancelled (rare but possible if the
+      // ITN beat the redirect or this page is revisited), adjust the UI.
+      if (data.status === 'paid') {
+        document.getElementById('panel-title').textContent = 'Already paid.';
+        document.getElementById('panel-body').innerHTML =
+          'Looks like that order is already marked paid. <a href="/order-confirmation/?id=' +
+          encodeURIComponent(orderId) + '" style="color: var(--ember); text-decoration: underline;">View your confirmation →</a>';
+        document.getElementById('btn-retry').classList.add('hide');
+      } else if (data.status === 'cancelled') {
+        document.getElementById('panel-title').textContent = 'Order cancelled.';
+        document.getElementById('panel-body').textContent =
+          'This order has been cancelled. If you\'d like to order again, start a fresh checkout from the store.';
+        document.getElementById('btn-retry').classList.add('hide');
+      }
+    }
+
+    async function retry() {
+      const errEl = document.getElementById('retry-error');
+      errEl.classList.add('hide');
+      const btn = document.getElementById('btn-retry');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Connecting to PayFast…';
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/payfast-checkout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'apikey':        SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ order_id: orderId }),
+        });
+        const pf = await resp.json().catch(() => ({}));
+        if (resp.ok && pf.redirect_url) {
+          window.location.href = pf.redirect_url;
+          return;
+        }
+        const msg = pf.detail || pf.error || `HTTP ${resp.status}`;
+        errEl.textContent = `Couldn't reconnect to PayFast: ${msg}. Email info@hilltrek.co.za and reference your order number.`;
+        errEl.classList.remove('hide');
+        btn.disabled = false;
+        btn.textContent = 'Pay now →';
+      } catch (err) {
+        errEl.textContent = `Connection error: ${err?.message || err}. Email info@hilltrek.co.za.`;
+        errEl.classList.remove('hide');
+        btn.disabled = false;
+        btn.textContent = 'Pay now →';
+      }
+    }
+
+    document.getElementById('btn-retry').addEventListener('click', retry);
+    load();
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
