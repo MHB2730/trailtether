@@ -38,6 +38,7 @@ import '../widgets/design/tt_elev_chart.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
 import '../widgets/start_hike_ramp.dart';
+import '../widgets/weather_warnings_banner.dart';
 import 'create_hike_plan_screen.dart';
 import 'hike_history_screen.dart' show HikeDetailScreen, HikeHistoryScreen;
 import 'hike_plan_detail_screen.dart';
@@ -189,6 +190,11 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
               _HomeHero(onNavigate: onNavigate),
               const SizedBox(height: 4),
               _HomeQuickActions(onNavigate: onNavigate),
+              // Severe-weather banner sits between quick actions and the
+              // upcoming-hike card so it's the first thing the user sees
+              // when scrolling past the hero. Auto-hides when no
+              // warnings are active so calm forecasts add no chrome.
+              const WeatherWarningsBanner(),
               _UpcomingHikeCard(
                 plansFuture: _plansFuture,
                 onNavigateToTeams: () => onNavigate?.call(4),

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/runtime_config.dart';
 import '../models/weather.dart';
+import '../models/weather_warning.dart';
 import '../services/weather_aggregator_service.dart';
 
 class WeatherProvider extends ChangeNotifier {
@@ -28,6 +29,13 @@ class WeatherProvider extends ChangeNotifier {
 
   WeatherData? _currentWeather;
   WeatherData? get currentWeather => _currentWeather;
+
+  /// Derived severe-weather list for the active forecast. Empty when no
+  /// data has loaded or when no derived threshold trips. The UI banner
+  /// auto-hides on empty so calm forecasts add no chrome to the Home
+  /// screen. See `deriveWarnings` for the thresholds.
+  List<WeatherWarning> get warnings =>
+      _currentWeather == null ? const [] : deriveWarnings(_currentWeather!);
 
   /// True when the active forecast points at snow conditions over the
   /// next 24 h. Drives the Drakensberg snow-hero swap on the Home
