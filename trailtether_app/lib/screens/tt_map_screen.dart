@@ -24,7 +24,6 @@ import '../models/trail.dart';
 import '../providers/recording_provider.dart';
 import '../providers/static_data_provider.dart';
 import '../providers/units_provider.dart';
-import '../services/location_service.dart';
 import '../services/offline_map_service.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_glass_card.dart';
@@ -62,10 +61,12 @@ class _TTMapScreenState extends State<TTMapScreen>
   // Night-map overlay toggle (uses Stadia dark tiles under a red filter).
   bool _nightMap = false;
 
-  // Live GPS position (drives the user marker + recenter).
+  // Live GPS position (drives the user marker + recenter). Sourced from
+  // RecordingProvider so the screen never starts its own GPS stream — only
+  // populated while a hike is actively recording.
   LatLng? _currentLatLng;
   double? _currentHeading;
-  StreamSubscription<Position>? _positionSub;
+  RecordingProvider? _recRef;
 
   // Drives the route draw + panel entry anim.
   late final AnimationController _entryCtl =
@@ -99,29 +100,29 @@ class _TTMapScreenState extends State<TTMapScreen>
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) _entryCtl.forward();
     });
-    _startLocationStream();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _recRef = context.read<RecordingProvider>();
+      _recRef!.addListener(_syncPositionFromRecording);
+      _syncPositionFromRecording();
+    });
   }
 
-  Future<void> _startLocationStream() async {
-    final ok = await LocationService.requestPermission();
-    if (!ok) return;
-    _positionSub = LocationService.smoothedPositionStream.listen(
-      (pos) {
-        if (!mounted) return;
-        setState(() {
-          _currentLatLng = LatLng(pos.latitude, pos.longitude);
-          _currentHeading = pos.heading;
-        });
-      },
-      onError: (_) {},
-      cancelOnError: false,
-    );
+  void _syncPositionFromRecording() {
+    final pos = _recRef?.currentPosition;
+    if (pos == null) return;
+    final next = LatLng(pos.latitude, pos.longitude);
+    if (_currentLatLng == next && _currentHeading == pos.heading) return;
+    setState(() {
+      _currentLatLng = next;
+      _currentHeading = pos.heading;
+    });
   }
 
   @override
   void dispose() {
     _entryCtl.dispose();
-    _positionSub?.cancel();
+    _recRef?.removeListener(_syncPositionFromRecording);
     _sheetCtl.dispose();
     super.dispose();
   }

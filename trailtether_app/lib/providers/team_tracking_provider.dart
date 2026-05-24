@@ -10,7 +10,6 @@ import '../services/location_service.dart';
 import '../providers/team_provider.dart';
 import 'recording_provider.dart';
 import '../services/logger_service.dart';
-import '../services/background_tracking_service.dart';
 import '../services/offline_track_queue.dart';
 
 class TeamTrackingProvider extends ChangeNotifier {
@@ -48,8 +47,6 @@ class TeamTrackingProvider extends ChangeNotifier {
       if (fixes.isEmpty) return;
       LoggerService.log(
           'TRACKING', 'Draining ${fixes.length} offline fixes to Supabase');
-      // Strip helper-only fields and tag every entry as backfilled so
-      // the PC can render the offline segment with a distinct colour.
       final rows = fixes.map((f) {
         final copy = Map<String, dynamic>.from(f);
         copy.remove('_display_name');
@@ -59,17 +56,11 @@ class TeamTrackingProvider extends ChangeNotifier {
       try {
         await TeamService.bulkInsertTrackPoints(rows);
       } catch (e, stack) {
-        // Drain failed. Put the fixes back so the next connectivity
-        // event retries. Without this they'd be lost forever.
         LoggerService.error(
             'TRACKING', 'bulkInsertTrackPoints failed; re-queueing: $e', stack);
         await OfflineTrackQueue.reenqueue(fixes);
         return;
       }
-      // Now refresh the "latest position" row to the newest queued fix
-      // so the live marker on the PC also jumps to where the hiker
-      // actually ended up. Without this the marker would still show
-      // the position from BEFORE the outage started.
       try {
         final newest = fixes.last;
         await TeamService.reportLocation(
@@ -100,18 +91,11 @@ class TeamTrackingProvider extends ChangeNotifier {
   RecordingProvider? _recordingProvider;
   TeamProvider? _teamProvider;
 
-  // Battery + connectivity readers. Both are cheap to instantiate but reads
-  // are async, so we cache the most recent value and refresh on each report
-  // tick rather than blocking the broadcast on a fresh read every time.
   final Battery _battery = Battery();
   final Connectivity _connectivity = Connectivity();
   int? _lastBatteryPct;
   String? _lastConnectivity;
 
-  /// Reads battery + connectivity in parallel, with a tight 1.5s ceiling so
-  /// a slow OS call never delays the GPS broadcast. Falls back to the last
-  /// known value when the read times out, returns null when nothing is yet
-  /// known.
   Future<({int? battery, String? connectivity})> _readDeviceVitals() async {
     Future<int?> readBattery() async {
       try {
@@ -129,9 +113,6 @@ class TeamTrackingProvider extends ChangeNotifier {
         final result = await _connectivity.checkConnectivity().timeout(
               const Duration(milliseconds: 1500),
             );
-        // connectivity_plus 6.x returns a List<ConnectivityResult>. Pick the
-        // strongest active link so a phone on both wifi + mobile reports as
-        // wifi (the cheaper, usually-stronger link).
         if (result.contains(ConnectivityResult.wifi)) return 'wifi';
         if (result.contains(ConnectivityResult.ethernet)) return 'wifi';
         if (result.contains(ConnectivityResult.mobile)) return 'mobile';
@@ -149,71 +130,29 @@ class TeamTrackingProvider extends ChangeNotifier {
     return (battery: battery, connectivity: conn);
   }
 
-  /// Whether the user has explicitly opened the Live Tracking screen and
-  /// expects their position to be visible to the command centre / team.
-  /// Toggled by [LiveTrackingScreen] in initState / dispose. Without this,
-  /// the only triggers for broadcasting are `isRecording` or a selected
-  /// team, which meant tapping LIVE TRACK on the home tab silently did
-  /// nothing.
-  bool _liveSharingEnabled = false;
-  bool get liveSharingEnabled => _liveSharingEnabled;
-
-  bool get _shouldTrack {
-    final isRecording = _recordingProvider?.isRecording ?? false;
-    return isRecording ||
-        _teamProvider?.selectedTeam != null ||
-        _liveSharingEnabled;
-  }
-
-  void setLiveSharing(bool enabled) {
-    if (_liveSharingEnabled == enabled) return;
-    _liveSharingEnabled = enabled;
-    LoggerService.log('TRACKING', 'live sharing -> $enabled');
-    if (enabled) {
-      if (!_isTracking) _startTracking();
-    } else if (!_shouldTrack) {
-      _stopTracking();
-    }
-    _safeNotify();
-  }
-
   set recordingProvider(RecordingProvider p) {
     final bool wasRecording = _recordingProvider?.isRecording ?? false;
     final bool isRecording = p.isRecording;
     final bool posChanged =
         _recordingProvider?.currentPosition != p.currentPosition;
-    // Detect the moment Start is pressed. The proxy fires on every
-    // RecordingProvider notify, but only this transition matters for
-    // pushing an instant publish to the PC — without it, the base-camp
-    // map waits up to one 5s tick (often longer if realtime is slow to
-    // hand off) before the hiker first appears, which the user reads as
-    // "the PC didn't see me go live".
     final bool justStartedRecording = !wasRecording && isRecording;
 
     _recordingProvider = p;
 
-    if (_shouldTrack) {
+    if (isRecording) {
       if (!_isTracking) {
         _startTracking();
       } else if (justStartedRecording) {
-        // Recording was already being tracked (e.g. via selected team) but
-        // the user has now pressed Start. Force an immediate publish so the
-        // PC sees status flip from 'active' to 'recording' within ~1s
-        // instead of waiting for the periodic timer.
-        LoggerService.log('TRACKING',
-            'Recording started — forcing immediate publish');
         _reportNow();
-      } else if ((isRecording || _liveSharingEnabled) && posChanged) {
-        // Feed live data immediately but throttle to avoid DB spam (max once per 3s)
+      } else if (posChanged) {
+        // Throttle DB writes to max once per 3s while moving.
         final now = DateTime.now();
         if (_lastReportAt == null ||
             now.difference(_lastReportAt!).inSeconds >= 3) {
           _reportNow();
         }
       }
-    } else if (wasRecording &&
-        !isRecording &&
-        (_activeHike == null || _activeHike!.status != 'active')) {
+    } else if (wasRecording && !isRecording) {
       _stopTracking();
     }
   }
@@ -221,17 +160,6 @@ class TeamTrackingProvider extends ChangeNotifier {
   set teamProvider(TeamProvider p) {
     if (_teamProvider != p) {
       _teamProvider = p;
-      if (_shouldTrack && !_isTracking) {
-        _startTracking();
-      } else if (!_shouldTrack) {
-        _stopTracking();
-      }
-      // If team changes, force an immediate report if active
-      if (_isTracking) _reportNow();
-      // Refresh teamLocations so the Teams screen + live map populate from
-      // server state. Without this the screen reads an empty list and shows
-      // every member as "off grid" forever, regardless of who is actually
-      // publishing GPS fixes.
       _watchTeamLocations(p.selectedTeam?.id);
     }
   }
@@ -261,7 +189,6 @@ class TeamTrackingProvider extends ChangeNotifier {
   HikePlan? _activeHike;
   HikePlan? get activeHike => _activeHike;
 
-  Timer? _reportTimer;
   List<TeamMemberLocation> _teamLocations = [];
   List<TeamMemberLocation> get teamLocations => _teamLocations;
 
@@ -271,6 +198,7 @@ class TeamTrackingProvider extends ChangeNotifier {
   DateTime? get lastReportAt => _lastReportAt;
   bool _disposed = false;
   bool _reporting = false;
+  bool _launchReported = false;
 
   void _safeNotify() {
     if (!_disposed) notifyListeners();
@@ -278,92 +206,67 @@ class TeamTrackingProvider extends ChangeNotifier {
 
   void setActiveHike(HikePlan? hike) {
     _activeHike = hike;
-    if (hike != null && hike.status == 'active') {
-      _startTracking();
-    } else {
-      _stopTracking();
-    }
     notifyListeners();
+  }
+
+  /// One-shot location push fired when the app first loads. Grabs a single
+  /// GPS fix and writes one row to `team_member_locations` so the PC sees
+  /// where the hiker is right now — then immediately returns. No streams,
+  /// no timers, no background service. Subsequent updates only happen
+  /// while a hike is actively recording.
+  Future<void> reportOnceOnLaunch() async {
+    if (_launchReported || _disposed) return;
+    _launchReported = true;
+    final uid = _uid;
+    if (uid == null || uid.isEmpty) return;
+
+    try {
+      final pos = await LocationService.currentPosition();
+      if (pos == null) {
+        LoggerService.log('TRACKING',
+            'reportOnceOnLaunch: no GPS fix available, skipping');
+        return;
+      }
+      final vitals = await _readDeviceVitals();
+      await TeamService.reportLocation(
+        uid: uid,
+        displayName: _displayName,
+        lat: pos.latitude,
+        lon: pos.longitude,
+        heading: pos.heading,
+        speed: pos.speed,
+        altitude: pos.altitude,
+        teamId: _teamProvider?.selectedTeam?.id,
+        status: 'active',
+        batteryPct: vitals.battery,
+        connectivity: vitals.connectivity,
+      );
+      _lastReportAt = DateTime.now();
+      LoggerService.log(
+          'TRACKING', 'One-shot launch location reported for $_displayName');
+      _safeNotify();
+    } catch (e, stack) {
+      LoggerService.error('TRACKING', 'reportOnceOnLaunch failed: $e', stack);
+    }
   }
 
   void _startTracking() {
     if (_isTracking) return;
     _isTracking = true;
-
-    // Immediate report so the PC command centre sees us appear within ~1s of going live.
     _reportNow();
-
-    // Adaptive cadence: 5s while recording (real-time command-centre feel), 20s otherwise.
-    // The setRecordingProvider hook also forces a push every time position changes meaningfully.
-    _reportTimer =
-        Timer.periodic(const Duration(seconds: 5), (_) => _adaptiveReport());
-
-    BackgroundTrackingService.start();
-  }
-
-  DateTime? _lastMovedAt;
-  double? _lastReportedLat;
-  double? _lastReportedLon;
-
-  Future<void> _adaptiveReport() async {
-    final pos = _recordingProvider?.currentPosition;
-    final now = DateTime.now();
-
-    // If we have a position, compute movement since last report.
-    if (pos != null && _lastReportedLat != null && _lastReportedLon != null) {
-      final dLat = (pos.latitude - _lastReportedLat!) * 111320.0;
-      final dLon = (pos.longitude - _lastReportedLon!) *
-          111320.0 *
-          0.6; // rough cos(lat) at mid-latitudes
-      final movedMeters = (dLat * dLat + dLon * dLon);
-      if (movedMeters > 25) {
-        // moved >5m
-        _lastMovedAt = now;
-      }
-    } else if (pos != null) {
-      _lastMovedAt = now;
-    }
-
-    // If recording: push every tick (5s). If idle and hasn't moved in 60s: throttle to 1-in-4 (20s).
-    final isRecording = _recordingProvider?.isRecording ?? false;
-    final stationary = _lastMovedAt == null ||
-        now.difference(_lastMovedAt!).inSeconds > 60;
-    if (!isRecording && stationary) {
-      if (_lastReportAt != null &&
-          now.difference(_lastReportAt!).inSeconds < 20) {
-        return;
-      }
-    }
-
-    await _reportNow();
-    if (pos != null) {
-      _lastReportedLat = pos.latitude;
-      _lastReportedLon = pos.longitude;
-    }
   }
 
   void _stopTracking() {
     _isTracking = false;
-    _reportTimer?.cancel();
-    _reportTimer = null;
-    BackgroundTrackingService.stop();
   }
 
   Future<void> _reportNow() async {
-    // Drop overlapping calls — a slow network can stack ticks.
     if (_reporting || _disposed) return;
     _reporting = true;
 
     try {
-      // Report if any of:
-      //   - active hike plan with teamId
-      //   - selected team
-      //   - actively recording (admin console sees all active hikers)
-      //   - live sharing toggled on (user opened the Live Tracking screen)
       final bool isRecording = _recordingProvider?.isRecording ?? false;
-      final String? teamId =
-          _activeHike?.teamId ?? _teamProvider?.selectedTeam?.id;
-      if (teamId == null && !isRecording && !_liveSharingEnabled) return;
+      if (!isRecording) return;
 
       final uid = _uid;
       if (uid == null || uid.isEmpty) {
@@ -372,25 +275,22 @@ class TeamTrackingProvider extends ChangeNotifier {
         return;
       }
 
-      // Ghost Mode: Stop broadcasting to Supabase, but tracking logic stays active
       if (_recordingProvider?.isGhostMode ?? false) {
         LoggerService.log('TRACKING',
             'TeamTrackingProvider: Ghost Mode active. Skipping report.');
         return;
       }
 
-      final pos = _recordingProvider?.currentPosition ??
-          await LocationService.currentPosition();
+      final pos = _recordingProvider?.currentPosition;
       if (pos == null) {
         LoggerService.log('TRACKING', 'Skipping report: GPS position is null');
         return;
       }
 
+      final String? teamId =
+          _activeHike?.teamId ?? _teamProvider?.selectedTeam?.id;
       final vitals = await _readDeviceVitals();
       final fixTimestamp = DateTime.now();
-      // Build the same shape that bulkInsertTrackPoints expects so that
-      // we can fall straight into the offline queue on network failure
-      // without duplicating the payload construction.
       final trackPointRow = <String, dynamic>{
         'uid': uid,
         'team_id': teamId,
@@ -400,18 +300,15 @@ class TeamTrackingProvider extends ChangeNotifier {
         'altitude': pos.altitude,
         'heading': pos.heading,
         'speed': pos.speed,
-        'status': isRecording ? 'recording' : 'active',
+        'status': 'recording',
         'battery_pct': vitals.battery,
         'connectivity': vitals.connectivity,
         'timestamp': fixTimestamp.toUtc().toIso8601String(),
         'synced_offline': false,
-        // Carried along so a drained queue entry can recreate the
-        // upsert payload for `team_member_locations` too.
         '_display_name': _displayName,
       };
 
       try {
-        // 1. Update the latest-position row.
         await TeamService.reportLocation(
           uid: uid,
           displayName: _displayName,
@@ -422,13 +319,10 @@ class TeamTrackingProvider extends ChangeNotifier {
           altitude: pos.altitude,
           teamId: teamId,
           hikeId: _activeHike?.id,
-          status: isRecording ? 'recording' : 'active',
+          status: 'recording',
           batteryPct: vitals.battery,
           connectivity: vitals.connectivity,
         );
-        // 2. Append to the historical track. Failure to append here is
-        //    non-fatal — the latest-position row is what the PC uses
-        //    for the live marker, the track is for polyline-redraw.
         try {
           await TeamService.insertTrackPoint(
             uid: uid,
@@ -439,7 +333,7 @@ class TeamTrackingProvider extends ChangeNotifier {
             altitude: pos.altitude,
             heading: pos.heading,
             speed: pos.speed,
-            status: isRecording ? 'recording' : 'active',
+            status: 'recording',
             batteryPct: vitals.battery,
             connectivity: vitals.connectivity,
             timestamp: fixTimestamp,
@@ -454,9 +348,6 @@ class TeamTrackingProvider extends ChangeNotifier {
             'Location reported successfully for $_displayName at ${pos.latitude}, ${pos.longitude}');
         _safeNotify();
       } catch (e, stack) {
-        // Network or RLS failure. Drop this fix into the local queue so
-        // it goes up the wire when signal returns. Without this the
-        // entire offline segment is invisible to the PC.
         LoggerService.error(
             'TRACKING', 'reportLocation failed; queueing offline: $e', stack);
         await OfflineTrackQueue.enqueue(trackPointRow);
@@ -523,23 +414,15 @@ class TeamTrackingProvider extends ChangeNotifier {
     }
   }
 
-  // ─── Watch team_member_locations for the currently-selected team ────────
-  //
-  // Without this the Teams screen + live map never populate — they read
-  // `teamLocations`, which was an empty list because nothing ever called
-  // `refreshTeamLocations`. We now: (a) refresh immediately when the team
-  // changes, (b) poll every 10 s as a safety net, and (c) subscribe to
-  // realtime INSERT/UPDATE events so a teammate's fresh ping appears within
-  // ~1 s instead of waiting for the next poll tick.
+  // Watches `team_member_locations` for OTHER hikers in the selected team
+  // (incoming data, not our outgoing GPS). Realtime stream + initial fetch
+  // only — no polling timer.
   String? _watchingTeamId;
-  Timer? _teamPollTimer;
   StreamSubscription<List<Map<String, dynamic>>>? _teamLocSub;
 
   void _watchTeamLocations(String? teamId) {
     if (teamId == _watchingTeamId) return;
     _watchingTeamId = teamId;
-    _teamPollTimer?.cancel();
-    _teamPollTimer = null;
     _teamLocSub?.cancel();
     _teamLocSub = null;
     if (teamId == null || !kSupabaseAvailable) {
@@ -547,13 +430,7 @@ class TeamTrackingProvider extends ChangeNotifier {
       _safeNotify();
       return;
     }
-    // (a) instant refresh
     refreshTeamLocations(teamId);
-    // (b) 10s safety-net poll — catches any realtime event we miss
-    _teamPollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      refreshTeamLocations(teamId);
-    });
-    // (c) realtime stream filtered to this team
     try {
       _teamLocSub = Supabase.instance.client
           .from('team_member_locations')
@@ -575,8 +452,6 @@ class TeamTrackingProvider extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _reportTimer?.cancel();
-    _teamPollTimer?.cancel();
     _teamLocSub?.cancel();
     _connectivitySub?.cancel();
     super.dispose();

@@ -1,18 +1,16 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import '../../services/location_service.dart';
+import 'package:provider/provider.dart';
+import '../../providers/recording_provider.dart';
 
 class GpsLocationLayer extends StatefulWidget {
-  /// Pass the parent [MapController] to auto-pan the map when a new
-  /// GPS position arrives (only pans once per session until user moves map).
+  /// Parent [MapController] to auto-pan the map when the first live position
+  /// arrives (only once per session until the user moves the map).
   final MapController? mapCtrl;
 
-  /// Called every time a new GPS fix is received.
-  /// Used by [MapScreen] to keep [_lastGpsPos] up to date for the
-  /// incident-reporter fallback position.
+  /// Called every time the live position changes. Used by [MapScreen] to keep
+  /// `_lastGpsPos` up to date for the incident-reporter fallback position.
   final void Function(LatLng)? onPositionUpdate;
 
   const GpsLocationLayer({super.key, this.mapCtrl, this.onPositionUpdate});
@@ -23,34 +21,14 @@ class GpsLocationLayer extends StatefulWidget {
 
 class _GpsLocationLayerState extends State<GpsLocationLayer> {
   final List<LatLng> _breadcrumbs = [];
-  LatLng? _current;
+  LatLng? _lastReported;
   bool _hasCentred = false;
-  StreamSubscription<Position>? _sub;
 
-  @override
-  void initState() {
-    super.initState();
-    _sub = LocationService.smoothedPositionStream.listen(
-      _onPosition,
-      onError: (e) => debugPrint('GPS error: $e'),
-    );
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
-
-  void _onPosition(Position pos) {
-    final pt = LatLng(pos.latitude, pos.longitude);
-    setState(() {
-      _current = pt;
-      _breadcrumbs.add(pt);
-    });
-    // Notify parent of new position (used by MapScreen for incident reporting)
+  void _onLivePosition(LatLng pt) {
+    if (_lastReported == pt) return;
+    _lastReported = pt;
+    _breadcrumbs.add(pt);
     widget.onPositionUpdate?.call(pt);
-    // Pan map to first fix only
     if (!_hasCentred && widget.mapCtrl != null) {
       _hasCentred = true;
       widget.mapCtrl!.move(pt, 14);
@@ -59,9 +37,20 @@ class _GpsLocationLayerState extends State<GpsLocationLayer> {
 
   @override
   Widget build(BuildContext context) {
+    final pos = context.select<RecordingProvider, LatLng?>((r) {
+      final p = r.currentPosition;
+      if (p == null) return null;
+      return LatLng(p.latitude, p.longitude);
+    });
+
+    if (pos != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onLivePosition(pos);
+      });
+    }
+
     return Stack(
       children: [
-        // Breadcrumb trail
         if (_breadcrumbs.length > 1)
           PolylineLayer(polylines: [
             Polyline(
@@ -70,18 +59,17 @@ class _GpsLocationLayerState extends State<GpsLocationLayer> {
               strokeWidth: 3.0,
             ),
           ]),
-        // Current position dot
-        if (_current != null)
+        if (pos != null)
           CircleLayer(circles: [
             CircleMarker(
-              point: _current!,
+              point: pos,
               radius: 10,
               color: const Color(0x664FC3F7),
               borderColor: Colors.white,
               borderStrokeWidth: 2,
             ),
             CircleMarker(
-              point: _current!,
+              point: pos,
               radius: 5,
               color: const Color(0xFF2196F3),
             ),

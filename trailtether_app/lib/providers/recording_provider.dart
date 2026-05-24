@@ -15,7 +15,6 @@ import '../models/trail.dart';
 import '../models/incident.dart';
 import '../services/location_service.dart';
 import '../services/logger_service.dart';
-import '../services/background_tracking_service.dart';
 import '../services/weather_alert_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/utils.dart';
@@ -58,7 +57,6 @@ class RecordingProvider extends ChangeNotifier {
   double? _lastElevation;
 
   StreamSubscription<Position>? _sub;
-  StreamSubscription<Position>? _passiveSub;
   Position? _currentPosition;
   final Set<String> _notifiedIncidentIds = {};
   Incident? _nearbyIncident;
@@ -141,7 +139,6 @@ class RecordingProvider extends ChangeNotifier {
   void toggleGhostMode() {
     _isGhostMode = !_isGhostMode;
     LoggerService.log('PRIVACY', 'Ghost Mode set to $_isGhostMode');
-    _syncBackgroundNotification();
     unawaited(_persistDraft());
     notifyListeners();
   }
@@ -149,7 +146,6 @@ class RecordingProvider extends ChangeNotifier {
   void toggleBatterySaver() {
     _isBatterySaver = !_isBatterySaver;
     _updateLocationSettings();
-    _syncBackgroundNotification();
     unawaited(_persistDraft());
     notifyListeners();
   }
@@ -454,7 +450,6 @@ class RecordingProvider extends ChangeNotifier {
       'Recording started. Existing points=${_points.length}, '
           'accepted=$_acceptedFixes, rejected=$_rejectedFixes',
     );
-    _syncBackgroundNotification(status: 'recording');
 
     // Force an immediate high-accuracy fix to kickstart the hardware
     unawaited(Geolocator.getCurrentPosition(
@@ -499,26 +494,6 @@ class RecordingProvider extends ChangeNotifier {
 
     notifyListeners();
     return true;
-  }
-
-  void startPassiveTracking() {
-    if (_sub != null || _passiveSub != null) return;
-    _passiveSub = Geolocator.getPositionStream(
-      locationSettings: LocationService.recordingLocationSettings,
-    ).listen((pos) {
-      _currentPosition = pos;
-      _lastFixTime = pos.timestamp;
-      _lastAccuracy = pos.accuracy;
-      notifyListeners();
-    }, onError: (e) {
-      LoggerService.error('GPS_PASSIVE', e);
-    });
-  }
-
-  void stopPassiveTracking() {
-    _passiveSub?.cancel();
-    _passiveSub = null;
-    notifyListeners();
   }
 
   void _onPosition(Position pos) {
@@ -639,7 +614,6 @@ class RecordingProvider extends ChangeNotifier {
   @override
   void dispose() {
     _sub?.cancel();
-    _passiveSub?.cancel();
     super.dispose();
   }
 
@@ -719,7 +693,6 @@ class RecordingProvider extends ChangeNotifier {
     _status = RecordingStatus.paused;
     _pauseTime = DateTime.now();
     _sub?.cancel();
-    _syncBackgroundNotification(status: 'paused');
     LoggerService.log(
       'TRACKING',
       'Recording paused. points=${_points.length}, '
@@ -733,7 +706,6 @@ class RecordingProvider extends ChangeNotifier {
     _status = RecordingStatus.idle;
     _sub?.cancel();
     _sub = null;
-    _syncBackgroundNotification(status: 'stopped');
     _batteryTimer?.cancel();
     _batteryTimer = null;
     _notifiedIncidentIds.clear();
@@ -747,22 +719,6 @@ class RecordingProvider extends ChangeNotifier {
     );
     unawaited(_persistDraft());
     notifyListeners();
-  }
-
-  void _syncBackgroundNotification({String? status}) {
-    final effectiveStatus = status ??
-        switch (_status) {
-          RecordingStatus.recording => 'recording',
-          RecordingStatus.paused => 'paused',
-          RecordingStatus.idle => 'stopped',
-        };
-
-    BackgroundTrackingService.updateStatus(
-      status: effectiveStatus,
-      ghostMode: _isGhostMode,
-      batterySaver: _isBatterySaver,
-      teamTracking: _activityContext == 'team',
-    );
   }
 
   void clear() {

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/design_tokens.dart';
 import '../providers/team_provider.dart';
+import '../providers/team_tracking_provider.dart';
 import '../widgets/design/tt_bottom_nav.dart';
 import 'tt_community_screen.dart';
 import 'tt_home_screen.dart';
@@ -34,6 +35,13 @@ class _AppShellState extends State<AppShell> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       context.read<TeamProvider>().listenForUser(user);
+      // One-shot location push so the PC command centre sees us when the app
+      // opens. After this, no more GPS until the user taps Start Hike — keeps
+      // background drain at zero.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<TeamTrackingProvider>().reportOnceOnLaunch();
+      });
     }
   }
 

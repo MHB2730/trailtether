@@ -31,7 +31,6 @@ import '../providers/recording_provider.dart';
 import '../providers/safety_provider.dart';
 import '../providers/static_data_provider.dart';
 import '../providers/team_provider.dart';
-import '../providers/team_tracking_provider.dart';
 import '../providers/units_provider.dart';
 import '../services/offline_map_service.dart';
 import '../services/weather_service.dart';
@@ -74,8 +73,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _recordingProvider ??= context.read<RecordingProvider>();
-      _recordingProvider?.startPassiveTracking();
-      context.read<TeamTrackingProvider>().setLiveSharing(true);
     });
   }
 
@@ -84,13 +81,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     _compassSub?.cancel();
     _weatherTimer?.cancel();
     _recordingProvider?.removeListener(_onRecordingChanged);
-    _recordingProvider?.stopPassiveTracking();
-    try {
-      // ignore: use_build_context_synchronously
-      context.read<TeamTrackingProvider>().setLiveSharing(false);
-    } catch (_) {
-      // Context may be unmounted in some teardown paths; safe to ignore.
-    }
     super.dispose();
   }
 

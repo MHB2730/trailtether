@@ -509,9 +509,9 @@ class _CompassToolState extends State<_CompassTool> {
   bool _available = true;
   StreamSubscription<CompassEvent>? _sub;
 
-  // Live altitude + GPS accuracy for the metric grid below the dial.
+  // One-shot GPS fix for altitude + accuracy below the dial. No live stream —
+  // tap the refresh button on the tile to take a new fix.
   Position? _pos;
-  StreamSubscription<Position>? _posSub;
 
   // Heading lock — when set, dial freezes at this bearing so the user can
   // sight a landmark without the rose spinning under their hand.
@@ -552,24 +552,19 @@ class _CompassToolState extends State<_CompassTool> {
     }
   }
 
-  void _initLocation() {
+  Future<void> _initLocation() async {
     try {
-      _posSub = Geolocator.getPositionStream(
+      final p = await Geolocator.getCurrentPosition(
         locationSettings:
             const LocationSettings(accuracy: LocationAccuracy.high),
-      ).listen(
-        (p) {
-          if (mounted) setState(() => _pos = p);
-        },
-        onError: (_) {/* leave _pos null — tile shows em-dash */},
       );
-    } catch (_) {/* same */}
+      if (mounted) setState(() => _pos = p);
+    } catch (_) {/* leave _pos null — tile shows em-dash */}
   }
 
   @override
   void dispose() {
     _sub?.cancel();
-    _posSub?.cancel();
     super.dispose();
   }
 
@@ -2145,45 +2140,39 @@ class _AltimeterToolState extends State<_AltimeterTool> {
   double _maxAlt = double.negativeInfinity;
   bool _available = true;
   String? _error;
-  StreamSubscription<Position>? _sub;
+  bool _refreshing = false;
 
-  // Rolling altitude history fed into the spark chart so the line responds to
-  // real data instead of a hard-coded curve.
+  // Rolling altitude history fed into the spark chart. One sample per manual
+  // refresh — no continuous stream.
   final List<_AltSample> _history = [];
-  static const int _maxSamples = 240; // ~2h at 30s tick / unlimited otherwise
+  static const int _maxSamples = 240;
 
   @override
   void initState() {
     super.initState();
-    _initLocation();
+    _takeReading();
   }
 
-  void _initLocation() {
+  Future<void> _takeReading() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
     try {
-      _sub = Geolocator.getPositionStream(
+      final p = await Geolocator.getCurrentPosition(
         locationSettings:
             const LocationSettings(accuracy: LocationAccuracy.best),
-      ).listen(
-        (p) {
-          if (!mounted) return;
-          setState(() {
-            _pos = p;
-            _firstAltitude ??= p.altitude;
-            if (p.altitude < _minAlt) _minAlt = p.altitude;
-            if (p.altitude > _maxAlt) _maxAlt = p.altitude;
-            _history.add(_AltSample(
-              when: p.timestamp,
-              altitude: p.altitude,
-            ));
-            if (_history.length > _maxSamples) {
-              _history.removeRange(0, _history.length - _maxSamples);
-            }
-          });
-        },
-        onError: (e) {
-          if (mounted) setState(() => _error = e.toString());
-        },
       );
+      if (!mounted) return;
+      setState(() {
+        _pos = p;
+        _firstAltitude ??= p.altitude;
+        if (p.altitude < _minAlt) _minAlt = p.altitude;
+        if (p.altitude > _maxAlt) _maxAlt = p.altitude;
+        _history.add(_AltSample(when: p.timestamp, altitude: p.altitude));
+        if (_history.length > _maxSamples) {
+          _history.removeRange(0, _history.length - _maxSamples);
+        }
+        _error = null;
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -2191,13 +2180,9 @@ class _AltimeterToolState extends State<_AltimeterTool> {
           _error = e.toString();
         });
       }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
     }
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
   }
 
   String _fmtAlt(double m) {
@@ -2741,10 +2726,10 @@ class _SunToolState extends State<_SunTool> {
   Position? _pos;
   bool _waiting = true;
   String? _error;
-  StreamSubscription<Position>? _sub;
   bool _refreshing = false;
 
   // Tick the UI every 30 seconds so "time to peak" / current time stay live.
+  // No GPS — pure UI clock.
   Timer? _tick;
 
   @override
@@ -2756,29 +2741,18 @@ class _SunToolState extends State<_SunTool> {
     });
   }
 
-  void _initLocation() {
+  Future<void> _initLocation() async {
     try {
-      _sub = Geolocator.getPositionStream(
+      final p = await Geolocator.getCurrentPosition(
         locationSettings:
             const LocationSettings(accuracy: LocationAccuracy.medium),
-      ).listen(
-        (p) {
-          if (mounted) {
-            setState(() {
-              _pos = p;
-              _waiting = false;
-            });
-          }
-        },
-        onError: (e) {
-          if (mounted) {
-            setState(() {
-              _error = e.toString();
-              _waiting = false;
-            });
-          }
-        },
       );
+      if (mounted) {
+        setState(() {
+          _pos = p;
+          _waiting = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -2791,7 +2765,6 @@ class _SunToolState extends State<_SunTool> {
 
   @override
   void dispose() {
-    _sub?.cancel();
     _tick?.cancel();
     super.dispose();
   }
