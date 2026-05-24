@@ -41,8 +41,15 @@ class _MissionControlTabState extends State<MissionControlTab> {
 
   RealtimeChannel? _trackingChannel;
   RealtimeChannel? _incidentChannel;
+  RealtimeChannel? _trackPointsChannel;
 
   Map<String, TeamMemberLocation> _locations = {};
+  // Per-hiker route polyline reconstructed from team_member_track_points.
+  // Each list is sorted ascending by timestamp. Realtime INSERTs append;
+  // _loadTrackPoints overwrites the list from server state (last 60 min).
+  // Without this layer the offline-buffer drain is invisible to the
+  // watcher — they'd see the marker snap forward but no path.
+  Map<String, List<_LiveTrackPoint>> _liveTracks = {};
   bool _loading = true;
   bool _showHeatmap = false;
   bool _showIncidentsList = false;
@@ -74,6 +81,7 @@ class _MissionControlTabState extends State<MissionControlTab> {
     // location row inserted between fetch-start and subscription-active is not lost.
     _setupRealtime();
     _loadInitialData();
+    _loadTrackPoints();
     _fetchExistingZones();
     _tickTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) setState(() {});
@@ -81,6 +89,7 @@ class _MissionControlTabState extends State<MissionControlTab> {
     _safetyRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (!mounted) return;
       _loadInitialData();
+      _loadTrackPoints();
     });
   }
 
@@ -133,6 +142,23 @@ class _MissionControlTabState extends State<MissionControlTab> {
         context.read<GpxProvider>().syncWithCloud();
       }
     });
+
+    // Realtime stream of new track points. The append-only table is the
+    // source of truth for the polyline. Each INSERT — live or backfilled
+    // from a phone's offline drain — pushes through this callback within
+    // ~1 s so the path grows under the marker in real time.
+    _trackPointsChannel?.unsubscribe();
+    _trackPointsChannel = _supabase
+        .channel('live-track-points')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'team_member_track_points',
+          callback: (payload) {
+            _appendTrackPoint(payload.newRecord);
+          },
+        )
+        .subscribe();
   }
 
   @override
@@ -141,9 +167,137 @@ class _MissionControlTabState extends State<MissionControlTab> {
     _safetyRefreshTimer?.cancel();
     _trackingChannel?.unsubscribe();
     _incidentChannel?.unsubscribe();
+    _trackPointsChannel?.unsubscribe();
     _gpxSub?.cancel();
     _mapController.dispose();
     super.dispose();
+  }
+
+  // ─── Live-track polyline plumbing ────────────────────────────────────
+  //
+  // Reads team_member_track_points (last 60 min) and groups by uid so
+  // the FlutterMap PolylineLayer can draw one route per hiker. Both
+  // the safety-net poll and the realtime stream feed into the same
+  // `_liveTracks` map so the polyline stays consistent whether the
+  // update came from a SELECT or an INSERT.
+
+  Future<void> _loadTrackPoints() async {
+    try {
+      var query = _supabase.from('team_member_track_points').select().gt(
+          'timestamp',
+          DateTime.now()
+              .toUtc()
+              .subtract(const Duration(minutes: 60))
+              .toIso8601String());
+      final teamId = context.read<TeamProvider>().selectedTeam?.id;
+      if (_filterByTeam && teamId != null) {
+        query = query.eq('team_id', teamId);
+      }
+      final rows = await query.order('timestamp', ascending: true);
+      final grouped = <String, List<_LiveTrackPoint>>{};
+      for (final r in (rows as List)) {
+        final uid = (r as Map)['uid'] as String?;
+        if (uid == null) continue;
+        grouped.putIfAbsent(uid, () => <_LiveTrackPoint>[]).add(
+              _LiveTrackPoint(
+                lat: (r['lat'] as num).toDouble(),
+                lon: (r['lon'] as num).toDouble(),
+                timestamp:
+                    DateTime.tryParse((r['timestamp'] as String?) ?? '') ??
+                        DateTime.now(),
+                syncedOffline: r['synced_offline'] == true,
+              ),
+            );
+      }
+      if (!mounted) return;
+      setState(() => _liveTracks = grouped);
+    } catch (e, stack) {
+      LoggerService.error('ADMIN_LIVE',
+          'Error loading track points: $e', stack);
+    }
+  }
+
+  void _appendTrackPoint(Map<String, dynamic> record) {
+    if (!mounted) return;
+    final uid = record['uid'] as String?;
+    if (uid == null) return;
+    if (_filterByTeam) {
+      final teamId = context.read<TeamProvider>().selectedTeam?.id;
+      if (record['team_id'] != teamId) return;
+    }
+    final pt = _LiveTrackPoint(
+      lat: (record['lat'] as num).toDouble(),
+      lon: (record['lon'] as num).toDouble(),
+      timestamp: DateTime.tryParse((record['timestamp'] as String?) ?? '') ??
+          DateTime.now(),
+      syncedOffline: record['synced_offline'] == true,
+    );
+    setState(() {
+      final list = _liveTracks.putIfAbsent(uid, () => <_LiveTrackPoint>[]);
+      list.add(pt);
+      // Cap per-hiker to last 600 points (~50 min @ 5s) so the polyline
+      // never grows unbounded on a long realtime session.
+      if (list.length > 600) {
+        list.removeRange(0, list.length - 600);
+      }
+    });
+  }
+
+  // Stable per-uid colour. Different hikers get different polyline tints
+  // so a watcher tracking multiple parties can tell them apart at a glance.
+  static const _trackPalette = <Color>[
+    Color(0xFFFF6A2C), // ember
+    Color(0xFF4CC38A), // green
+    Color(0xFFF2A93B), // amber
+    Color(0xFF5AA1D6), // blue
+    Color(0xFFB388FF), // violet
+  ];
+  Color _colourForUid(String uid) =>
+      _trackPalette[uid.hashCode.abs() % _trackPalette.length];
+
+  Widget _buildLiveTrackPolylinesLayer() {
+    if (_liveTracks.isEmpty) return const SizedBox.shrink();
+    final lines = <Polyline>[];
+    for (final entry in _liveTracks.entries) {
+      final pts = entry.value;
+      if (pts.length < 2) continue;
+      final base = _colourForUid(entry.key);
+      // Solid segments for live fixes; dashed-feel (offline) segments
+      // for backfilled ones. Polyline doesn't natively support dashing
+      // so we instead split into two parallel polylines — one for the
+      // live spans (full opacity) and one for the offline spans
+      // (lower opacity, slightly thicker). This keeps the visual
+      // distinction without changing the polyline lib.
+      final liveSegment = <LatLng>[];
+      final offlineSegment = <LatLng>[];
+      for (final p in pts) {
+        final ll = LatLng(p.lat, p.lon);
+        if (p.syncedOffline) {
+          offlineSegment.add(ll);
+        } else {
+          liveSegment.add(ll);
+        }
+      }
+      if (liveSegment.length >= 2) {
+        lines.add(Polyline(
+          points: liveSegment,
+          color: base,
+          strokeWidth: 3.5,
+        ));
+      }
+      if (offlineSegment.length >= 2) {
+        lines.add(Polyline(
+          points: offlineSegment,
+          color: base.withOpacity(0.55),
+          strokeWidth: 4.5,
+          // No dash pattern; rely on opacity + thickness for the
+          // "backfilled" feel since flutter_map's Polyline ignores
+          // arbitrary dash patterns on some platforms.
+        ));
+      }
+    }
+    if (lines.isEmpty) return const SizedBox.shrink();
+    return PolylineLayer(polylines: lines);
   }
 
 
@@ -648,6 +802,9 @@ class _MissionControlTabState extends State<MissionControlTab> {
                     children: [
                       if (_showHeatmap) _buildHeatmapLayer(),
                       _buildExistingZonesLayer(),
+                      // Live + backfilled hiker route polylines. Sits below
+                      // the markers so the dot rides on top of its trail.
+                      _buildLiveTrackPolylinesLayer(),
                       if (_drawingZone && _zonePoints.isNotEmpty)
                         _buildZoneDrawingLayer(),
                       if (_plottingRoute && _routePoints.isNotEmpty)
@@ -1862,4 +2019,20 @@ class _MetadataDialog extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Lightweight value type for the in-memory live-track buffer. Distinct
+/// from `TeamMemberLocation` because we only need the polyline geometry
+/// + the offline-backfill flag, not the full vitals row.
+class _LiveTrackPoint {
+  final double lat;
+  final double lon;
+  final DateTime timestamp;
+  final bool syncedOffline;
+  const _LiveTrackPoint({
+    required this.lat,
+    required this.lon,
+    required this.timestamp,
+    required this.syncedOffline,
+  });
 }
