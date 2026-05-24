@@ -206,6 +206,54 @@ class TeamService {
         .toList();
   }
 
+  /// Append a single GPS fix to the historical track-points log.
+  /// `team_member_locations` is upsert-on-uid (latest-only), so it can't
+  /// be used to reconstruct the path a hiker walked while offline. The
+  /// track-points table is append-only — every fix is preserved with its
+  /// original timestamp so the PC can draw a polyline.
+  static Future<void> insertTrackPoint({
+    required String uid,
+    required double lat,
+    required double lon,
+    String? teamId,
+    String? hikeId,
+    double? altitude,
+    double? heading,
+    double? speed,
+    String? status,
+    int? batteryPct,
+    String? connectivity,
+    required DateTime timestamp,
+    bool syncedOffline = false,
+  }) async {
+    await _db.from('team_member_track_points').insert({
+      'uid': uid,
+      'team_id': teamId,
+      'hike_id': hikeId,
+      'lat': lat,
+      'lon': lon,
+      'altitude': altitude,
+      'heading': heading,
+      'speed': speed,
+      'status': status,
+      'battery_pct': batteryPct,
+      'connectivity': connectivity,
+      'timestamp': timestamp.toUtc().toIso8601String(),
+      'synced_offline': syncedOffline,
+    });
+  }
+
+  /// Bulk-insert a batch of historical track points, used when draining
+  /// the offline queue. Single network round-trip vs N. Each row is
+  /// expected to already carry its original `timestamp` + a truthy
+  /// `synced_offline` so the PC can render the backfilled segment with
+  /// a different colour if it wants to.
+  static Future<void> bulkInsertTrackPoints(
+      List<Map<String, dynamic>> rows) async {
+    if (rows.isEmpty) return;
+    await _db.from('team_member_track_points').insert(rows);
+  }
+
   // Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   static String _generateInviteCode() {

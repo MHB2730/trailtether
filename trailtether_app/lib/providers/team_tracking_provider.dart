@@ -11,10 +11,90 @@ import '../providers/team_provider.dart';
 import 'recording_provider.dart';
 import '../services/logger_service.dart';
 import '../services/background_tracking_service.dart';
+import '../services/offline_track_queue.dart';
 
 class TeamTrackingProvider extends ChangeNotifier {
   TeamTrackingProvider() {
     LoggerService.log('TRACKING', 'TeamTrackingProvider initialized');
+    _startConnectivityWatch();
+  }
+
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  bool _draining = false;
+
+  void _startConnectivityWatch() {
+    try {
+      _connectivitySub =
+          _connectivity.onConnectivityChanged.listen((results) async {
+        final online = results.any((r) =>
+            r == ConnectivityResult.wifi ||
+            r == ConnectivityResult.mobile ||
+            r == ConnectivityResult.ethernet);
+        if (!online) return;
+        // Drain whatever queued up during the outage.
+        await _drainOfflineQueue();
+      });
+    } catch (e, stack) {
+      LoggerService.error(
+          'TRACKING', '_startConnectivityWatch failed: $e', stack);
+    }
+  }
+
+  Future<void> _drainOfflineQueue() async {
+    if (_draining || _disposed) return;
+    _draining = true;
+    try {
+      final fixes = await OfflineTrackQueue.drainAll();
+      if (fixes.isEmpty) return;
+      LoggerService.log(
+          'TRACKING', 'Draining ${fixes.length} offline fixes to Supabase');
+      // Strip helper-only fields and tag every entry as backfilled so
+      // the PC can render the offline segment with a distinct colour.
+      final rows = fixes.map((f) {
+        final copy = Map<String, dynamic>.from(f);
+        copy.remove('_display_name');
+        copy['synced_offline'] = true;
+        return copy;
+      }).toList();
+      try {
+        await TeamService.bulkInsertTrackPoints(rows);
+      } catch (e, stack) {
+        // Drain failed. Put the fixes back so the next connectivity
+        // event retries. Without this they'd be lost forever.
+        LoggerService.error(
+            'TRACKING', 'bulkInsertTrackPoints failed; re-queueing: $e', stack);
+        await OfflineTrackQueue.reenqueue(fixes);
+        return;
+      }
+      // Now refresh the "latest position" row to the newest queued fix
+      // so the live marker on the PC also jumps to where the hiker
+      // actually ended up. Without this the marker would still show
+      // the position from BEFORE the outage started.
+      try {
+        final newest = fixes.last;
+        await TeamService.reportLocation(
+          uid: newest['uid'] as String,
+          displayName:
+              (newest['_display_name'] as String?) ?? _displayName,
+          lat: (newest['lat'] as num).toDouble(),
+          lon: (newest['lon'] as num).toDouble(),
+          heading: (newest['heading'] as num?)?.toDouble() ?? 0,
+          speed: (newest['speed'] as num?)?.toDouble() ?? 0,
+          altitude: (newest['altitude'] as num?)?.toDouble() ?? 0,
+          teamId: newest['team_id'] as String?,
+          hikeId: newest['hike_id'] as String?,
+          status: newest['status'] as String?,
+          batteryPct: newest['battery_pct'] as int?,
+          connectivity: newest['connectivity'] as String?,
+        );
+      } catch (e) {
+        LoggerService.log('TRACKING',
+            'latest-position upsert after drain failed (non-fatal): $e');
+      }
+      LoggerService.log('TRACKING', 'Offline drain complete');
+    } finally {
+      _draining = false;
+    }
   }
 
   RecordingProvider? _recordingProvider;
@@ -301,8 +381,37 @@ class TeamTrackingProvider extends ChangeNotifier {
 
       final pos = _recordingProvider?.currentPosition ??
           await LocationService.currentPosition();
-      if (pos != null) {
-        final vitals = await _readDeviceVitals();
+      if (pos == null) {
+        LoggerService.log('TRACKING', 'Skipping report: GPS position is null');
+        return;
+      }
+
+      final vitals = await _readDeviceVitals();
+      final fixTimestamp = DateTime.now();
+      // Build the same shape that bulkInsertTrackPoints expects so that
+      // we can fall straight into the offline queue on network failure
+      // without duplicating the payload construction.
+      final trackPointRow = <String, dynamic>{
+        'uid': uid,
+        'team_id': teamId,
+        'hike_id': _activeHike?.id,
+        'lat': pos.latitude,
+        'lon': pos.longitude,
+        'altitude': pos.altitude,
+        'heading': pos.heading,
+        'speed': pos.speed,
+        'status': isRecording ? 'recording' : 'active',
+        'battery_pct': vitals.battery,
+        'connectivity': vitals.connectivity,
+        'timestamp': fixTimestamp.toUtc().toIso8601String(),
+        'synced_offline': false,
+        // Carried along so a drained queue entry can recreate the
+        // upsert payload for `team_member_locations` too.
+        '_display_name': _displayName,
+      };
+
+      try {
+        // 1. Update the latest-position row.
         await TeamService.reportLocation(
           uid: uid,
           displayName: _displayName,
@@ -317,12 +426,40 @@ class TeamTrackingProvider extends ChangeNotifier {
           batteryPct: vitals.battery,
           connectivity: vitals.connectivity,
         );
+        // 2. Append to the historical track. Failure to append here is
+        //    non-fatal — the latest-position row is what the PC uses
+        //    for the live marker, the track is for polyline-redraw.
+        try {
+          await TeamService.insertTrackPoint(
+            uid: uid,
+            lat: pos.latitude,
+            lon: pos.longitude,
+            teamId: teamId,
+            hikeId: _activeHike?.id,
+            altitude: pos.altitude,
+            heading: pos.heading,
+            speed: pos.speed,
+            status: isRecording ? 'recording' : 'active',
+            batteryPct: vitals.battery,
+            connectivity: vitals.connectivity,
+            timestamp: fixTimestamp,
+            syncedOffline: false,
+          );
+        } catch (e) {
+          LoggerService.log(
+              'TRACKING', 'track point append failed (non-fatal): $e');
+        }
         _lastReportAt = DateTime.now();
         LoggerService.log('TRACKING',
             'Location reported successfully for $_displayName at ${pos.latitude}, ${pos.longitude}');
         _safeNotify();
-      } else {
-        LoggerService.log('TRACKING', 'Skipping report: GPS position is null');
+      } catch (e, stack) {
+        // Network or RLS failure. Drop this fix into the local queue so
+        // it goes up the wire when signal returns. Without this the
+        // entire offline segment is invisible to the PC.
+        LoggerService.error(
+            'TRACKING', 'reportLocation failed; queueing offline: $e', stack);
+        await OfflineTrackQueue.enqueue(trackPointRow);
       }
     } catch (e, stack) {
       LoggerService.error('TRACKING', 'reportLocation failed: $e', stack);
@@ -441,6 +578,7 @@ class TeamTrackingProvider extends ChangeNotifier {
     _reportTimer?.cancel();
     _teamPollTimer?.cancel();
     _teamLocSub?.cancel();
+    _connectivitySub?.cancel();
     super.dispose();
   }
 }
