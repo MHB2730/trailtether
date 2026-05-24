@@ -202,28 +202,25 @@ function priceHtml(cents: number, compareCents: number | null = null): string {
   return out;
 }
 
-function productMailto(p: any): string {
-  const name = p.name ?? "";
-  const priceR = p.price_cents % 100 === 0 ? `R${p.price_cents/100}` : `R${(p.price_cents/100).toFixed(2)}`;
-  const lines = ["Hi Hilltrek,", "", "I'd like to order:", "", `Product: ${name} — ${priceR}`];
-  for (const v of (p.variants ?? [])) {
-    const vs = (v.values ?? []).join(" / ");
-    lines.push(`${v.name ?? "Option"}: [${vs}]`);
-  }
-  lines.push("Quantity: 1", "", "Name: ", "Delivery address: ", "", "Thanks!");
-  return `mailto:info@hilltrek.co.za?subject=${encodeURIComponent(`Order: ${name} (${priceR})`)}` +
-         `&body=${encodeURIComponent(lines.join("\n"))}`;
-}
-
-function variantSummary(variants: any[]): string {
-  if (!variants?.length) return "One size · One option";
-  const parts: string[] = [];
+// Build interactive variant <select> markup. The shopper picks size/colour
+// before adding to cart; cart.js reads each select's data-variant-group +
+// value when wiring the button.
+function variantSelectsHtml(variants: any[]): string {
+  if (!variants?.length) return "";
+  const rows: string[] = [];
   for (const v of variants) {
-    const vals = (v.values ?? []).filter(Boolean);
-    if (!vals.length || !v.name) continue;
-    parts.push(`${esc(v.name)}: ${esc(vals.join(" / "))}`);
+    const name = String(v.name ?? "").trim();
+    const vals = (v.values ?? []).map((x: any) => String(x).trim()).filter(Boolean);
+    if (!name || !vals.length) continue;
+    const opts = vals.map((val: string) => `<option value="${esc(val)}">${esc(val)}</option>`).join("");
+    rows.push(
+      `<label class="variant-row">` +
+        `<span class="variant-label">${esc(name)}</span>` +
+        `<select data-variant-group="${esc(name)}">${opts}</select>` +
+      `</label>`
+    );
   }
-  return parts.length ? parts.join(" · ") : "—";
+  return rows.length ? `<div class="product-variants">${rows.join("")}</div>` : "";
 }
 
 function hikePills(h: any): string {
@@ -499,9 +496,15 @@ const TPL_MERCH_INDEX = `<!doctype html>
     .product-price {{ font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }}
     .product-price .cur {{ font-size: 13px; color: var(--muted); font-weight: 500; margin-right: 2px; }}
     .product-price .compare {{ font-size: 13px; color: var(--dim); text-decoration: line-through; margin-left: 8px; }}
-    .product-buy {{ display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: var(--r-pill); background: var(--ember); color: #110a04; font-weight: 600; font-size: 13.5px; }}
+    .product-buy {{ display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: var(--r-pill); background: var(--ember); color: #110a04; font-weight: 600; font-size: 13.5px; border: 0; cursor: pointer; font-family: inherit; transition: transform 0.12s ease, box-shadow 0.2s ease; }}
+    .product-buy:hover {{ transform: translateY(-1px); box-shadow: 0 10px 22px -8px rgba(255,122,26,0.45); }}
+    .product-buy:active {{ transform: translateY(0); }}
     .product-buy svg {{ width: 13px; height: 13px; }}
-    .product-options {{ font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--dim); margin-bottom: 10px; text-transform: uppercase; }}
+    .product-variants {{ display: grid; gap: 8px; margin-bottom: 14px; }}
+    .variant-row {{ display: flex; align-items: center; gap: 10px; }}
+    .variant-label {{ font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); min-width: 56px; }}
+    .variant-row select {{ flex: 1; padding: 7px 10px; border-radius: var(--r-sm); border: 1px solid var(--border-2); background: rgba(255,255,255,0.04); color: var(--text); font-family: inherit; font-size: 13px; cursor: pointer; }}
+    .variant-row select:focus {{ outline: none; border-color: var(--ember); }}
     .product-stock-out {{ background: rgba(220,38,38,0.15); color: #fca5a5; border: 1px solid rgba(220,38,38,0.4); padding: 5px 11px; border-radius: var(--r-pill); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; }}
   </style>
 </head>
@@ -527,20 +530,21 @@ const TPL_MERCH_INDEX = `<!doctype html>
   </div></section>
   {footer}
   <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script src="/assets/js/cart.js" defer></script>
   <script src="/assets/js/site.js" defer></script>
 </body>
 </html>`;
 
-const TPL_PRODUCT_CARD = `<a class="product-card" href="{order_mailto}">
+const TPL_PRODUCT_CARD = `<div class="product-card" data-slug="{slug}">
   <div class="product-media">{tag_html}<img src="{image}" alt="{name}" loading="lazy" /></div>
   <div class="product-body">
     <div class="product-meta">{category_label}</div>
     <h3>{name}</h3>
     <p class="product-blurb">{blurb}</p>
-    <div class="product-options">{options_summary}</div>
+    {variant_selects_html}
     <div class="product-bottom"><div class="product-price">{price_html}</div>{buy_html}</div>
   </div>
-</a>`;
+</div>`;
 
 // ----------------------------------------------------------------------------
 // Renderers
@@ -587,18 +591,27 @@ function renderMerchIndex(products: any[]): string {
     let blurb = (p.description_md || p.subtitle || "").split("\n\n")[0].replace(/^#+\s*/, "").trim();
     if (blurb.length > 220) blurb = blurb.slice(0, 217) + "…";
 
+    // The Add-to-cart button carries all the data cart.js needs to insert
+    // the line item without a server round-trip. Selected variant values
+    // are read from the <select>s rendered above the bottom row.
+    const cartSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>';
     const buyHtml = outOfStock
       ? '<span class="product-stock-out">Out of stock</span>'
-      : '<span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>';
+      : `<button type="button" class="product-buy" data-add-to-cart ` +
+        `data-slug="${esc(p.slug ?? "")}" ` +
+        `data-name="${esc(p.name ?? "")}" ` +
+        `data-image="${esc(p.main_image_url ?? "")}" ` +
+        `data-price-cents="${Number(p.price_cents) || 0}">` +
+        cartSvg + ` Add to cart</button>`;
 
     return fmt(TPL_PRODUCT_CARD, {
-      order_mailto: productMailto(p),
+      slug: esc(p.slug ?? ""),
       tag_html: tagHtml,
       image: esc(p.main_image_url ?? ""),
       name: esc(p.name ?? ""),
       category_label: esc((p.subtitle || p.category || "").toUpperCase()),
       blurb: esc(blurb),
-      options_summary: variantSummary(p.variants ?? []),
+      variant_selects_html: variantSelectsHtml(p.variants ?? []),
       price_html: priceHtml(p.price_cents, p.compare_at_price_cents),
       buy_html: buyHtml,
     });

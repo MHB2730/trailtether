@@ -27,7 +27,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // Visible client version. Bump whenever app.js changes meaningfully. Shows
 // in the topbar so we can verify which build is actually running in a given
 // browser session (cache-busted by ?v=N on the script tag).
-const ADMIN_VERSION = 'v6';
+const ADMIN_VERSION = 'v7';
 
 // ----------------------------------------------------------------------------
 // Hang protection
@@ -439,11 +439,15 @@ function route() {
   if (path === '/hikes/new')                   return renderHikeEdit(null);
   if (path === '/products')                    return renderProductsList();
   if (path === '/products/new')                return renderProductEdit(null);
+  if (path === '/orders')                      return renderOrdersList();
+  if (path === '/settings')                    return renderSettings();
   if (path === '/security')                    return renderSecurity();
   const m = path.match(/^\/hikes\/(.+)$/);
   if (m) return renderHikeEdit(m[1]);
   const p = path.match(/^\/products\/(.+)$/);
   if (p) return renderProductEdit(p[1]);
+  const o = path.match(/^\/orders\/(.+)$/);
+  if (o) return renderOrderDetail(o[1]);
 
   outlet.innerHTML = `<div class="card"><h2 style="font-size:20px;">Not found</h2><p class="muted">The URL <code>${path}</code> isn't a known admin view. <a href="#/" class="subtle-link">Back to dashboard</a></p></div>`;
 }
@@ -452,6 +456,8 @@ function setActiveNav(path) {
   if (path === '/' || path === '')              $('[data-nav="dashboard"]')?.classList.add('active');
   else if (path.startsWith('/hikes'))           $('[data-nav="hikes"]')?.classList.add('active');
   else if (path.startsWith('/products'))        $('[data-nav="products"]')?.classList.add('active');
+  else if (path.startsWith('/orders'))          $('[data-nav="orders"]')?.classList.add('active');
+  else if (path === '/settings')                $('[data-nav="settings"]')?.classList.add('active');
   else if (path === '/security')                $('[data-nav="security"]')?.classList.add('active');
 }
 
@@ -1709,6 +1715,313 @@ async function onUnenroll(factorId) {
   } catch (err) {
     toast('Could not disable 2FA', 'error', explainError(err));
   }
+}
+
+// ----------------------------------------------------------------------------
+// View: Orders list
+// ----------------------------------------------------------------------------
+async function renderOrdersList() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Orders</h1>
+        <div class="sub">Every order placed via the merch checkout. Phase B is pending-pay only; PayFast is Phase C.</div>
+      </div>
+    </div>
+
+    <div id="orders-list" class="list">
+      <div class="list-empty">Loading…</div>
+    </div>
+  `;
+
+  try {
+    const { data, error } = await query(
+      () => supabase
+        .from('site_orders')
+        .select('id, order_number, status, customer_name, customer_email, total_cents, created_at')
+        .order('created_at', { ascending: false }),
+      'Orders list'
+    );
+    if (error) throw error;
+
+    if (!data.length) {
+      $('#orders-list').innerHTML = `
+        <div class="list-empty">
+          <h3>No orders yet</h3>
+          <p>Once someone checks out from <code>/merch/</code>, the order shows up here.</p>
+        </div>`;
+      return;
+    }
+
+    const head = `
+      <div class="list-row is-head">
+        <div>Order #</div>
+        <div>Customer</div>
+        <div>Total</div>
+        <div>Status</div>
+        <div>Date</div>
+        <div style="text-align:right;">Actions</div>
+      </div>
+    `;
+    const rows = data.map(o => `
+      <div class="list-row" data-id="${o.id}">
+        <div class="mono" style="font-weight: 600;">${escapeHtml(o.order_number)}</div>
+        <div class="list-title">${escapeHtml(o.customer_name)}<span class="slug">${escapeHtml(o.customer_email)}</span></div>
+        <div class="mono">${formatPrice(o.total_cents)}</div>
+        <div>${statusPill(o.status)}</div>
+        <div>${formatDate(o.created_at)}</div>
+        <div class="row-actions">
+          <a href="#/orders/${encodeURIComponent(o.id)}" class="btn btn-ghost btn-sm">View</a>
+        </div>
+      </div>
+    `).join('');
+
+    $('#orders-list').innerHTML = head + rows;
+  } catch (err) {
+    $('#orders-list').innerHTML = `<div class="list-empty"><h3 class="bad">Error</h3><p>${explainError(err)}</p></div>`;
+  }
+}
+
+function statusPill(status) {
+  const cls = {
+    pending:   'draft',
+    paid:      'pub',
+    shipped:   'feat',
+    cancelled: 'draft',
+    refunded:  'draft',
+  }[status] || 'draft';
+  return `<span class="pill ${cls}">${escapeHtml(status || 'pending')}</span>`;
+}
+
+// ----------------------------------------------------------------------------
+// View: Order detail
+// ----------------------------------------------------------------------------
+async function renderOrderDetail(id) {
+  outlet.innerHTML = `<div class="card"><p class="muted">Loading order…</p></div>`;
+
+  let order;
+  let items;
+  try {
+    const [orderRes, itemsRes] = await Promise.all([
+      query(() => supabase.from('site_orders').select('*').eq('id', id).maybeSingle(), 'Load order'),
+      query(() => supabase.from('site_order_items').select('*').eq('order_id', id).order('created_at'), 'Load order items'),
+    ]);
+    if (orderRes.error)  throw orderRes.error;
+    if (itemsRes.error)  throw itemsRes.error;
+    if (!orderRes.data)  { outlet.innerHTML = `<div class="card">Order not found. <a href="#/orders" class="subtle-link">Back to list</a></div>`; return; }
+    order = orderRes.data;
+    items = itemsRes.data || [];
+  } catch (err) {
+    outlet.innerHTML = `<div class="card bad">Failed to load order: ${explainError(err)}</div>`;
+    return;
+  }
+
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>${escapeHtml(order.order_number)}</h1>
+        <div class="sub">Placed ${formatDate(order.created_at)} · ${escapeHtml(order.customer_name)} · ${escapeHtml(order.customer_email)}</div>
+      </div>
+      <div class="page-actions">
+        <a href="#/orders" class="btn btn-ghost">← Back to orders</a>
+      </div>
+    </div>
+
+    <div class="edit-grid">
+      <div class="edit-main">
+        <div class="card">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 14px;">Line items</h3>
+          <div class="list" style="border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden;">
+            ${items.map(it => `
+              <div class="list-row" style="grid-template-columns: 64px 1fr auto auto;">
+                <div class="list-thumb">${it.product_image ? `<img src="${resolveUrl(it.product_image)}" alt="" />` : ''}</div>
+                <div class="list-title">${escapeHtml(it.product_name)}<span class="slug">${escapeHtml(variantSummary(it.variants))}</span></div>
+                <div class="mono dim" style="text-align:right;">${formatPrice(it.unit_price_cents)} × ${it.quantity}</div>
+                <div class="mono" style="font-weight: 600; text-align: right; min-width: 90px;">${formatPrice(it.line_total_cents)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 14px;">Shipping address</h3>
+          <div style="font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--text);">
+            ${escapeHtml(order.customer_name)}<br />
+            ${escapeHtml(order.shipping_address_line1)}<br />
+            ${order.shipping_address_line2 ? escapeHtml(order.shipping_address_line2) + '<br />' : ''}
+            ${escapeHtml(order.shipping_city)}, ${escapeHtml(order.shipping_province)} ${escapeHtml(order.shipping_postal_code)}<br />
+            <span class="dim">Phone:</span> ${escapeHtml(order.customer_phone)}
+          </div>
+          ${order.notes ? `<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);"><div style="font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px;">Notes</div><div style="color: var(--muted); font-size: 14px; line-height: 1.55;">${escapeHtml(order.notes)}</div></div>` : ''}
+        </div>
+      </div>
+
+      <aside class="edit-aside">
+        <div class="card card-tight">
+          <h3 style="font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ember); margin-bottom: 14px;">Status</h3>
+          <div class="field" style="margin-bottom: 14px;">
+            <select id="order-status" style="width: 100%; padding: 10px 14px; border-radius: var(--r-md); border: 1px solid var(--border-2); background: rgba(255,255,255,0.04); color: var(--text); font-family: inherit; font-size: 14px;">
+              ${['pending','paid','shipped','cancelled','refunded'].map(s =>
+                `<option value="${s}" ${order.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <button id="btn-save-status" class="btn btn-primary" style="width: 100%; justify-content: center;">Update status</button>
+          <p class="dim" style="font-size: 11.5px; margin-top: 12px; line-height: 1.5;">
+            <strong style="color: var(--text);">Current:</strong> ${statusPill(order.status)}
+          </p>
+        </div>
+
+        <div class="card card-tight">
+          <h3 style="font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ember); margin-bottom: 14px;">Totals</h3>
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: var(--muted);"><span>Subtotal</span><span class="mono" style="color: var(--text);">${formatPrice(order.subtotal_cents)}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: var(--muted);"><span>Shipping</span><span class="mono" style="color: var(--text);">${formatPrice(order.shipping_cents)}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 12px 0 0; margin-top: 8px; border-top: 1px solid var(--border); font-size: 17px; font-weight: 700;"><span>Total</span><span>${formatPrice(order.total_cents)}</span></div>
+        </div>
+
+        <div class="card card-tight">
+          <h3 style="font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ember); margin-bottom: 14px;">Customer</h3>
+          <div style="font-size: 14px; line-height: 1.6;">
+            <strong>${escapeHtml(order.customer_name)}</strong><br />
+            <a href="mailto:${escapeHtml(order.customer_email)}" class="subtle-link" style="font-size: 13px;">${escapeHtml(order.customer_email)}</a><br />
+            <a href="tel:${escapeHtml(order.customer_phone)}" class="subtle-link" style="font-size: 13px;">${escapeHtml(order.customer_phone)}</a>
+          </div>
+        </div>
+
+        <button id="btn-delete-order" class="btn btn-danger btn-sm" style="width: 100%; justify-content: center;">Delete order</button>
+      </aside>
+    </div>
+  `;
+
+  $('#btn-save-status').addEventListener('click', async () => {
+    const newStatus = $('#order-status').value;
+    if (newStatus === order.status) return toast('No change', 'info');
+    const btn = $('#btn-save-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving…';
+    try {
+      const { error } = await query(
+        () => supabase.from('site_orders').update({ status: newStatus }).eq('id', id),
+        'Update order status'
+      );
+      if (error) throw error;
+      toast('Status updated', 'ok', `${order.status} → ${newStatus}`);
+      renderOrderDetail(id);
+    } catch (err) {
+      toast('Save failed', 'error', explainError(err));
+      btn.disabled = false;
+      btn.textContent = 'Update status';
+    }
+  });
+
+  $('#btn-delete-order').addEventListener('click', async () => {
+    if (!confirm(`Delete ${order.order_number} permanently?\n\nThis removes the order and all line items. Cannot be undone.`)) return;
+    try {
+      const { error } = await supabase.from('site_orders').delete().eq('id', id);
+      if (error) throw error;
+      toast('Order deleted', 'ok');
+      location.hash = '#/orders';
+    } catch (err) {
+      toast('Delete failed', 'error', explainError(err));
+    }
+  });
+}
+
+// Compact variant summary for display in order line items.
+function variantSummary(variants) {
+  if (!variants || typeof variants !== 'object') return '';
+  const entries = Object.entries(variants);
+  if (!entries.length) return '';
+  return entries.map(([k, v]) => `${k}: ${v}`).join(' · ');
+}
+
+// ----------------------------------------------------------------------------
+// View: Settings (flat shipping rate, etc.)
+// ----------------------------------------------------------------------------
+async function renderSettings() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Settings</h1>
+        <div class="sub">Site-wide settings used by checkout and the public store.</div>
+      </div>
+    </div>
+    <div id="settings-body"><div class="card"><p class="muted"><span class="spinner"></span> Loading settings…</p></div></div>
+  `;
+
+  let rows;
+  try {
+    const { data, error } = await query(
+      () => supabase.from('site_settings').select('*'),
+      'Load settings'
+    );
+    if (error) throw error;
+    rows = data || [];
+  } catch (err) {
+    $('#settings-body').innerHTML = `<div class="card bad">${explainError(err)}</div>`;
+    return;
+  }
+
+  // Pull current values with sensible defaults.
+  const byKey = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  const shippingCents = parseInt(byKey.shipping_flat_rate_cents, 10) || 15000;
+  const orderEmail = (typeof byKey.order_email_recipient === 'string')
+    ? byKey.order_email_recipient
+    : 'info@hilltrek.co.za';
+
+  $('#settings-body').innerHTML = `
+    <div class="card" style="max-width: 640px;">
+      <h3 style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 6px;">Shipping</h3>
+      <p class="muted" style="font-size: 13.5px; margin-bottom: 18px;">
+        Flat-rate shipping is added to every order at checkout. South Africa-wide.
+      </p>
+      <form id="settings-form">
+        <div class="field-row">
+          <div class="field">
+            <label for="set-shipping-rand">Shipping rate (ZAR)</label>
+            <input id="set-shipping-rand" type="number" min="0" step="0.01" required value="${(shippingCents / 100).toFixed(2)}" />
+            <div class="field-help">Stored as ${shippingCents} cents. Enter rands (e.g. 150 = R150).</div>
+          </div>
+          <div class="field">
+            <label for="set-email">Order notification email</label>
+            <input id="set-email" type="email" value="${escapeHtml(orderEmail)}" />
+            <div class="field-help">Where new-order alerts will land (Phase C wiring).</div>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-save-settings" style="margin-top: 18px;">Save settings</button>
+      </form>
+    </div>
+  `;
+
+  $('#settings-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('#btn-save-settings');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving…';
+    try {
+      const newShippingCents = Math.round(parseFloat($('#set-shipping-rand').value || '0') * 100);
+      const newEmail = $('#set-email').value.trim();
+
+      // Upsert both keys in parallel.
+      const [r1, r2] = await Promise.all([
+        supabase.from('site_settings').upsert({
+          key: 'shipping_flat_rate_cents',
+          value: newShippingCents,
+        }, { onConflict: 'key' }),
+        supabase.from('site_settings').upsert({
+          key: 'order_email_recipient',
+          value: newEmail,
+        }, { onConflict: 'key' }),
+      ]);
+      if (r1.error) throw r1.error;
+      if (r2.error) throw r2.error;
+      toast('Settings saved', 'ok');
+      renderSettings();
+    } catch (err) {
+      toast('Save failed', 'error', explainError(err));
+      btn.disabled = false;
+      btn.textContent = 'Save settings';
+    }
+  });
 }
 
 // ----------------------------------------------------------------------------
