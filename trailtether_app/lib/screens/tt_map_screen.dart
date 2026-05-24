@@ -29,6 +29,7 @@ import '../services/offline_map_service.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
+import '../widgets/start_hike_ramp.dart';
 import '../models/incident.dart';
 import '../providers/safety_provider.dart';
 import '../widgets/map/accommodation_marker_layer.dart';
@@ -675,7 +676,12 @@ class _TTMapScreenState extends State<TTMapScreen>
   }
 
   // ── Recording actions ──────────────────────────────────────────────────────
+  // Recording always begins via [StartHikeRamp] — a deliberate slide-to-
+  // confirm + 3-second countdown so a mistapped Start never silently
+  // records a hike. The ramp returns true on confirm; on cancel we no-op.
   Future<void> _startRecording() async {
+    final confirmed = await StartHikeRamp.show(context);
+    if (!confirmed || !mounted) return;
     final rec = context.read<RecordingProvider>();
     final ok = await rec.start();
     if (!ok && mounted) {

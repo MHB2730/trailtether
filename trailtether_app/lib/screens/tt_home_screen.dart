@@ -37,6 +37,7 @@ import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_elev_chart.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
+import '../widgets/start_hike_ramp.dart';
 import 'create_hike_plan_screen.dart';
 import 'hike_history_screen.dart' show HikeDetailScreen, HikeHistoryScreen;
 import 'hike_plan_detail_screen.dart';
@@ -471,18 +472,58 @@ class _HomeQuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final recording = context.watch<RecordingProvider>();
-    final isRecording = recording.isRecording || recording.isPaused;
+    // Distinguish three states deliberately. The old check combined
+    // `isRecording || isPaused` and showed both as "Recording" in ember,
+    // which made every cold-start with a restored draft look like the app
+    // had auto-started a hike. Now: active → ember "Recording", paused
+    // (e.g. restored draft awaiting decision) → muted "Resume",
+    // otherwise → "Start Hike" CTA.
+    final isActive = recording.isRecording;
+    final isPausedDraft = recording.isPaused && !recording.isRecording;
+
+    final IconData primaryIcon;
+    final String primaryLabel;
+    if (isActive) {
+      primaryIcon = Icons.pause_rounded;
+      primaryLabel = 'Recording';
+    } else if (isPausedDraft) {
+      primaryIcon = Icons.play_arrow_rounded;
+      primaryLabel = 'Resume';
+    } else {
+      primaryIcon = Icons.play_arrow_rounded;
+      primaryLabel = 'Start Hike';
+    }
 
     final actions = <_QuickAction>[
       _QuickAction(
-        icon: isRecording ? Icons.pause_rounded : Icons.play_arrow_rounded,
-        label: isRecording ? 'Recording' : 'Start Hike',
+        icon: primaryIcon,
+        label: primaryLabel,
         color: TT.ember,
         primary: true,
-        // Map tab hosts the live recording controls (start/pause/stop, GPS
-        // status, target-trail overlay). Routes the user there in either
-        // direction — fresh start or resume of an in-progress recording.
-        onTap: () => onNavigate?.call(1),
+        // Active recording → straight to Map. Paused draft → also straight
+        // to Map where the user can decide to resume or discard via the
+        // existing recording HUD. Idle → run the slide-to-start ramp
+        // first so no recording ever begins from a mistap.
+        onTap: () async {
+          if (isActive || isPausedDraft) {
+            onNavigate?.call(1);
+            return;
+          }
+          final confirmed = await StartHikeRamp.show(context);
+          if (!confirmed) return;
+          final rec = context.read<RecordingProvider>();
+          final ok = await rec.start();
+          if (!context.mounted) return;
+          if (!ok) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location permission required to start recording.'),
+              ),
+            );
+            return;
+          }
+          onNavigate?.call(1);
+        },
       ),
       _QuickAction(
         icon: Icons.alt_route_rounded,
