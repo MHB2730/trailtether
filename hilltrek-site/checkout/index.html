@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Checkout — Hilltrek</title>
   <meta name="description" content="Complete your Hilltrek order." />
@@ -530,10 +531,18 @@
         if (error) throw error;
         if (!data || !data.id) throw new Error('No order id returned.');
 
+        // place_order returns a per-order confirmation_token. It pairs with
+        // ?id= on the confirmation page to gate the PII read — without it
+        // the RPC returns only order_number + status (see hardening notes).
+        const token = data.confirmation_token || '';
+        const confirmUrl = '/order-confirmation/?id=' + encodeURIComponent(data.id)
+                         + (token ? '&token=' + encodeURIComponent(token) : '');
+
         // Order is in the DB as pending. Try the available payment
         // gateways in priority order. Each returns 503 if its credentials
         // aren't set; we move on. If ALL are unconfigured, we fall back
-        // to the Phase B confirmation flow ("we'll email you").
+        // to the Phase B confirmation flow ("we'll email you"). The
+        // gateways embed the token in their own return URLs server-side.
         btn.innerHTML = '<span class="spinner"></span> Redirecting to payment…';
         const redirectUrl = await startPayment(data.id);
         if (redirectUrl) {
@@ -542,10 +551,8 @@
           return;
         }
 
-        // Fallback: no gateway available. Land on confirmation; admin
-        // contacts the customer with EFT details manually.
         window.HilltrekCart.clear();
-        window.location.href = '/order-confirmation/?id=' + encodeURIComponent(data.id);
+        window.location.href = confirmUrl;
       } catch (err) {
         const msg = err?.message || err?.error_description || String(err);
         showError(msg);

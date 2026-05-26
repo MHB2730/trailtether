@@ -276,6 +276,7 @@ const TPL_HIKE_DETAIL = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>{title} — Hilltrek hike log</title>
   <meta name="description" content="{meta_description}" />
@@ -398,6 +399,7 @@ const TPL_HIKES_INDEX = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Hikes — Hilltrek route logs from the Drakensberg</title>
   <meta name="description" content="Past hikes documented with photos, route notes and trail intel. Real days in the Berg." />
@@ -468,6 +470,7 @@ const TPL_MERCH_INDEX = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Merch — Hilltrek apparel & trail kit</title>
   <meta name="description" content="Hilltrek branded apparel and trail essentials. Hoodies, hats, beanies, balaclavas and more — built for the Berg." />

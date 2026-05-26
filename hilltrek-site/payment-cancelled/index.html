@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Payment cancelled — Hilltrek</title>
   <meta name="description" content="Your Hilltrek payment was cancelled. Your order is held — pay anytime to release it for shipping." />
@@ -207,6 +208,7 @@
 
     const params = new URLSearchParams(window.location.search);
     const orderId = params.get('id');
+    const token   = params.get('token');
 
     async function load() {
       if (!orderId) {
@@ -219,7 +221,10 @@
         return;
       }
 
-      const { data, error } = await supabase.rpc('get_order_for_confirmation', { p_order_id: orderId });
+      const { data, error } = await supabase.rpc('get_order_for_confirmation', {
+        p_order_id: orderId,
+        p_token:    token || null,
+      });
       document.getElementById('cancel-loading').classList.add('hide');
       document.getElementById('cancel-content').classList.remove('hide');
 
@@ -233,15 +238,24 @@
       const orderNoEl = document.getElementById('order-no');
       orderNoEl.textContent = data.order_number;
       orderNoEl.style.visibility = 'visible';
-      document.getElementById('order-total').textContent = priceString(data.total_cents);
+      // total_cents may be absent when the page is opened without a token
+      // (back-compat shape). Leave the placeholder dash in that case.
+      if (data.total_cents != null) {
+        document.getElementById('order-total').textContent = priceString(data.total_cents);
+      }
+
+      // Preserve the token on the "already paid" pivot so the confirmation
+      // page can render the full receipt.
+      const confirmHref = '/order-confirmation/?id=' + encodeURIComponent(orderId)
+                       + (token ? '&token=' + encodeURIComponent(token) : '');
 
       // If the order already paid / cancelled (rare but possible if the
       // ITN beat the redirect or this page is revisited), adjust the UI.
       if (data.status === 'paid') {
         document.getElementById('panel-title').textContent = 'Already paid.';
         document.getElementById('panel-body').innerHTML =
-          'Looks like that order is already marked paid. <a href="/order-confirmation/?id=' +
-          encodeURIComponent(orderId) + '" style="color: var(--ember); text-decoration: underline;">View your confirmation →</a>';
+          'Looks like that order is already marked paid. <a href="' + confirmHref +
+          '" style="color: var(--ember); text-decoration: underline;">View your confirmation →</a>';
         document.getElementById('btn-retry').classList.add('hide');
       } else if (data.status === 'cancelled') {
         document.getElementById('panel-title').textContent = 'Order cancelled.';

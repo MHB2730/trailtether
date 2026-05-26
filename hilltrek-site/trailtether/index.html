@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Trailtether — Hilltrek's GPS, group safety & SOS companion</title>
   <meta name="description" content="Trailtether is the GPS, group safety and SOS companion for serious hikers. Offline topographic maps, live team tracking, and a one-tap emergency beacon — engineered for places where signal disappears." />
@@ -338,6 +339,52 @@
     @media (max-width: 880px) {
       .download-card { padding: 48px 28px; }
     }
+
+    /* ===== QR pairing block — sits to the right of the download button on
+       desktop, drops below on mobile. The QR encodes the same APK URL the
+       button does, so phones can scan from a friend's laptop and install in
+       one motion (the whole point of an unbranded sideload flow). ===== */
+    .download-pair {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 28px;
+      align-items: center;
+      margin: 36px 0 8px;
+      text-align: left;
+    }
+    .download-pair-cta { display: grid; gap: 14px; justify-items: start; }
+    .download-pair-cta .btn { width: 100%; max-width: 360px; }
+    .tt-qr {
+      position: relative;
+      padding: 14px;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.08),
+        0 14px 36px -10px rgba(255,122,26,0.35),
+        0 22px 60px -20px rgba(0,0,0,0.6);
+    }
+    .tt-qr-canvas { width: 168px; height: 168px; display: block; }
+    .tt-qr-canvas svg { width: 100% !important; height: 100% !important; display: block; }
+    .tt-qr-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 12px;
+      text-align: center;
+    }
+    .tt-qr-label .ember { color: var(--ember); }
+    @media (max-width: 720px) {
+      .download-pair {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+      }
+      .download-pair-cta { justify-items: center; }
+      .tt-qr-canvas { width: 148px; height: 148px; }
+    }
   </style>
 </head>
 <body>
@@ -601,18 +648,28 @@
         <h2>Get on the trail.<br/>Download Trailtether.</h2>
         <p>Latest APK is ready. Sideload it on any Android 9+ device, cache your favorite region, and you're set for the next trip.</p>
 
-        <a class="btn btn-primary" href="https://xuqmdujupbmxahyhkdwl.supabase.co/storage/v1/object/public/app-releases/trailtether-3.7.1-56.apk?download" download data-apk-link>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13"/><path d="m6 10 6 6 6-6"/><path d="M5 21h14"/></svg>
-          <span class="btn-stack">
-            <span class="sub">Direct download · Android APK</span>
-            <span class="main" data-apk-filename>trailtether-3.7.1-56.apk</span>
-          </span>
-        </a>
+        <div class="download-pair">
+          <div class="download-pair-cta">
+            <a class="btn btn-primary" href="https://xuqmdujupbmxahyhkdwl.supabase.co/storage/v1/object/public/app-releases/trailtether-3.7.1-56.apk?download" download data-apk-link>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13"/><path d="m6 10 6 6 6-6"/><path d="M5 21h14"/></svg>
+              <span class="btn-stack">
+                <span class="sub">Direct download · Android APK</span>
+                <span class="main" data-apk-filename>trailtether-3.7.1-56.apk</span>
+              </span>
+            </a>
+            <div class="download-meta" style="justify-content: flex-start; margin-top: 4px;">
+              <span><span class="dot"></span> Android 9+ (API 28)</span>
+              <span><span class="dot"></span> SHA-256 verified</span>
+              <span><span class="dot"></span> Updated weekly</span>
+            </div>
+          </div>
 
-        <div class="download-meta">
-          <span><span class="dot"></span> Android 9+ (API 28)</span>
-          <span><span class="dot"></span> SHA-256 verified</span>
-          <span><span class="dot"></span> Updated weekly</span>
+          <div>
+            <div class="tt-qr">
+              <div id="tt-qr-canvas" class="tt-qr-canvas" data-apk-qr aria-label="QR code linking to the latest Trailtether APK"></div>
+            </div>
+            <div class="tt-qr-label">Scan with your <span class="ember">phone</span> →</div>
+          </div>
         </div>
       </div>
     </div>
@@ -668,15 +725,53 @@
   <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
   <script src="/assets/js/site.js" defer></script>
 
+  <!-- QR code library — UMD build, ~10 KB. Exposes window.qrcode(typeNumber,
+       ecLevel). typeNumber 0 = auto-size. ecLevel M survives ~15% damage. -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
+
   <!-- Dynamic APK lookup: hits Supabase Storage with the anon key, finds the
        newest .apk in app-releases, and rewrites every [data-apk-link],
        [data-apk-filename] and [data-apk-version] on this page. Silently falls
-       back to the hardcoded link above if the call fails. -->
+       back to the hardcoded link above if the call fails. Also renders the
+       QR code (or refreshes it once a newer APK is detected). -->
   <script>
   (function () {
     var SUPABASE_URL      = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
     var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
     var BUCKET            = 'app-releases';
+    // Pick the real APK link (with [download] attr), not the hero button
+    // that just anchors to #download — that one would encode the page URL
+    // into the QR instead of the APK URL.
+    var FALLBACK_APK_URL = (function () {
+      var links = document.querySelectorAll('a[data-apk-link]');
+      for (var i = 0; i < links.length; i++) {
+        var href = links[i].getAttribute('href') || '';
+        if (href && href.charAt(0) !== '#') return href;
+      }
+      return '';
+    })();
+
+    // Render the QR. Tries up to ~2s for the qrcode-generator script to
+    // arrive (it's deferred + on a CDN), then renders SVG into every
+    // [data-apk-qr] container. Re-callable: each call wipes + re-renders.
+    function paintQR(url) {
+      if (!url) return;
+      var deadline = Date.now() + 2000;
+      (function attempt() {
+        if (typeof window.qrcode !== 'function') {
+          if (Date.now() < deadline) return setTimeout(attempt, 80);
+          console.warn('[Trailtether] qrcode-generator did not load — QR not rendered.');
+          return;
+        }
+        var qr = window.qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        var svg = qr.createSvgTag({ scalable: true, margin: 0 });
+        document.querySelectorAll('[data-apk-qr]').forEach(function (host) {
+          host.innerHTML = svg;
+        });
+      })();
+    }
 
     function updateLatestAPK() {
       fetch(SUPABASE_URL + '/storage/v1/object/list/' + BUCKET, {
@@ -723,16 +818,28 @@
             el.textContent = 'v' + m[1];
           });
         }
+        paintQR(url);
       })
       .catch(function (err) {
         console.warn('[Trailtether] Could not fetch latest APK (falling back to hardcoded URL):', err);
+        // Even if the lookup failed, the hardcoded link below the button is
+        // still a valid APK URL — encode it so the QR is never broken.
+        if (FALLBACK_APK_URL) paintQR(FALLBACK_APK_URL);
       });
     }
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', updateLatestAPK);
-    } else {
+    function start() {
+      // Paint a QR from the hardcoded URL right away so the box is never
+      // empty during the Supabase round-trip. The dynamic update will
+      // re-paint over it once the latest APK URL resolves.
+      if (FALLBACK_APK_URL) paintQR(FALLBACK_APK_URL);
       updateLatestAPK();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', start);
+    } else {
+      start();
     }
   })();
   </script>

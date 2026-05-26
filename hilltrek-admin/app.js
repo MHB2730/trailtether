@@ -12,6 +12,7 @@
 // compile-on-fly pipeline (esm.sh occasionally takes 2-5s on cold cache;
 // jsdelivr edges sit behind Cloudflare + jsDelivr's own CDN).
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm';
+import { marked } from 'https://cdn.jsdelivr.net/npm/marked@12.0.0/+esm';
 import {
   SUPABASE_URL, SUPABASE_ANON_KEY, SITE_PUBLIC_URL,
   STORAGE_BUCKET, HIKE_PHOTOS_PREFIX,
@@ -27,7 +28,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // Visible client version. Bump whenever app.js changes meaningfully. Shows
 // in the topbar so we can verify which build is actually running in a given
 // browser session (cache-busted by ?v=N on the script tag).
-const ADMIN_VERSION = 'v9';
+const ADMIN_VERSION = 'v13';
 
 // ----------------------------------------------------------------------------
 // Hang protection
@@ -440,6 +441,12 @@ function route() {
   if (path === '/products')                    return renderProductsList();
   if (path === '/products/new')                return renderProductEdit(null);
   if (path === '/orders')                      return renderOrdersList();
+  if (path === '/subscribers')                 return renderSubscribers();
+  if (path === '/newsletters')                 return renderNewslettersList();
+  if (path === '/newsletters/new')             return renderNewsletterEdit(null);
+  if (path === '/analytics')                   return renderAnalytics();
+  if (path === '/health')                      return renderHealth();
+  if (path === '/audit')                       return renderAuditLog();
   if (path === '/settings')                    return renderSettings();
   if (path === '/security')                    return renderSecurity();
   const m = path.match(/^\/hikes\/(.+)$/);
@@ -448,6 +455,10 @@ function route() {
   if (p) return renderProductEdit(p[1]);
   const o = path.match(/^\/orders\/(.+)$/);
   if (o) return renderOrderDetail(o[1]);
+  const n = path.match(/^\/newsletters\/([0-9a-f-]+)$/);
+  if (n) return renderNewsletterDetail(n[1]);
+  const ne = path.match(/^\/newsletters\/([0-9a-f-]+)\/edit$/);
+  if (ne) return renderNewsletterEdit(ne[1]);
 
   outlet.innerHTML = `<div class="card"><h2 style="font-size:20px;">Not found</h2><p class="muted">The URL <code>${path}</code> isn't a known admin view. <a href="#/" class="subtle-link">Back to dashboard</a></p></div>`;
 }
@@ -457,6 +468,11 @@ function setActiveNav(path) {
   else if (path.startsWith('/hikes'))           $('[data-nav="hikes"]')?.classList.add('active');
   else if (path.startsWith('/products'))        $('[data-nav="products"]')?.classList.add('active');
   else if (path.startsWith('/orders'))          $('[data-nav="orders"]')?.classList.add('active');
+  else if (path === '/subscribers')             $('[data-nav="subscribers"]')?.classList.add('active');
+  else if (path.startsWith('/newsletters'))     $('[data-nav="newsletters"]')?.classList.add('active');
+  else if (path === '/analytics')               $('[data-nav="analytics"]')?.classList.add('active');
+  else if (path === '/health')                  $('[data-nav="health"]')?.classList.add('active');
+  else if (path === '/audit')                   $('[data-nav="audit"]')?.classList.add('active');
   else if (path === '/settings')                $('[data-nav="settings"]')?.classList.add('active');
   else if (path === '/security')                $('[data-nav="security"]')?.classList.add('active');
 }
@@ -1980,8 +1996,46 @@ async function renderSettings() {
   const orderEmail = (typeof byKey.order_email_recipient === 'string')
     ? byKey.order_email_recipient
     : 'info@hilltrek.co.za';
+  const maint = (byKey.maintenance_mode && typeof byKey.maintenance_mode === 'object')
+    ? byKey.maintenance_mode
+    : { enabled: false, message: '', eta: '' };
 
   $('#settings-body').innerHTML = `
+    <div class="card maint-card ${maint.enabled ? 'is-on' : ''}" style="max-width: 640px; margin-bottom: 18px;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom: 14px;">
+        <div>
+          <h3 style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 6px;">Site availability</h3>
+          <p class="muted" style="font-size: 13.5px; margin: 0;">
+            Toggle this on to take <strong>hilltrek.co.za</strong> offline for everyone.
+            Visitors see a maintenance screen on every page; admins keep access via <a class="subtle-link" href="${SITE_PUBLIC_URL}/?preview=1" target="_blank" rel="noopener">?preview=1</a>.
+          </p>
+        </div>
+        <label class="switch" title="Maintenance mode">
+          <input type="checkbox" id="set-maint-enabled" ${maint.enabled ? 'checked' : ''} />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
+      <div id="maint-status" class="maint-status ${maint.enabled ? 'on' : 'off'}">
+        ${maint.enabled
+          ? '<span class="dot"></span> Maintenance mode is <strong>ON</strong> — site is offline for visitors.'
+          : '<span class="dot"></span> Site is <strong>LIVE</strong> — visitors see the normal site.'}
+      </div>
+      <div class="field" style="margin-top: 16px;">
+        <label for="set-maint-message">Visitor message</label>
+        <textarea id="set-maint-message" rows="2" style="min-height: 64px; font-family: var(--font-sans); font-size: 14px;" placeholder="We’re making improvements. Back shortly.">${escapeHtml(maint.message || '')}</textarea>
+        <div class="field-help">Shown on the maintenance screen. Plain text only.</div>
+      </div>
+      <div class="field" style="margin-top: 12px;">
+        <label for="set-maint-eta">ETA (optional)</label>
+        <input id="set-maint-eta" type="text" maxlength="60" placeholder="e.g. by 18:00 SAST" value="${escapeHtml(maint.eta || '')}" />
+        <div class="field-help">A short phrase like "by 18:00 SAST". Leave blank to hide the ETA pill.</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 18px; align-items:center;">
+        <button type="button" class="btn btn-primary" id="btn-save-maint">Save site availability</button>
+        <a class="btn btn-ghost" href="${SITE_PUBLIC_URL}/?preview=1" target="_blank" rel="noopener">Preview live site ↗</a>
+      </div>
+    </div>
+
     <div class="card" style="max-width: 640px;">
       <h3 style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 6px;">Shipping</h3>
       <p class="muted" style="font-size: 13.5px; margin-bottom: 18px;">
@@ -2067,6 +2121,53 @@ async function renderSettings() {
       btn.textContent = 'Save settings';
     }
   });
+
+  // ---------- Site availability (maintenance mode) ----------
+  // Live preview of the status pill while the toggle moves, before save.
+  $('#set-maint-enabled').addEventListener('change', () => {
+    const on = $('#set-maint-enabled').checked;
+    const card = $('.maint-card');
+    const status = $('#maint-status');
+    card.classList.toggle('is-on', on);
+    status.className = 'maint-status ' + (on ? 'on' : 'off');
+    status.innerHTML = on
+      ? '<span class="dot"></span> Maintenance mode is <strong>ON</strong> — site is offline for visitors. <em style="color:var(--dim);">(not saved yet)</em>'
+      : '<span class="dot"></span> Site is <strong>LIVE</strong> — visitors see the normal site. <em style="color:var(--dim);">(not saved yet)</em>';
+  });
+
+  $('#btn-save-maint').addEventListener('click', async () => {
+    const btn = $('#btn-save-maint');
+    const enabled = $('#set-maint-enabled').checked;
+    const message = $('#set-maint-message').value.trim();
+    const eta = $('#set-maint-eta').value.trim();
+
+    if (enabled && !confirm(
+      'Take hilltrek.co.za OFFLINE for all visitors?\n\n' +
+      'Everyone (except admins using ?preview=1) will see a maintenance screen ' +
+      'on every page until you turn this off.'
+    )) {
+      $('#set-maint-enabled').checked = false;
+      $('#set-maint-enabled').dispatchEvent(new Event('change'));
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving…';
+    try {
+      const { error } = await supabase.from('site_settings').upsert({
+        key: 'maintenance_mode',
+        value: { enabled, message, eta },
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      toast(enabled ? 'Site is now OFFLINE' : 'Site is back LIVE', 'ok',
+        enabled ? 'Visitors will see the maintenance screen' : 'Maintenance screen cleared');
+      renderSettings();
+    } catch (err) {
+      toast('Could not save', 'error', explainError(err));
+      btn.disabled = false;
+      btn.textContent = 'Save site availability';
+    }
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -2116,6 +2217,928 @@ function formatDate(d) {
   try {
     return new Date(d).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }).toUpperCase();
   } catch { return d; }
+}
+
+// ============================================================================
+// Phase D views: Subscribers, Analytics, Health, Audit Log
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// View: Subscribers (D1c)
+// ----------------------------------------------------------------------------
+async function renderSubscribers() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Subscribers</h1>
+        <div class="sub">Mailing list opt-ins from the public site.</div>
+      </div>
+      <div class="page-actions">
+        <button id="subs-export" class="btn btn-ghost">↓ Export CSV</button>
+      </div>
+    </div>
+    <div id="subs-stats" class="stat-row">
+      <div class="stat"><div class="label">Loading…</div><div class="num">—</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+        <input id="subs-search" type="search" placeholder="Search email or tag…" style="flex:1;min-width:240px;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);" />
+        <select id="subs-filter" style="padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);">
+          <option value="all">All</option>
+          <option value="confirmed">Confirmed only</option>
+          <option value="pending">Pending confirmation</option>
+          <option value="unsubscribed">Unsubscribed</option>
+        </select>
+      </div>
+      <div id="subs-list">Loading…</div>
+    </div>
+  `;
+
+  let rows = [];
+  try {
+    const { data, error } = await query(
+      () => supabase.from('site_subscribers').select('*').order('created_at', { ascending: false }).limit(2000),
+      'Load subscribers'
+    );
+    if (error) throw error;
+    rows = data || [];
+  } catch (err) {
+    $('#subs-list').innerHTML = `<p class="muted">Could not load: ${escapeHtml(explainError(err))}</p>`;
+    return;
+  }
+
+  const total = rows.length;
+  const confirmed = rows.filter(r => r.confirmed_at && !r.unsubscribed_at).length;
+  const pending = rows.filter(r => !r.confirmed_at && !r.unsubscribed_at).length;
+  const unsub = rows.filter(r => r.unsubscribed_at).length;
+  const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  const last7 = rows.filter(r => r.created_at > since7).length;
+  $('#subs-stats').innerHTML = `
+    <div class="stat"><div class="label">Total</div><div class="num">${total}</div></div>
+    <div class="stat"><div class="label">Confirmed</div><div class="num">${confirmed}</div></div>
+    <div class="stat"><div class="label">Pending</div><div class="num">${pending}</div></div>
+    <div class="stat"><div class="label">Unsubscribed</div><div class="num">${unsub}</div></div>
+    <div class="stat"><div class="label">Last 7 days</div><div class="num">${last7}</div></div>
+  `;
+
+  const renderList = () => {
+    const q = $('#subs-search').value.toLowerCase().trim();
+    const f = $('#subs-filter').value;
+    const filtered = rows.filter(r => {
+      if (f === 'confirmed' && !(r.confirmed_at && !r.unsubscribed_at)) return false;
+      if (f === 'pending' && !(!r.confirmed_at && !r.unsubscribed_at)) return false;
+      if (f === 'unsubscribed' && !r.unsubscribed_at) return false;
+      if (q) {
+        const hit = r.email.toLowerCase().includes(q) || (r.tags || []).some(t => t.toLowerCase().includes(q));
+        if (!hit) return false;
+      }
+      return true;
+    });
+    if (filtered.length === 0) {
+      $('#subs-list').innerHTML = `<p class="muted">No subscribers match.</p>`;
+      return;
+    }
+    $('#subs-list').innerHTML = `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+          <th style="padding:8px 6px;">Email</th>
+          <th style="padding:8px 6px;">Source</th>
+          <th style="padding:8px 6px;">Country</th>
+          <th style="padding:8px 6px;">Status</th>
+          <th style="padding:8px 6px;">Signed up</th>
+          <th style="padding:8px 6px;text-align:right;">Actions</th>
+        </tr></thead>
+        <tbody>
+        ${filtered.map(r => {
+          const status = r.unsubscribed_at ? '<span style="color:#888;">unsubscribed</span>' :
+            (r.confirmed_at ? '<span style="color:#5ac26d;">confirmed</span>' : '<span style="color:#e0a847;">pending</span>');
+          return `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 6px;">${escapeHtml(r.email)}</td>
+            <td style="padding:10px 6px;font-size:12px;color:var(--muted);">${escapeHtml(r.source)}</td>
+            <td style="padding:10px 6px;font-size:12px;">${escapeHtml(r.ip_country || '—')}</td>
+            <td style="padding:10px 6px;font-size:12px;">${status}</td>
+            <td style="padding:10px 6px;font-size:12px;color:var(--muted);">${formatDate(r.created_at)}</td>
+            <td style="padding:10px 6px;text-align:right;">
+              <button data-del="${r.id}" class="btn btn-ghost btn-sm">Delete</button>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    `;
+    $$('[data-del]', $('#subs-list')).forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.del;
+        if (!confirm('Delete this subscriber permanently?')) return;
+        try {
+          const { error } = await query(
+            () => supabase.from('site_subscribers').delete().eq('id', id),
+            'Delete subscriber'
+          );
+          if (error) throw error;
+          rows = rows.filter(r => r.id !== id);
+          renderList();
+          toast('Deleted', 'ok');
+        } catch (err) {
+          toast('Could not delete', 'error', explainError(err));
+        }
+      });
+    });
+  };
+
+  $('#subs-search').addEventListener('input', renderList);
+  $('#subs-filter').addEventListener('change', renderList);
+  $('#subs-export').addEventListener('click', () => {
+    const header = 'email,source,country,tags,confirmed_at,unsubscribed_at,created_at\n';
+    const lines = rows.map(r => [
+      r.email, r.source, r.ip_country || '',
+      (r.tags || []).join('|'),
+      r.confirmed_at || '', r.unsubscribed_at || '', r.created_at,
+    ].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(','));
+    const csv = header + lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `subscribers-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  renderList();
+}
+
+// ----------------------------------------------------------------------------
+// View: Analytics (D5b)
+// ----------------------------------------------------------------------------
+async function renderAnalytics() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Analytics</h1>
+        <div class="sub">Self-hosted pageview tracking. Last 30 days.</div>
+      </div>
+    </div>
+    <div id="ana-stats" class="stat-row"><div class="stat"><div class="label">Loading…</div><div class="num">—</div></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:18px;">
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Top pages</h3><div id="ana-pages">Loading…</div></div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Top countries</h3><div id="ana-countries">Loading…</div></div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Top referrers</h3><div id="ana-refs">Loading…</div></div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Devices</h3><div id="ana-devices">Loading…</div></div>
+    </div>
+  `;
+
+  let events = [];
+  try {
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data, error } = await query(
+      () => supabase.from('site_analytics_events').select('*').gte('ts', since).order('ts', { ascending: false }).limit(10000),
+      'Load analytics'
+    );
+    if (error) throw error;
+    events = data || [];
+  } catch (err) {
+    $('#ana-stats').innerHTML = `<div class="stat"><div class="label">Error</div><div class="num" style="font-size:13px;color:#ff6b6b;">${escapeHtml(explainError(err))}</div></div>`;
+    return;
+  }
+
+  if (events.length === 0) {
+    $('#ana-stats').innerHTML = `<div class="stat"><div class="label">Total events</div><div class="num">0</div></div>`;
+    $('#ana-pages').innerHTML = '<p class="muted">No data yet. Visit hilltrek.co.za to generate the first event.</p>';
+    $('#ana-countries').innerHTML = '<p class="muted">—</p>';
+    $('#ana-refs').innerHTML = '<p class="muted">—</p>';
+    $('#ana-devices').innerHTML = '<p class="muted">—</p>';
+    return;
+  }
+
+  const now = Date.now();
+  const today = events.filter(e => now - new Date(e.ts).getTime() < 86400000).length;
+  const last7 = events.filter(e => now - new Date(e.ts).getTime() < 7 * 86400000).length;
+  const uniqueSessions = new Set(events.map(e => e.session_id)).size;
+  const uniqueVisitors = new Set(events.map(e => e.ua_hash)).size;
+
+  $('#ana-stats').innerHTML = `
+    <div class="stat"><div class="label">Events (30d)</div><div class="num">${events.length}</div></div>
+    <div class="stat"><div class="label">Last 7 days</div><div class="num">${last7}</div></div>
+    <div class="stat"><div class="label">Today</div><div class="num">${today}</div></div>
+    <div class="stat"><div class="label">Unique sessions</div><div class="num">${uniqueSessions}</div></div>
+    <div class="stat"><div class="label">Unique visitors</div><div class="num">${uniqueVisitors}</div></div>
+  `;
+
+  const tally = (key) => {
+    const m = new Map();
+    events.forEach(e => {
+      const v = e[key] || '—';
+      m.set(v, (m.get(v) || 0) + 1);
+    });
+    return [...m.entries()].sort((a,b) => b[1] - a[1]).slice(0, 10);
+  };
+  const renderTally = (rows) => {
+    if (rows.length === 0) return '<p class="muted">—</p>';
+    const max = rows[0][1];
+    return `<table style="width:100%;font-size:13px;table-layout:fixed;">${rows.map(([k,v]) => `<tr>
+      <td style="padding:4px 6px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(String(k))}</td>
+      <td style="padding:4px 0;text-align:right;color:var(--muted);width:50px;">${v}</td>
+      <td style="padding:4px 0 4px 8px;width:55%;"><div style="background:var(--accent,#ff7a1a);height:6px;border-radius:3px;width:${Math.round(v/max*100)}%;"></div></td>
+    </tr>`).join('')}</table>`;
+  };
+
+  $('#ana-pages').innerHTML = renderTally(tally('path'));
+  $('#ana-countries').innerHTML = renderTally(tally('country'));
+  $('#ana-refs').innerHTML = renderTally(tally('referrer'));
+  $('#ana-devices').innerHTML = renderTally(tally('device_type'));
+}
+
+// ----------------------------------------------------------------------------
+// View: Health (D4)
+// ----------------------------------------------------------------------------
+async function renderHealth() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Site Health</h1>
+        <div class="sub">Uptime + latency probes. Last 7 days.</div>
+      </div>
+    </div>
+    <div id="hl-stats" class="stat-row"><div class="stat"><div class="label">Loading…</div><div class="num">—</div></div></div>
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Recent incidents (last 50 failures)</h3>
+      <div id="hl-incidents">Loading…</div>
+    </div>
+  `;
+
+  let checks = [];
+  try {
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
+    const { data, error } = await query(
+      () => supabase.from('site_health_checks').select('*').gte('ts', since).order('ts', { ascending: false }).limit(50000),
+      'Load health checks'
+    );
+    if (error) throw error;
+    checks = data || [];
+  } catch (err) {
+    $('#hl-stats').innerHTML = `<div class="stat"><div class="label">Error</div><div class="num" style="font-size:13px;color:#ff6b6b;">${escapeHtml(explainError(err))}</div></div>`;
+    return;
+  }
+
+  if (checks.length === 0) {
+    $('#hl-stats').innerHTML = `<div class="stat"><div class="label">No checks yet</div><div class="num">—</div></div>`;
+    $('#hl-incidents').innerHTML = '<p class="muted">Health pinger has not run yet. Schedule the pg_cron job (see CRON_SECRET setup in Supabase secrets).</p>';
+    return;
+  }
+
+  const endpoints = [...new Set(checks.map(c => c.endpoint))];
+  const stats = endpoints.map(ep => {
+    const epChecks = checks.filter(c => c.endpoint === ep);
+    const ok = epChecks.filter(c => c.ok).length;
+    const uptimePct = (ok / epChecks.length * 100).toFixed(2);
+    const latencies = epChecks.filter(c => c.ok).map(c => c.latency_ms);
+    const avgLatency = latencies.length ? Math.round(latencies.reduce((a,b)=>a+b,0) / latencies.length) : 0;
+    return { ep, total: epChecks.length, ok, uptimePct, avgLatency };
+  });
+  $('#hl-stats').innerHTML = stats.map(s => `
+    <div class="stat">
+      <div class="label">${escapeHtml(s.ep)} uptime (7d)</div>
+      <div class="num" style="color:${s.uptimePct >= 99.5 ? '#5ac26d' : (s.uptimePct >= 95 ? '#e0a847' : '#ff6b6b')};">${s.uptimePct}%</div>
+      <div class="muted" style="font-size:11px;margin-top:4px;">${s.ok}/${s.total} checks · avg ${s.avgLatency}ms</div>
+    </div>
+  `).join('');
+
+  const incidents = checks.filter(c => !c.ok).slice(0, 50);
+  if (incidents.length === 0) {
+    $('#hl-incidents').innerHTML = '<p class="muted">No failures in the last 7 days. 🎉</p>';
+    return;
+  }
+  $('#hl-incidents').innerHTML = `
+    <table style="width:100%;font-size:13px;border-collapse:collapse;">
+      <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:8px 6px;">When</th>
+        <th style="padding:8px 6px;">Endpoint</th>
+        <th style="padding:8px 6px;">Status</th>
+        <th style="padding:8px 6px;">Latency</th>
+        <th style="padding:8px 6px;">Error</th>
+      </tr></thead>
+      <tbody>
+      ${incidents.map(c => `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:8px 6px;color:var(--muted);white-space:nowrap;">${new Date(c.ts).toLocaleString('en-ZA')}</td>
+        <td style="padding:8px 6px;">${escapeHtml(c.endpoint)}</td>
+        <td style="padding:8px 6px;">${c.status_code ?? '—'}</td>
+        <td style="padding:8px 6px;">${c.latency_ms}ms</td>
+        <td style="padding:8px 6px;color:#ff6b6b;">${escapeHtml(c.error || '')}</td>
+      </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ----------------------------------------------------------------------------
+// View: Audit Log (D2)
+// ----------------------------------------------------------------------------
+async function renderAuditLog() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Audit Log</h1>
+        <div class="sub">Every admin action on hikes, products, orders, settings, admin users, and subscribers.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <select id="audit-resource" style="padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);">
+          <option value="all">All tables</option>
+          <option value="site_hikes">Hikes</option>
+          <option value="site_products">Products</option>
+          <option value="site_orders">Orders</option>
+          <option value="site_subscribers">Subscribers</option>
+          <option value="site_settings">Settings</option>
+          <option value="admin_users">Admin users</option>
+        </select>
+        <select id="audit-action" style="padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);">
+          <option value="all">All actions</option>
+          <option value="insert">Insert</option>
+          <option value="update">Update</option>
+          <option value="delete">Delete</option>
+        </select>
+      </div>
+      <div id="audit-list">Loading…</div>
+    </div>
+    <div id="audit-modal" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;max-width:900px;max-height:80vh;width:100%;overflow:auto;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <h3 id="audit-modal-title" style="font-size:16px;letter-spacing:-0.01em;">Change detail</h3>
+          <button id="audit-modal-close" class="btn btn-ghost btn-sm">Close</button>
+        </div>
+        <div id="audit-modal-body" style="font-family:var(--font-mono);font-size:12px;"></div>
+      </div>
+    </div>
+  `;
+
+  let rows = [];
+  try {
+    const { data, error } = await query(
+      () => supabase.from('admin_audit_log').select('*').order('created_at', { ascending: false }).limit(500),
+      'Load audit log'
+    );
+    if (error) throw error;
+    rows = data || [];
+  } catch (err) {
+    $('#audit-list').innerHTML = `<p class="muted">Could not load: ${escapeHtml(explainError(err))}</p>`;
+    return;
+  }
+
+  const renderList = () => {
+    const r = $('#audit-resource').value;
+    const a = $('#audit-action').value;
+    const filtered = rows.filter(row => {
+      if (r !== 'all' && row.resource_type !== r) return false;
+      if (a !== 'all' && row.action !== a) return false;
+      return true;
+    });
+    if (filtered.length === 0) {
+      $('#audit-list').innerHTML = '<p class="muted">No entries match.</p>';
+      return;
+    }
+    $('#audit-list').innerHTML = `
+      <table style="width:100%;font-size:13px;border-collapse:collapse;">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+          <th style="padding:8px 6px;">When</th>
+          <th style="padding:8px 6px;">Actor</th>
+          <th style="padding:8px 6px;">Action</th>
+          <th style="padding:8px 6px;">Resource</th>
+          <th style="padding:8px 6px;">ID</th>
+          <th style="padding:8px 6px;"></th>
+        </tr></thead>
+        <tbody>
+        ${filtered.map(row => `<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 6px;color:var(--muted);white-space:nowrap;">${new Date(row.created_at).toLocaleString('en-ZA')}</td>
+          <td style="padding:8px 6px;font-size:12px;">${escapeHtml(row.actor_email || row.actor_id || 'system')}</td>
+          <td style="padding:8px 6px;"><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${row.action==='insert'?'rgba(90,194,109,0.15)':row.action==='delete'?'rgba(255,107,107,0.15)':'rgba(224,168,71,0.15)'};">${escapeHtml(row.action)}</span></td>
+          <td style="padding:8px 6px;font-family:var(--font-mono);font-size:12px;">${escapeHtml(row.resource_type)}</td>
+          <td style="padding:8px 6px;font-family:var(--font-mono);font-size:11px;color:var(--muted);">${escapeHtml((row.resource_id || '').slice(0,8))}</td>
+          <td style="padding:8px 6px;text-align:right;"><button data-view="${row.id}" class="btn btn-ghost btn-sm">View →</button></td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+    $$('[data-view]', $('#audit-list')).forEach(b => {
+      b.addEventListener('click', () => {
+        const row = rows.find(r => r.id === Number(b.dataset.view));
+        if (!row) return;
+        $('#audit-modal-title').textContent = `${row.action} on ${row.resource_type} (${(row.resource_id||'').slice(0,8)})`;
+        $('#audit-modal-body').innerHTML = `
+          <div style="margin-bottom:14px;color:var(--muted);font-family:var(--font-sans);font-size:12px;">${new Date(row.created_at).toLocaleString('en-ZA')} · ${escapeHtml(row.actor_email || row.actor_id || 'system')}</div>
+          ${row.payload_before ? `<div style="margin-bottom:10px;"><strong style="font-family:var(--font-sans);font-size:12px;color:#ff6b6b;">BEFORE</strong></div><pre style="background:var(--bg-2);padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;">${escapeHtml(JSON.stringify(row.payload_before, null, 2))}</pre>` : ''}
+          ${row.payload_after ? `<div style="margin:14px 0 10px;"><strong style="font-family:var(--font-sans);font-size:12px;color:#5ac26d;">AFTER</strong></div><pre style="background:var(--bg-2);padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;">${escapeHtml(JSON.stringify(row.payload_after, null, 2))}</pre>` : ''}
+        `;
+        $('#audit-modal').classList.remove('hide');
+      });
+    });
+  };
+
+  $('#audit-resource').addEventListener('change', renderList);
+  $('#audit-action').addEventListener('change', renderList);
+  $('#audit-modal-close').addEventListener('click', () => $('#audit-modal').classList.add('hide'));
+  $('#audit-modal').addEventListener('click', e => { if (e.target.id === 'audit-modal') $('#audit-modal').classList.add('hide'); });
+  renderList();
+}
+
+// ============================================================================
+// Phase D3 views: Newsletters (list, compose, detail)
+// ============================================================================
+
+function newsletterStatusBadge(status) {
+  var colors = {
+    draft:     'rgba(180,180,180,0.18)',
+    queued:    'rgba(224,168,71,0.18)',
+    sending:   'rgba(90,176,224,0.22)',
+    sent:      'rgba(90,194,109,0.18)',
+    failed:    'rgba(255,107,107,0.20)',
+    cancelled: 'rgba(180,180,180,0.18)',
+  };
+  return '<span style="font-size:11px;padding:2px 10px;border-radius:4px;background:' + (colors[status] || colors.draft) + ';">' + escapeHtml(status) + '</span>';
+}
+
+// ----------------------------------------------------------------------------
+// View: Newsletters list (D3b)
+// ----------------------------------------------------------------------------
+async function renderNewslettersList() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Newsletters</h1>
+        <div class="sub">Mailing list broadcasts. Sends go via Aserv SMTP at ~10/sec.</div>
+      </div>
+      <div class="page-actions">
+        <a href="#/newsletters/new" class="btn btn-primary">+ New newsletter</a>
+      </div>
+    </div>
+    <div id="nl-stats" class="stat-row"><div class="stat"><div class="label">Loading…</div><div class="num">—</div></div></div>
+    <div class="card">
+      <div id="nl-list">Loading…</div>
+    </div>
+  `;
+
+  let rows = [];
+  try {
+    const { data, error } = await query(
+      () => supabase.from('site_newsletters').select('*').order('created_at', { ascending: false }).limit(200),
+      'Load newsletters'
+    );
+    if (error) throw error;
+    rows = data || [];
+  } catch (err) {
+    $('#nl-list').innerHTML = `<p class="muted">Could not load: ${escapeHtml(explainError(err))}</p>`;
+    return;
+  }
+
+  const sentRows = rows.filter(r => r.status === 'sent');
+  const totalSent = sentRows.reduce((a, r) => a + (r.sent_count || 0), 0);
+  const totalFailed = sentRows.reduce((a, r) => a + (r.failed_count || 0), 0);
+
+  $('#nl-stats').innerHTML = `
+    <div class="stat"><div class="label">Total newsletters</div><div class="num">${rows.length}</div></div>
+    <div class="stat"><div class="label">Sent</div><div class="num">${sentRows.length}</div></div>
+    <div class="stat"><div class="label">Drafts</div><div class="num">${rows.filter(r => r.status === 'draft').length}</div></div>
+    <div class="stat"><div class="label">Total emails sent</div><div class="num">${totalSent}</div></div>
+    <div class="stat"><div class="label">Failures</div><div class="num" style="color:${totalFailed ? '#ff6b6b' : 'inherit'};">${totalFailed}</div></div>
+  `;
+
+  if (rows.length === 0) {
+    $('#nl-list').innerHTML = '<p class="muted">No newsletters yet. Click "New newsletter" to compose your first.</p>';
+    return;
+  }
+
+  $('#nl-list').innerHTML = `
+    <table style="width:100%;font-size:13px;border-collapse:collapse;">
+      <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:8px 6px;">Subject</th>
+        <th style="padding:8px 6px;">Status</th>
+        <th style="padding:8px 6px;">Recipients</th>
+        <th style="padding:8px 6px;">Sent</th>
+        <th style="padding:8px 6px;">Failed</th>
+        <th style="padding:8px 6px;">Sent at</th>
+        <th style="padding:8px 6px;text-align:right;"></th>
+      </tr></thead>
+      <tbody>
+      ${rows.map(r => `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:10px 6px;"><a href="#/newsletters/${r.id}" class="subtle-link">${escapeHtml(r.subject || '(no subject)')}</a></td>
+        <td style="padding:10px 6px;">${newsletterStatusBadge(r.status)}</td>
+        <td style="padding:10px 6px;color:var(--muted);">${r.recipient_count ?? '—'}</td>
+        <td style="padding:10px 6px;color:#5ac26d;">${r.sent_count || 0}</td>
+        <td style="padding:10px 6px;color:${r.failed_count ? '#ff6b6b' : 'var(--muted)'};">${r.failed_count || 0}</td>
+        <td style="padding:10px 6px;color:var(--muted);font-size:12px;">${r.sent_at ? formatDate(r.sent_at) : '—'}</td>
+        <td style="padding:10px 6px;text-align:right;">
+          ${r.status === 'draft' ? `<a href="#/newsletters/${r.id}/edit" class="btn btn-ghost btn-sm">Edit</a>` : `<a href="#/newsletters/${r.id}" class="btn btn-ghost btn-sm">View →</a>`}
+        </td>
+      </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ----------------------------------------------------------------------------
+// Newsletter helpers: cursor-insert, preview chrome, image upload
+// ----------------------------------------------------------------------------
+
+// Insert text at the current cursor position of a textarea, then re-trigger
+// 'input' so the live preview updates.
+function insertAtCursor(el, text) {
+  const start = el.selectionStart || 0;
+  const end = el.selectionEnd || 0;
+  el.value = el.value.substring(0, start) + text + el.value.substring(end);
+  const newPos = start + text.length;
+  el.selectionStart = el.selectionEnd = newPos;
+  el.focus();
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+// Wrap body HTML in the same chrome the real email uses, so the admin preview
+// is true WYSIWYG (logo, header, footer, unsubscribe placeholder).
+function wrapEmailPreview(bodyHtml) {
+  return `<div style="background:#f5f4f1;padding:18px;border-radius:6px;">
+    <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#222;line-height:1.7;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+      <div style="background:#0a0908;padding:32px 24px;text-align:center;">
+        <img src="https://hilltrek.co.za/assets/img/logo.png" width="64" height="64" alt="Hilltrek" style="display:block;margin:0 auto 14px;border:0;">
+        <span style="color:#ff7a1a;font-size:11px;letter-spacing:0.45em;font-weight:700;display:block;">// HILLTREK</span>
+        <span style="color:#7a7670;font-size:11px;letter-spacing:0.15em;display:block;margin-top:4px;">Drakensberg-rooted hikers</span>
+      </div>
+      <div style="padding:36px 36px 28px;font-size:15.5px;line-height:1.7;color:#222;">${bodyHtml}</div>
+      <div style="padding:0 36px 28px;">
+        <hr style="border:none;border-top:1px solid #eee;margin:0 0 20px;">
+        <p style="margin:0;font-size:12px;color:#999;">You're getting this because you subscribed at hilltrek.co.za. <a style="color:#888;text-decoration:underline;">Unsubscribe</a> anytime.</p>
+      </div>
+      <div style="padding:18px;text-align:center;background:#fafaf8;">
+        <p style="margin:0;font-size:11px;color:#aaa;">Hilltrek (Pty) Ltd · Drakensberg, South Africa</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Upload an image file to website-assets/newsletters/ and return the public URL.
+async function uploadNewsletterImage(file) {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const slug = (slugify(file.name.replace(/\.[^.]+$/, '')) || 'image').slice(0, 60);
+  const path = `newsletters/${Date.now()}-${slug}.${ext}`;
+  const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
+    contentType: file.type || 'image/jpeg',
+    cacheControl: '604800',
+    upsert: false,
+  });
+  if (upErr) throw upErr;
+  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// Email-safe HTML snippets the toolbar can insert
+const NL_SNIPPETS = {
+  button: '\n\n<p style="text-align:center;margin:28px 0;"><a href="https://hilltrek.co.za" style="display:inline-block;padding:14px 32px;background:#ff7a1a;color:#0a0908;text-decoration:none;font-weight:700;border-radius:8px;font-size:15px;">Click here →</a></p>\n\n',
+  divider: '\n\n<hr style="border:none;border-top:1px solid #eee;margin:28px 0;">\n\n',
+  twoCol: '\n\n<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0;"><tr><td valign="top" width="50%" style="padding:0 10px 0 0;">**Left column** — write here.</td><td valign="top" width="50%" style="padding:0 0 0 10px;">**Right column** — write here.</td></tr></table>\n\n',
+  quote: '\n\n<blockquote style="border-left:4px solid #ff7a1a;padding:8px 16px;margin:22px 0;background:#fafaf8;color:#555;font-style:italic;">"Your quote here."</blockquote>\n\n',
+  signature: '\n\n— Matt @ Hilltrek\n[hilltrek.co.za](https://hilltrek.co.za)\n',
+};
+
+// ----------------------------------------------------------------------------
+// View: Newsletter compose / edit (D3b)
+// ----------------------------------------------------------------------------
+async function renderNewsletterEdit(id) {
+  let nl = {
+    id: null,
+    subject: '',
+    body_md: '# Hello fellow hikers,\n\nWelcome to the first Hilltrek newsletter…\n',
+    body_html: '',
+    segment_filter: { confirmed_only: true, source: null, tags: [] },
+    status: 'draft',
+  };
+
+  if (id) {
+    try {
+      const { data, error } = await query(
+        () => supabase.from('site_newsletters').select('*').eq('id', id).single(),
+        'Load newsletter'
+      );
+      if (error) throw error;
+      if (data.status !== 'draft') {
+        toast('Newsletter is locked', 'error', 'Status is ' + data.status + ' — cannot edit.');
+        location.hash = '#/newsletters/' + id;
+        return;
+      }
+      nl = data;
+      nl.segment_filter = nl.segment_filter || { confirmed_only: true, source: null, tags: [] };
+    } catch (err) {
+      outlet.innerHTML = '<div class="card"><p>Could not load: ' + escapeHtml(explainError(err)) + '</p></div>';
+      return;
+    }
+  }
+
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>${id ? 'Edit newsletter' : 'New newsletter'}</h1>
+        <div class="sub">Markdown body with inline HTML support. Live preview shows what subscribers will see.</div>
+      </div>
+      <div class="page-actions">
+        <a href="#/newsletters" class="btn btn-ghost">← All newsletters</a>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="field">
+        <label for="nl-subject">Subject</label>
+        <input id="nl-subject" type="text" placeholder="What's this newsletter about?" value="${escapeHtml(nl.subject)}" />
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap;">
+          <h3 style="font-size:13px;letter-spacing:-0.01em;margin:0;">Body (markdown + HTML)</h3>
+          <div id="nl-toolbar" style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button type="button" data-snip="image" class="btn btn-ghost btn-sm" title="Upload image">📷 Image</button>
+            <button type="button" data-snip="button" class="btn btn-ghost btn-sm" title="CTA button">🔘 Button</button>
+            <button type="button" data-snip="twoCol" class="btn btn-ghost btn-sm" title="Two columns">📐 2-col</button>
+            <button type="button" data-snip="divider" class="btn btn-ghost btn-sm" title="Horizontal divider">➖ Divider</button>
+            <button type="button" data-snip="quote" class="btn btn-ghost btn-sm" title="Blockquote">💬 Quote</button>
+            <button type="button" data-snip="signature" class="btn btn-ghost btn-sm" title="Sign-off">✍️ Sig</button>
+          </div>
+        </div>
+        <input type="file" id="nl-file" accept="image/*" style="display:none;" />
+        <textarea id="nl-body" style="width:100%;min-height:480px;font-family:var(--font-mono);font-size:13px;padding:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);resize:vertical;">${escapeHtml(nl.body_md)}</textarea>
+        <p class="muted" style="margin-top:8px;font-size:11px;">Markdown: **bold**, *italic*, # heading, [link](url), ![alt](image-url), &gt; quote, lists. Inline HTML works too — use it for buttons, tables, embeds.</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:13px;margin-bottom:10px;letter-spacing:-0.01em;">Preview <span class="muted" style="font-weight:normal;font-size:11px;">(WYSIWYG — what recipients see)</span></h3>
+        <div id="nl-preview" style="max-height:560px;overflow:auto;"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <h3 style="font-size:13px;margin-bottom:10px;letter-spacing:-0.01em;">Recipients</h3>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input id="nl-confirmed-only" type="checkbox" ${nl.segment_filter.confirmed_only !== false ? 'checked' : ''} />
+          Confirmed subscribers only
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+          Source filter:
+          <select id="nl-source" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);">
+            <option value="">All</option>
+            <option value="site" ${nl.segment_filter.source === 'site' ? 'selected' : ''}>Site footer</option>
+            <option value="checkout" ${nl.segment_filter.source === 'checkout' ? 'selected' : ''}>Checkout</option>
+            <option value="admin" ${nl.segment_filter.source === 'admin' ? 'selected' : ''}>Admin (manually added)</option>
+            <option value="import" ${nl.segment_filter.source === 'import' ? 'selected' : ''}>Import</option>
+          </select>
+        </label>
+        <div id="nl-seg-count" style="margin-left:auto;font-size:13px;color:var(--muted);">Calculating recipients…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+        <button id="nl-save" class="btn btn-ghost">Save draft</button>
+        <button id="nl-send-test" class="btn btn-ghost">Send test to me</button>
+        <button id="nl-send-live" class="btn btn-primary">Send to all recipients →</button>
+      </div>
+      <div id="nl-progress" class="hide" style="margin-top:14px;padding:12px;background:var(--bg-2);border-radius:6px;font-size:13px;"></div>
+    </div>
+  `;
+
+  function getFilter() {
+    return {
+      confirmed_only: $('#nl-confirmed-only').checked,
+      source: $('#nl-source').value || null,
+      tags: [],
+    };
+  }
+
+  function renderPreview() {
+    try {
+      const bodyHtml = marked.parse($('#nl-body').value || '');
+      $('#nl-preview').innerHTML = wrapEmailPreview(bodyHtml);
+    } catch (e) {
+      $('#nl-preview').innerHTML = '<p style="color:#ff6b6b;">Markdown parse error.</p>';
+    }
+  }
+
+  // Wire toolbar buttons
+  $$('[data-snip]', $('#nl-toolbar')).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const kind = btn.dataset.snip;
+      const textarea = $('#nl-body');
+      if (kind === 'image') {
+        $('#nl-file').click();
+        return;
+      }
+      if (NL_SNIPPETS[kind]) {
+        insertAtCursor(textarea, NL_SNIPPETS[kind]);
+      }
+    });
+  });
+
+  // Image upload handler
+  $('#nl-file').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast('Not an image file', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Image too large', 'error', 'Max 5 MB. Resize first.');
+      return;
+    }
+    const textarea = $('#nl-body');
+    const placeholder = `\n\n![uploading ${file.name}…]()\n\n`;
+    insertAtCursor(textarea, placeholder);
+    try {
+      const url = await uploadNewsletterImage(file);
+      // Replace the placeholder with the real markdown image
+      textarea.value = textarea.value.replace(placeholder, `\n\n![${file.name.replace(/\.[^.]+$/, '')}](${url})\n\n`);
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      toast('Image uploaded', 'ok');
+    } catch (err) {
+      textarea.value = textarea.value.replace(placeholder, '');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      toast('Upload failed', 'error', explainError(err));
+    }
+    e.target.value = '';
+  });
+
+  async function refreshSegmentCount() {
+    $('#nl-seg-count').textContent = 'Counting…';
+    try {
+      const { data, error } = await query(
+        () => supabase.rpc('newsletter_segment_count', { p_filter: getFilter() }),
+        'Count segment'
+      );
+      if (error) throw error;
+      $('#nl-seg-count').innerHTML = '<strong>' + data + '</strong> recipient' + (data === 1 ? '' : 's') + ' match';
+    } catch (err) {
+      $('#nl-seg-count').innerHTML = '<span style="color:#ff6b6b;">' + escapeHtml(explainError(err)) + '</span>';
+    }
+  }
+
+  async function saveDraft() {
+    const subject = $('#nl-subject').value.trim();
+    const body_md = $('#nl-body').value;
+    if (!subject) { toast('Subject required', 'error'); return null; }
+    if (!body_md.trim()) { toast('Body required', 'error'); return null; }
+
+    const body_html = marked.parse(body_md);
+    // Plain-text fallback: strip basic tags
+    const body_text = body_html.replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
+
+    const payload = {
+      subject,
+      body_md,
+      body_html,
+      body_text,
+      segment_filter: getFilter(),
+    };
+
+    try {
+      if (nl.id) {
+        const { data, error } = await query(
+          () => supabase.from('site_newsletters').update(payload).eq('id', nl.id).select().single(),
+          'Save newsletter'
+        );
+        if (error) throw error;
+        nl = data;
+      } else {
+        const { data, error } = await query(
+          () => supabase.from('site_newsletters').insert(payload).select().single(),
+          'Create newsletter'
+        );
+        if (error) throw error;
+        nl = data;
+        // Update URL to reflect new id
+        history.replaceState(null, '', '#/newsletters/' + nl.id + '/edit');
+      }
+      toast('Draft saved', 'ok');
+      return nl;
+    } catch (err) {
+      toast('Save failed', 'error', explainError(err));
+      return null;
+    }
+  }
+
+  async function sendBlast(mode) {
+    const saved = await saveDraft();
+    if (!saved) return;
+    if (mode === 'live') {
+      const segData = await query(() => supabase.rpc('newsletter_segment_count', { p_filter: saved.segment_filter }), 'Count');
+      const n = segData.data || 0;
+      if (!confirm('Send to ' + n + ' recipient' + (n === 1 ? '' : 's') + '? This cannot be undone.')) return;
+    }
+    const progress = $('#nl-progress');
+    progress.classList.remove('hide');
+    progress.innerHTML = '<span class="spinner"></span> ' + (mode === 'test' ? 'Sending test…' : 'Sending to all recipients…');
+    try {
+      const { data, error } = await supabase.functions.invoke('newsletter-send', {
+        body: { newsletter_id: saved.id, mode: mode },
+      });
+      if (error) throw error;
+      if (!data || data.ok === false) throw new Error((data && data.error) || 'send_failed');
+      progress.innerHTML = '✅ Done. Sent: <strong>' + data.sent + '</strong>, failed: <strong>' + data.failed + '</strong>'
+        + (data.errors && data.errors.length ? '<br><br>Errors:<br>' + data.errors.map(e => '· ' + escapeHtml(e)).join('<br>') : '');
+      toast(mode === 'test' ? 'Test sent' : 'Newsletter sent', 'ok');
+      if (mode === 'live') {
+        setTimeout(() => { location.hash = '#/newsletters/' + saved.id; }, 1500);
+      }
+    } catch (err) {
+      progress.innerHTML = '<span style="color:#ff6b6b;">Failed: ' + escapeHtml(explainError(err)) + '</span>';
+      toast('Send failed', 'error', explainError(err));
+    }
+  }
+
+  $('#nl-body').addEventListener('input', renderPreview);
+  $('#nl-confirmed-only').addEventListener('change', refreshSegmentCount);
+  $('#nl-source').addEventListener('change', refreshSegmentCount);
+  $('#nl-save').addEventListener('click', saveDraft);
+  $('#nl-send-test').addEventListener('click', () => sendBlast('test'));
+  $('#nl-send-live').addEventListener('click', () => sendBlast('live'));
+
+  renderPreview();
+  refreshSegmentCount();
+}
+
+// ----------------------------------------------------------------------------
+// View: Newsletter detail / send stats (D3b)
+// ----------------------------------------------------------------------------
+async function renderNewsletterDetail(id) {
+  outlet.innerHTML = '<div class="card">Loading…</div>';
+
+  let nl, sends = [];
+  try {
+    const [nlRes, sendsRes] = await Promise.all([
+      query(() => supabase.from('site_newsletters').select('*').eq('id', id).single(), 'Load newsletter'),
+      query(() => supabase.from('site_newsletter_sends').select('*').eq('newsletter_id', id).order('id', { ascending: true }), 'Load sends'),
+    ]);
+    if (nlRes.error) throw nlRes.error;
+    nl = nlRes.data;
+    sends = sendsRes.data || [];
+  } catch (err) {
+    outlet.innerHTML = '<div class="card"><p>Could not load: ' + escapeHtml(explainError(err)) + '</p></div>';
+    return;
+  }
+
+  const sent = sends.filter(s => s.sent_at).length;
+  const opened = sends.filter(s => s.opened_at).length;
+  const clicked = sends.filter(s => s.clicked_at).length;
+  const failed = sends.filter(s => s.error).length;
+  const openRate = sent ? Math.round(opened / sent * 100) : 0;
+  const clickRate = sent ? Math.round(clicked / sent * 100) : 0;
+
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 style="font-size:22px;">${escapeHtml(nl.subject)}</h1>
+        <div class="sub">${newsletterStatusBadge(nl.status)} · ${nl.sent_at ? 'Sent ' + formatDate(nl.sent_at) : 'Not yet sent'}</div>
+      </div>
+      <div class="page-actions">
+        <a href="#/newsletters" class="btn btn-ghost">← All</a>
+        ${nl.status === 'draft' ? `<a href="#/newsletters/${nl.id}/edit" class="btn btn-primary">Edit draft</a>` : ''}
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="label">Recipients</div><div class="num">${nl.recipient_count ?? sends.length}</div></div>
+      <div class="stat"><div class="label">Sent</div><div class="num" style="color:#5ac26d;">${sent}</div></div>
+      <div class="stat"><div class="label">Failed</div><div class="num" style="color:${failed ? '#ff6b6b' : 'inherit'};">${failed}</div></div>
+      <div class="stat"><div class="label">Opens</div><div class="num">${opened} <span style="color:var(--muted);font-size:13px;">(${openRate}%)</span></div></div>
+      <div class="stat"><div class="label">Clicks</div><div class="num">${clicked} <span style="color:var(--muted);font-size:13px;">(${clickRate}%)</span></div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;">
+      <div class="card">
+        <h3 style="font-size:13px;margin-bottom:10px;letter-spacing:-0.01em;">Email preview <span class="muted" style="font-weight:normal;font-size:11px;">(as sent)</span></h3>
+        <div style="max-height:540px;overflow:auto;">${wrapEmailPreview(nl.body_html || '')}</div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:13px;margin-bottom:10px;letter-spacing:-0.01em;">Recipients (${sends.length})</h3>
+        ${sends.length === 0 ? '<p class="muted">No sends yet.</p>' : `
+          <div style="max-height:500px;overflow:auto;">
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;position:sticky;top:0;background:var(--bg-2);">
+                <th style="padding:6px;">Email</th>
+                <th style="padding:6px;">Sent</th>
+                <th style="padding:6px;">Opened</th>
+                <th style="padding:6px;">Clicked</th>
+              </tr></thead>
+              <tbody>
+              ${sends.map(s => `<tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:6px;${s.error ? 'color:#ff6b6b;' : ''}" title="${s.error ? escapeHtml(s.error) : ''}">${escapeHtml(s.email)}</td>
+                <td style="padding:6px;color:var(--muted);">${s.sent_at ? '✓' : '—'}</td>
+                <td style="padding:6px;color:var(--muted);">${s.opened_at ? '👁' : '—'}</td>
+                <td style="padding:6px;color:var(--muted);">${s.clicked_at ? '🔗' : '—'}</td>
+              </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
 }
 
 bootstrap();

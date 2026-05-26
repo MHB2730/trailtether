@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Hilltrek — Drakensberg-rooted hikers. Makers of Trailtether.</title>
   <meta name="description" content="Hilltrek is a Drakensberg-based community of hikers, podcasters and builders. We make Trailtether — the GPS, group safety and SOS companion for serious hikers." />
@@ -416,6 +417,291 @@
     @media (max-width: 880px) {
       .preston-card { grid-template-columns: 1fr; padding: 36px 28px; }
     }
+
+    /* ============================================================================
+       WEATHER PORTAL — 'This week in the Berg'
+       Live 7-day hike-score driven by Open-Meteo + the same scoring formula
+       Trailtether uses on the app's Home screen, so the site and the app
+       never disagree about whether tomorrow is a good day to walk.
+       ============================================================================ */
+    .weather {
+      position: relative;
+      padding: 110px 0;
+      border-top: 1px solid var(--border);
+      background: var(--bg-2);
+    }
+    .weather::before {
+      content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse at 80% 0%, rgba(255,122,26,0.06), transparent 55%);
+    }
+    .weather .container { position: relative; z-index: 1; }
+    .weather-controls {
+      display: flex; align-items: center; gap: 14px;
+      flex-wrap: wrap;
+      margin: 22px 0 36px;
+    }
+    .weather-loc-pill {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 8px 16px;
+      border-radius: var(--r-pill);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .weather-loc-pill .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--ember);
+      box-shadow: 0 0 10px var(--ember);
+    }
+    .weather-loc-pill strong { color: var(--text); font-weight: 600; }
+    .weather-loc-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 16px;
+      border-radius: var(--r-pill);
+      background: transparent;
+      border: 1px solid var(--border-2);
+      color: var(--text);
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 13px; font-weight: 500;
+      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    }
+    .weather-loc-btn:hover {
+      border-color: var(--ember);
+      color: var(--ember);
+      background: rgba(255,122,26,0.05);
+    }
+    .weather-loc-btn svg { width: 14px; height: 14px; }
+    .weather-error {
+      padding: 18px 22px;
+      border-radius: var(--r-md);
+      background: rgba(220,38,38,0.10);
+      border: 1px solid rgba(220,38,38,0.30);
+      color: #fca5a5;
+      font-size: 14px;
+      max-width: 720px;
+    }
+
+    /* Today card — the headline number */
+    .weather-today {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 28px;
+      align-items: stretch;
+      margin-bottom: 28px;
+    }
+    .weather-card {
+      position: relative;
+      padding: 32px;
+      border-radius: var(--r-lg);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .weather-today-main { display: flex; flex-direction: column; justify-content: space-between; gap: 20px; }
+    .weather-today-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+    }
+    .weather-today-head .label {
+      font-family: var(--font-mono);
+      font-size: 11px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .weather-today-head .summary {
+      font-size: 20px; font-weight: 600; letter-spacing: -0.015em;
+      color: var(--text); text-wrap: balance;
+    }
+    .weather-today-temp {
+      display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+      margin: 6px 0 10px;
+    }
+    .weather-today-temp .now {
+      font-size: clamp(56px, 7vw, 84px);
+      font-weight: 700; letter-spacing: -0.04em;
+      line-height: 1;
+    }
+    .weather-today-temp .now .unit { font-size: 0.45em; color: var(--ember); margin-left: 4px; vertical-align: top; }
+    .weather-today-temp .range {
+      font-family: var(--font-mono);
+      font-size: 13px; letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .weather-today-temp .range strong { color: var(--text); font-weight: 600; }
+    .weather-today-feels {
+      font-size: 13.5px; color: var(--muted);
+    }
+    .weather-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 14px;
+      margin-top: 8px;
+    }
+    .weather-metric {
+      padding: 14px 16px;
+      border-radius: var(--r-md);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+    }
+    .weather-metric .lbl {
+      font-family: var(--font-mono);
+      font-size: 10.5px; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 6px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .weather-metric .lbl svg { width: 12px; height: 12px; color: var(--ember); }
+    .weather-metric .val {
+      font-size: 20px; font-weight: 700; letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .weather-metric .val .unit { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 3px; }
+
+    /* Score card — the right-hand panel */
+    .weather-score-card {
+      display: flex; flex-direction: column; justify-content: center;
+      align-items: center; text-align: center; gap: 18px;
+    }
+    .weather-score-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .weather-score-num {
+      font-size: clamp(80px, 11vw, 132px);
+      font-weight: 800; letter-spacing: -0.06em;
+      line-height: 0.9;
+      font-feature-settings: "tnum";
+    }
+    .weather-score-num .denom { font-size: 0.35em; color: var(--muted); font-weight: 500; margin-left: 4px; vertical-align: top; }
+    .weather-score-label {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: var(--r-pill);
+      font-family: var(--font-mono);
+      font-size: 11.5px; letter-spacing: 0.2em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .weather-score-blurb {
+      color: var(--muted);
+      font-size: 14px;
+      max-width: 32ch;
+      text-wrap: pretty;
+    }
+
+    /* Score color buckets — burnt orange ≥7, amber 4-6, red <4. RGB triplets
+       so the alpha ramps stay consistent across the card, label and pill. */
+    .score-good   { --sc: 216,  96, 24; }   /* burnt orange #D86018 */
+    .score-mid    { --sc: 242, 169, 59; }   /* amber       #F2A93B */
+    .score-bad    { --sc: 230,  61, 46; }   /* red         #E63D2E */
+    .weather-score-card.score-good,
+    .weather-score-card.score-mid,
+    .weather-score-card.score-bad {
+      border-color: rgba(var(--sc), 0.32);
+      background:
+        linear-gradient(180deg, rgba(var(--sc), 0.10), rgba(var(--sc), 0.02) 70%),
+        var(--surface);
+    }
+    .weather-score-card .weather-score-num { color: rgb(var(--sc)); }
+    .weather-score-card .weather-score-label {
+      color: rgb(var(--sc));
+      background: rgba(var(--sc), 0.14);
+      border: 1px solid rgba(var(--sc), 0.32);
+    }
+
+    /* 7-day strip */
+    .weather-week-title {
+      font-family: var(--font-mono);
+      font-size: 11px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .weather-week {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .weather-day {
+      padding: 18px 14px 16px;
+      border-radius: var(--r-md);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 10px;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .weather-day:hover { transform: translateY(-2px); border-color: var(--border-2); }
+    .weather-day .dow {
+      font-family: var(--font-mono);
+      font-size: 10.5px; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .weather-day .icon { width: 36px; height: 36px; color: var(--text); margin: 2px 0; }
+    .weather-day .icon svg { width: 100%; height: 100%; }
+    .weather-day .temps {
+      font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+      display: flex; align-items: baseline; gap: 6px;
+    }
+    .weather-day .temps .lo { color: var(--muted); font-weight: 400; font-size: 13.5px; }
+    .weather-day .precip {
+      font-family: var(--font-mono);
+      font-size: 11px; color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .weather-day .precip svg { width: 11px; height: 11px; color: rgb(110, 180, 230); }
+    .weather-day .score-pill {
+      align-self: flex-start;
+      padding: 3px 10px;
+      border-radius: var(--r-pill);
+      font-family: var(--font-mono);
+      font-size: 10.5px; letter-spacing: 0.16em;
+      font-weight: 700;
+      color: rgb(var(--sc, 76, 195, 138));
+      background: rgba(var(--sc, 76, 195, 138), 0.14);
+      border: 1px solid rgba(var(--sc, 76, 195, 138), 0.32);
+      margin-top: auto;
+    }
+
+    .weather-loading, .weather-empty {
+      padding: 36px 22px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14.5px;
+    }
+    .weather-loading .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.18);
+      border-top-color: var(--ember);
+      border-radius: 50%;
+      animation: weather-spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 10px;
+    }
+    @keyframes weather-spin { to { transform: rotate(360deg); } }
+
+    .weather-foot {
+      margin-top: 22px;
+      font-family: var(--font-mono);
+      font-size: 11px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--dim);
+      display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    }
+    .weather-foot a { color: var(--muted); text-decoration: underline; text-decoration-color: var(--border); }
+    .weather-foot a:hover { color: var(--ember); }
+
+    @media (max-width: 980px) {
+      .weather-today { grid-template-columns: 1fr; }
+      .weather-week { grid-template-columns: repeat(4, minmax(140px, 1fr)); overflow-x: auto; padding-bottom: 6px; }
+      .weather-week .weather-day { min-width: 140px; }
+    }
+    @media (max-width: 560px) {
+      .weather { padding: 80px 0; }
+      .weather-week { grid-template-columns: repeat(7, 150px); }
+    }
   </style>
 </head>
 <body>
@@ -512,6 +798,37 @@
           Whether you are a seasoned trekker or a first-time hiker, Hilltrek exists to support your journey — providing practical guidance, promoting responsible outdoor ethics, and celebrating the landscapes that make adventure possible.
           <span class="who">— Hilltrek (Pty) Ltd</span>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ WEATHER PORTAL ============================ -->
+  <section class="weather" id="weather">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="eyebrow">// This week in the Berg</span>
+        <h2>Should you hike?<br/>Here's what the sky says.</h2>
+        <p class="lead">A live 7-day hike-score for your trail — graded the same way Trailtether grades weather inside the app. Wind, rain probability, and the kind of day that turns a ridge into a wind tunnel.</p>
+      </div>
+
+      <div class="weather-controls reveal">
+        <span class="weather-loc-pill">
+          <span class="dot"></span>
+          <span>Forecast for <strong data-weather-loc>Cathedral Peak · Drakensberg</strong></span>
+        </span>
+        <button type="button" class="weather-loc-btn" data-weather-use-mine>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
+          Use my location
+        </button>
+      </div>
+
+      <div data-weather-body class="reveal">
+        <div class="weather-loading"><span class="spinner"></span> Reading the sky…</div>
+      </div>
+
+      <div class="weather-foot">
+        <span>Data &middot; <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> &middot; refreshes hourly</span>
+        <span>Scoring matches the Trailtether app &middot; <a href="/trailtether/">see how it works ↗</a></span>
       </div>
     </div>
   </section>
@@ -627,11 +944,11 @@
           <span class="eyebrow">// Stay in the loop</span>
           <h2>Hike notes, gear drops, podcast episodes — straight to your inbox.</h2>
           <p>Low-volume, no spam. Mostly when there's a new hike journal, a fresh gear review, or a Trailtether release worth knowing about.</p>
-          <form action="/reach-out/" method="get" novalidate>
-            <input type="email" name="email" placeholder="your@email.co.za" aria-label="Email address" required />
-            <button type="submit" class="btn btn-primary"><span class="btn-stack"><span class="sub">Free</span><span class="main">Join the list</span></span></button>
+          <form id="hk-subscribe-form" novalidate>
+            <input type="email" name="email" id="hk-subscribe-email" placeholder="your@email.co.za" aria-label="Email address" required />
+            <button type="submit" class="btn btn-primary" id="hk-subscribe-btn"><span class="btn-stack"><span class="sub">Free</span><span class="main">Join the list</span></span></button>
           </form>
-          <p class="dim" style="font-size: 13px; margin-top: 18px;">By signing up you agree to our <a href="/privacy/" class="muted" style="text-decoration: underline;">Privacy Policy</a>.</p>
+          <p class="dim" id="hk-subscribe-msg" style="font-size: 13px; margin-top: 18px;">By signing up you agree to our <a href="/privacy/" class="muted" style="text-decoration: underline;">Privacy Policy</a>.</p>
         </div>
         <div>
           <div class="card card-glow" style="padding: 32px;">
@@ -701,5 +1018,8 @@
 
   <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
   <script src="/assets/js/site.js" defer></script>
+  <script src="/assets/js/weather.js?v=1" defer></script>
+  <script src="/assets/js/analytics.js?v=1" defer></script>
+  <script src="/assets/js/subscribe.js?v=1" defer></script>
 </body>
 </html>

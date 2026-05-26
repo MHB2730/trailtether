@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Order received — Hilltrek</title>
   <meta name="description" content="Your Hilltrek order has been received." />
@@ -299,15 +300,21 @@
 
     async function load() {
       const params = new URLSearchParams(window.location.search);
-      const id = params.get('id');
+      const id    = params.get('id');
+      const token = params.get('token');
       if (!id) {
         showError('No order ID provided.');
         return;
       }
 
+      // The token gates PII access. Without it the RPC returns only
+      // order_number + status (back-compat for in-flight links pre-hardening).
       let data, error;
       try {
-        const res = await supabase.rpc('get_order_for_confirmation', { p_order_id: id });
+        const res = await supabase.rpc('get_order_for_confirmation', {
+          p_order_id: id,
+          p_token:    token || null,
+        });
         data = res.data; error = res.error;
       } catch (e) {
         return showError(e?.message || 'Connection error.');
@@ -316,20 +323,37 @@
       if (error) return showError(error.message);
       if (!data) return showError('Order not found.');
 
-      // Hide loading, show content.
       document.getElementById('confirm-loading').classList.add('hide');
       document.getElementById('confirm-content').classList.remove('hide');
 
-      // Personalised heading
-      const firstName = (data.customer_name || '').split(' ')[0];
-      if (firstName) {
-        document.getElementById('confirm-h1').textContent = `Thanks, ${firstName}.`;
-      }
       const orderNoEl = document.getElementById('confirm-order-no');
       orderNoEl.textContent = data.order_number;
       orderNoEl.style.visibility = 'visible';
 
-      // Items
+      // If the response has no customer_name, the RPC returned the bare
+      // (no-token) shape — only order_number + status. Show a stripped
+      // confirmation instead of rendering empty totals / item list.
+      const hasFullDetails = !!data.customer_name;
+
+      if (!hasFullDetails) {
+        document.getElementById('confirm-h1').textContent = 'Order received.';
+        document.getElementById('confirm-sub').innerHTML =
+          'Your order is logged. For the full receipt with items and shipping details, ' +
+          'check the confirmation email we sent — that link is the only place that shows ' +
+          'your address.';
+        document.getElementById('confirm-items').innerHTML =
+          '<p style="color: var(--muted); font-size: 14px;">Item details available via the link in your confirmation email.</p>';
+        document.getElementById('confirm-subtotal').textContent = '—';
+        document.getElementById('confirm-shipping').textContent = '—';
+        document.getElementById('confirm-total').textContent    = '—';
+        return;
+      }
+
+      const firstName = (data.customer_name || '').split(' ')[0];
+      if (firstName) {
+        document.getElementById('confirm-h1').textContent = `Thanks, ${firstName}.`;
+      }
+
       document.getElementById('confirm-items').innerHTML = (data.items || []).map(it => {
         const variants = variantString(it.variants);
         return `
@@ -344,7 +368,6 @@
         `;
       }).join('');
 
-      // Totals
       document.getElementById('confirm-subtotal').textContent = priceString(data.subtotal_cents);
       document.getElementById('confirm-shipping').textContent = priceString(data.shipping_cents);
       document.getElementById('confirm-total').textContent    = priceString(data.total_cents);
