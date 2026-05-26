@@ -1,21 +1,21 @@
 # =============================================================================
-# publish_site.ps1 — Hilltrek static file deploy
+# publish_site.ps1 -- Hilltrek static file deploy
 # -----------------------------------------------------------------------------
 # Pushes static files to cPanel using the same UAPI the publish-site Edge
 # Function uses, so the static deploys and the admin "Publish to live site"
 # button speak the same protocol.
 #
-# Setup (one-off, per PowerShell session — credentials are NEVER stored in
+# Setup (one-off, per PowerShell session -- credentials are NEVER stored in
 # this repo):
 #
 #   $env:CPANEL_HOST        = "fennec.aserv.co.za"
 #   $env:CPANEL_USER        = "hilltro7a4x5"
-#   $env:CPANEL_API_TOKEN   = "<token from cPanel → Manage API Tokens — NOT your password>"
+#   $env:CPANEL_API_TOKEN   = "<token from cPanel -> Manage API Tokens -- NOT your password>"
 #   $env:HILLTREK_PUBLIC_DIR = "/home/hilltro7a4x5/public_html"
 #   $env:HILLTREK_ADMIN_DIR  = "/home/hilltro7a4x5/admin.hilltrek.co.za"
 #
-# (The first three already exist as Supabase Edge Function Secrets — copy them
-# from Dashboard → Edge Functions → Secrets. The two *_DIR vars tell this
+# (The first three already exist as Supabase Edge Function Secrets -- copy them
+# from Dashboard -> Edge Functions -> Secrets. The two *_DIR vars tell this
 # script where each subdomain's docroot lives on the cPanel filesystem.)
 #
 # Usage:
@@ -31,7 +31,7 @@ param(
   [string]$Target,
 
   # Optional explicit file list (relative to the source dir). If absent, the
-  # script uses the default list baked in below — this session's deliverables.
+  # script uses the default list baked in below -- this session's deliverables.
   [string[]]$Files,
 
   [switch]$DryRun
@@ -70,7 +70,7 @@ switch ($Target) {
     $SourceDir   = Join-Path $RepoRoot 'hilltrek-site'
     $RemoteHome  = Require-Env 'HILLTREK_PUBLIC_DIR'
     $DefaultList = @(
-      # Brand-new files — these MUST go first because the patched HTML pages reference them
+      # Brand-new files -- these MUST go first because the patched HTML pages reference them
       'assets/js/maintenance-gate.js',
       'assets/js/weather.js',
       # Top-level modified pages
@@ -132,7 +132,7 @@ if ($Files -and $Files.Count -gt 0) {
 # Normalise + dedupe
 $List = $List | ForEach-Object { ($_ -replace '\\', '/').TrimStart('/') } | Select-Object -Unique
 
-# Content-Type by extension — matters for browsers, not for cPanel, but good hygiene.
+# Content-Type by extension -- matters for browsers, not for cPanel, but good hygiene.
 function Get-ContentType([string]$path) {
   switch -Regex ($path) {
     '\.html?$'  { return 'text/html; charset=utf-8' }
@@ -171,7 +171,7 @@ function Send-OneFile([string]$localPath, [string]$remoteSitePath) {
     return $true
   }
 
-  # curl.exe args — passed as an array so PowerShell doesn't re-tokenise.
+  # curl.exe args -- passed as an array so PowerShell doesn't re-tokenise.
   # The -F file-1=@<path>;filename=<n>;type=<ct> form is curl-native syntax.
   $formFile = "file-1=@$localPath;filename=$filename;type=$contentType"
   $args = @(
@@ -204,7 +204,7 @@ $skipped   = 0
 foreach ($rel in $List) {
   $localPath = Join-Path $SourceDir ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
   if (-not (Test-Path $localPath)) {
-    Write-Host ("[--] {0,-58} (missing locally — skipped)" -f $rel) -ForegroundColor Yellow
+    Write-Host ("[--] {0,-58} (missing locally -- skipped)" -f $rel) -ForegroundColor Yellow
     $skipped++
     continue
   }
