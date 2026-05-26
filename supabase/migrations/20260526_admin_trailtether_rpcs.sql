@@ -144,3 +144,54 @@ $$;
 
 revoke all on function public.admin_trailtether_top_hikers(int) from public;
 grant execute on function public.admin_trailtether_top_hikers(int) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Recent recorded hikes for the Trailtether map's "Recent hikes" layer.
+-- Returns the bbox centroid as a representative pin location — the GPX
+-- is in storage; fetching it for every pin would be slow and we only
+-- need "roughly where did this hike happen". Default window 30 days.
+-- ---------------------------------------------------------------------
+create or replace function public.admin_trailtether_recent_hikes(p_days int default 30)
+returns table (
+  id           uuid,
+  user_id      uuid,
+  team_id      uuid,
+  name         text,
+  distance_km  double precision,
+  ascent_m     int,
+  duration_sec int,
+  point_count  int,
+  centroid_lat double precision,
+  centroid_lon double precision,
+  display_name text,
+  created_at   timestamptz
+)
+language plpgsql security definer
+set search_path = public, pg_temp
+stable
+as $$
+declare
+  d int := greatest(1, least(coalesce(p_days, 30), 3650));
+begin
+  if not public.is_admin() then
+    raise exception 'admin only' using errcode = '42501';
+  end if;
+  return query
+    select
+      rt.id, rt.user_id, rt.team_id,
+      rt.name, rt.distance_km, rt.ascent_m, rt.duration_seconds, rt.point_count,
+      (rt.min_lat + rt.max_lat) / 2.0  as centroid_lat,
+      (rt.min_lon + rt.max_lon) / 2.0  as centroid_lon,
+      p.display_name,
+      rt.created_at
+    from public.recorded_trails rt
+    left join public.profiles p on p.id = rt.user_id
+    where rt.created_at > now() - make_interval(days => d)
+      and rt.min_lat is not null and rt.min_lon is not null
+    order by rt.created_at desc
+    limit 500;
+end;
+$$;
+
+revoke all on function public.admin_trailtether_recent_hikes(int) from public;
+grant execute on function public.admin_trailtether_recent_hikes(int) to authenticated;

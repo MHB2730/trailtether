@@ -2714,12 +2714,15 @@ async function renderTrailtether() {
 
   // Pull every data source in parallel. Each is independently fault-
   // tolerant — one failing panel doesn't take the whole tab down.
-  const [statsRes, activeRes, teamsRes, hikersRes, incidentsRes] = await Promise.all([
+  // Recent hikes uses a fixed 30d window (the map's window selector only
+  // affects active users; hikes/incidents have their own semantics).
+  const [statsRes, activeRes, hikesRes, teamsRes, hikersRes, incidentsRes] = await Promise.all([
     query(() => supabase.rpc('admin_trailtether_stats'),                                                'Trailtether stats').catch(e => ({ error: e })),
     query(() => supabase.rpc('admin_trailtether_active_users', { p_minutes: winMinutes }),              'Active users').catch(e => ({ error: e })),
+    query(() => supabase.rpc('admin_trailtether_recent_hikes', { p_days: 30 }),                         'Recent hikes').catch(e => ({ error: e })),
     query(() => supabase.from('team_stats').select('*').order('total_km', { ascending: false }).limit(50), 'Teams').catch(e => ({ error: e })),
     query(() => supabase.rpc('admin_trailtether_top_hikers', { p_limit: 20 }),                          'Top hikers').catch(e => ({ error: e })),
-    query(() => supabase.from('incidents').select('*').order('reported_at', { ascending: false }).limit(20), 'Incidents').catch(e => ({ error: e })),
+    query(() => supabase.from('incidents').select('*').order('reported_at', { ascending: false }).limit(50), 'Incidents').catch(e => ({ error: e })),
   ]);
 
   // -- Stats strip ---------------------------------------------------------
@@ -2748,37 +2751,102 @@ async function renderTrailtether() {
         maxZoom: 18,
       }).addTo(_ttLeafletMap);
 
+      // Three toggleable layers: active users (orange), recent hikes
+      // (green centroids of recorded GPX bboxes), recent incidents (red
+      // for SOS/emergency, amber otherwise). Leaflet's built-in layer
+      // control puts the checkboxes in the top-right of the map.
+      const activeUsersLayer = window.L.layerGroup();
+      const hikesLayer       = window.L.layerGroup();
+      const incidentsLayer   = window.L.layerGroup();
+      const allPins          = [];
+      const winLabel = (TT_WINDOWS.find(w => w.minutes === winMinutes) || { label: winMinutes + ' min' }).label;
+
       const users = (!activeRes.error && Array.isArray(activeRes.data)) ? activeRes.data : [];
-      if (users.length > 0) {
-        const bounds = [];
-        users.forEach(u => {
-          if (typeof u.lat !== 'number' || typeof u.lon !== 'number') return;
-          const popup = `
-            <div style="font-family:inherit;min-width:160px;">
-              <div style="font-weight:600;margin-bottom:4px;">${escapeHtml(u.display_name || 'Unknown')}</div>
-              <div style="font-size:11.5px;color:#666;">${_ttRelativeTime(u.ts)}</div>
-              ${u.status ? `<div style="font-size:11.5px;margin-top:4px;">Status: <strong>${escapeHtml(u.status)}</strong></div>` : ''}
-              ${u.battery_pct != null ? `<div style="font-size:11.5px;">Battery: ${u.battery_pct}%</div>` : ''}
-              ${u.connectivity ? `<div style="font-size:11.5px;">Signal: ${escapeHtml(u.connectivity)}</div>` : ''}
-              ${u.altitude != null ? `<div style="font-size:11.5px;">Alt: ${Math.round(u.altitude)} m</div>` : ''}
-            </div>`;
-          window.L.circleMarker([u.lat, u.lon], {
-            radius: 9,
-            fillColor: '#ff7a1a',
-            color: '#0a0908',
-            weight: 2,
-            fillOpacity: 0.85,
-          }).addTo(_ttLeafletMap).bindPopup(popup);
-          bounds.push([u.lat, u.lon]);
-        });
-        if (bounds.length > 1) _ttLeafletMap.fitBounds(bounds, { padding: [40, 40] });
-        else if (bounds.length === 1) _ttLeafletMap.setView(bounds[0], 12);
-        const winLabel = (TT_WINDOWS.find(w => w.minutes === winMinutes) || { label: winMinutes + ' min' }).label;
-        $('#tt-map-meta').textContent = users.length + ' user' + (users.length === 1 ? '' : 's') + ' active in the last ' + winLabel + '.';
-      } else {
-        const winLabel = (TT_WINDOWS.find(w => w.minutes === winMinutes) || { label: winMinutes + ' min' }).label;
-        $('#tt-map-meta').textContent = 'No users active in the last ' + winLabel + '. Try a wider window above, or wait for someone to start a hike.';
+      users.forEach(u => {
+        if (typeof u.lat !== 'number' || typeof u.lon !== 'number') return;
+        const popup = `
+          <div style="font-family:inherit;min-width:160px;">
+            <div style="font-weight:600;margin-bottom:4px;">${escapeHtml(u.display_name || 'Unknown')}</div>
+            <div style="font-size:11.5px;color:#666;">${_ttRelativeTime(u.ts)}</div>
+            ${u.status ? `<div style="font-size:11.5px;margin-top:4px;">Status: <strong>${escapeHtml(u.status)}</strong></div>` : ''}
+            ${u.battery_pct != null ? `<div style="font-size:11.5px;">Battery: ${u.battery_pct}%</div>` : ''}
+            ${u.connectivity ? `<div style="font-size:11.5px;">Signal: ${escapeHtml(u.connectivity)}</div>` : ''}
+            ${u.altitude != null ? `<div style="font-size:11.5px;">Alt: ${Math.round(u.altitude)} m</div>` : ''}
+          </div>`;
+        window.L.circleMarker([u.lat, u.lon], {
+          radius: 9, fillColor: '#ff7a1a', color: '#0a0908', weight: 2, fillOpacity: 0.85,
+        }).bindPopup(popup).addTo(activeUsersLayer);
+        allPins.push([u.lat, u.lon]);
+      });
+
+      // Recent hikes — green dots at the bbox centroid of each recorded trail.
+      const hikes = (!hikesRes.error && Array.isArray(hikesRes.data)) ? hikesRes.data : [];
+      hikes.forEach(h => {
+        if (typeof h.centroid_lat !== 'number' || typeof h.centroid_lon !== 'number') return;
+        const popup = `
+          <div style="font-family:inherit;min-width:180px;">
+            <div style="font-weight:600;margin-bottom:4px;">${escapeHtml(h.name || 'Untitled hike')}</div>
+            <div style="font-size:11.5px;color:#666;">by ${escapeHtml(h.display_name || 'Unknown')} &middot; ${_ttRelativeTime(h.created_at)}</div>
+            <div style="font-size:11.5px;margin-top:6px;">
+              ${h.distance_km ? _ttFmtKm(h.distance_km) : '&mdash;'} &middot; ${h.ascent_m ? _ttFmtM(h.ascent_m) + ' up' : '&mdash;'}
+              ${h.duration_sec ? ' &middot; ' + Math.round(h.duration_sec / 60) + ' min' : ''}
+            </div>
+          </div>`;
+        window.L.circleMarker([h.centroid_lat, h.centroid_lon], {
+          radius: 6, fillColor: '#5ac26d', color: '#0a0908', weight: 1.5, fillOpacity: 0.75,
+        }).bindPopup(popup).addTo(hikesLayer);
+        allPins.push([h.centroid_lat, h.centroid_lon]);
+      });
+
+      // Recent incidents — red for SOS/emergency, amber for everything
+      // else. Re-uses incidentsRes already fetched for the table below.
+      const incidents = (!incidentsRes.error && Array.isArray(incidentsRes.data)) ? incidentsRes.data : [];
+      incidents.forEach(inc => {
+        if (typeof inc.lat !== 'number' || typeof inc.lon !== 'number') return;
+        const isEmergency = !!inc.is_emergency || inc.severity === 'high' || inc.type === 'sos';
+        const popup = `
+          <div style="font-family:inherit;min-width:180px;">
+            <div style="font-weight:600;margin-bottom:4px;color:${isEmergency ? '#c44a4a' : '#a0741b'};">
+              ${isEmergency ? '&#9888; ' : ''}${escapeHtml(inc.title || inc.type || 'Incident')}
+            </div>
+            <div style="font-size:11.5px;color:#666;">${_ttRelativeTime(inc.reported_at)}</div>
+            ${inc.severity ? `<div style="font-size:11.5px;margin-top:4px;">Severity: <strong>${escapeHtml(inc.severity)}</strong></div>` : ''}
+            ${inc.status ? `<div style="font-size:11.5px;">Status: ${escapeHtml(inc.status)}</div>` : ''}
+            ${inc.trail_name ? `<div style="font-size:11.5px;">Trail: ${escapeHtml(inc.trail_name)}</div>` : ''}
+            ${inc.description ? `<div style="font-size:11.5px;margin-top:6px;color:#444;">${escapeHtml(String(inc.description).slice(0, 140))}${String(inc.description).length > 140 ? '&hellip;' : ''}</div>` : ''}
+          </div>`;
+        window.L.circleMarker([inc.lat, inc.lon], {
+          radius: isEmergency ? 11 : 8,
+          fillColor: isEmergency ? '#ff6b6b' : '#e0a847',
+          color: '#0a0908',
+          weight: 2,
+          fillOpacity: 0.9,
+        }).bindPopup(popup).addTo(incidentsLayer);
+        allPins.push([inc.lat, inc.lon]);
+      });
+
+      activeUsersLayer.addTo(_ttLeafletMap);
+      hikesLayer.addTo(_ttLeafletMap);
+      incidentsLayer.addTo(_ttLeafletMap);
+      window.L.control.layers(null, {
+        ['Active users (' + users.length + ')']:     activeUsersLayer,
+        ['Recent hikes 30d (' + hikes.length + ')']: hikesLayer,
+        ['Incidents (' + incidents.length + ')']:    incidentsLayer,
+      }, { collapsed: false, position: 'topright' }).addTo(_ttLeafletMap);
+
+      if (allPins.length > 1) {
+        _ttLeafletMap.fitBounds(allPins, { padding: [40, 40] });
+      } else if (allPins.length === 1) {
+        _ttLeafletMap.setView(allPins[0], 12);
       }
+
+      const metaParts = [];
+      if (users.length)     metaParts.push(users.length + ' active in ' + winLabel);
+      if (hikes.length)     metaParts.push(hikes.length + ' hike' + (hikes.length === 1 ? '' : 's') + ' (30d)');
+      if (incidents.length) metaParts.push(incidents.length + ' incident' + (incidents.length === 1 ? '' : 's'));
+      $('#tt-map-meta').textContent = metaParts.length
+        ? metaParts.join(' · ') + '. Use the layer toggle (top-right of map) to filter.'
+        : 'Nothing to plot yet — no active users, recent hikes, or incidents.';
     } catch (e) {
       console.warn('tt map render failed:', e);
       $('#tt-map').innerHTML = `<p class="muted" style="padding:20px;">Map render failed: ${escapeHtml(String(e?.message || e))}</p>`;
