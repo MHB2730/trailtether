@@ -56,8 +56,15 @@ grant execute on function public.admin_trailtether_stats() to authenticated;
 -- ---------------------------------------------------------------------
 -- Active users for the live map. display_name is denormalized on
 -- team_member_locations so no profile join needed.
+--
+-- p_minutes accepts the lookback window; defaults to 24h because the
+-- current user base hikes weekly, not constantly. UI surfaces a
+-- selector (30m / 24h / 7d). Clamped to 1 minute - 30 days so a
+-- malformed value can't trigger a full scan or return stale data.
 -- ---------------------------------------------------------------------
-create or replace function public.admin_trailtether_active_users()
+drop function if exists public.admin_trailtether_active_users();
+
+create or replace function public.admin_trailtether_active_users(p_minutes int default 1440)
 returns table (
   uid          uuid,
   display_name text,
@@ -76,6 +83,8 @@ language plpgsql security definer
 set search_path = public, pg_temp
 stable
 as $$
+declare
+  m int := greatest(1, least(coalesce(p_minutes, 1440), 43200));
 begin
   if not public.is_admin() then
     raise exception 'admin only' using errcode = '42501';
@@ -84,14 +93,14 @@ begin
     select l.uid, l.display_name, l.team_id, l.hike_id, l.lat, l.lon, l.status,
            l.timestamp, l.speed, l.altitude, l.battery_pct, l.connectivity
     from public.team_member_locations l
-    where l.timestamp > now() - interval '30 minutes'
+    where l.timestamp > now() - make_interval(mins => m)
     order by l.timestamp desc
-    limit 200;
+    limit 500;
 end;
 $$;
 
-revoke all on function public.admin_trailtether_active_users() from public;
-grant execute on function public.admin_trailtether_active_users() to authenticated;
+revoke all on function public.admin_trailtether_active_users(int) from public;
+grant execute on function public.admin_trailtether_active_users(int) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- Top hikers leaderboard. SECURITY DEFINER bypasses the new owner-only

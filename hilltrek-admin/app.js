@@ -2604,6 +2604,15 @@ async function renderApkDownloads() {
 let _ttLeafletMap = null;       // hold the Leaflet instance across renders
 const TT_BERG_CENTER = [-29.0, 29.0];  // roughly central Drakensberg
 const TT_BERG_ZOOM   = 8;
+// Map lookback window in minutes. Stored on the function itself so the
+// chosen value survives Refresh button clicks. 24h default matches the
+// realistic activity rhythm; users can drop to 30m for "right now" or
+// extend to 7d to see who's been out at all this week.
+const TT_WINDOWS = [
+  { label: '30 min',  minutes: 30 },
+  { label: '24 h',    minutes: 1440 },
+  { label: '7 days',  minutes: 10080 },
+];
 
 async function _ttLoadScript(src) {
   if (document.querySelector(`script[src="${src}"]`)) return;
@@ -2639,6 +2648,7 @@ function _ttRelativeTime(iso) {
 }
 
 async function renderTrailtether() {
+  const winMinutes = renderTrailtether._window || 1440; // default 24h
   outlet.innerHTML = `
     <div class="page-header">
       <div>
@@ -2655,9 +2665,14 @@ async function renderTrailtether() {
     </div>
 
     <div class="card" style="margin-top:18px;">
-      <h3 style="font-size:14px;margin-bottom:6px;letter-spacing:-0.01em;">Live map</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:6px;flex-wrap:wrap;">
+        <h3 style="font-size:14px;letter-spacing:-0.01em;margin:0;">Map</h3>
+        <div style="display:flex;gap:6px;">
+          ${TT_WINDOWS.map(w => `<button data-tt-window="${w.minutes}" class="btn btn-ghost btn-sm${w.minutes === winMinutes ? ' active' : ''}">${w.label}</button>`).join('')}
+        </div>
+      </div>
       <div class="sub" style="margin-bottom:14px;font-size:12px;color:var(--muted);">
-        Users whose location pinged Trailtether in the last 30 minutes. Click a pin for status, battery, last update.
+        Locations from the selected window. Click a pin for status, battery, last update.
       </div>
       <div id="tt-map" style="height:420px;border-radius:10px;overflow:hidden;background:var(--bg-2);border:1px solid var(--border);"></div>
       <div id="tt-map-meta" style="margin-top:10px;font-size:12px;color:var(--muted);"></div>
@@ -2678,6 +2693,10 @@ async function renderTrailtether() {
   `;
 
   $('#tt-refresh').addEventListener('click', renderTrailtether);
+  $$('[data-tt-window]').forEach(b => b.addEventListener('click', () => {
+    renderTrailtether._window = parseInt(b.getAttribute('data-tt-window'), 10) || 1440;
+    renderTrailtether();
+  }));
 
   // Lazy-load Leaflet (CSS + JS) only on first visit to this tab.
   _ttLoadStyle('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css');
@@ -2697,7 +2716,7 @@ async function renderTrailtether() {
   // tolerant — one failing panel doesn't take the whole tab down.
   const [statsRes, activeRes, teamsRes, hikersRes, incidentsRes] = await Promise.all([
     query(() => supabase.rpc('admin_trailtether_stats'),                                                'Trailtether stats').catch(e => ({ error: e })),
-    query(() => supabase.rpc('admin_trailtether_active_users'),                                         'Active users').catch(e => ({ error: e })),
+    query(() => supabase.rpc('admin_trailtether_active_users', { p_minutes: winMinutes }),              'Active users').catch(e => ({ error: e })),
     query(() => supabase.from('team_stats').select('*').order('total_km', { ascending: false }).limit(50), 'Teams').catch(e => ({ error: e })),
     query(() => supabase.rpc('admin_trailtether_top_hikers', { p_limit: 20 }),                          'Top hikers').catch(e => ({ error: e })),
     query(() => supabase.from('incidents').select('*').order('reported_at', { ascending: false }).limit(20), 'Incidents').catch(e => ({ error: e })),
@@ -2754,9 +2773,11 @@ async function renderTrailtether() {
         });
         if (bounds.length > 1) _ttLeafletMap.fitBounds(bounds, { padding: [40, 40] });
         else if (bounds.length === 1) _ttLeafletMap.setView(bounds[0], 12);
-        $('#tt-map-meta').textContent = users.length + ' active user' + (users.length === 1 ? '' : 's') + ' in the last 30 minutes.';
+        const winLabel = (TT_WINDOWS.find(w => w.minutes === winMinutes) || { label: winMinutes + ' min' }).label;
+        $('#tt-map-meta').textContent = users.length + ' user' + (users.length === 1 ? '' : 's') + ' active in the last ' + winLabel + '.';
       } else {
-        $('#tt-map-meta').textContent = 'No active users right now. Map will refresh when someone starts a hike.';
+        const winLabel = (TT_WINDOWS.find(w => w.minutes === winMinutes) || { label: winMinutes + ' min' }).label;
+        $('#tt-map-meta').textContent = 'No users active in the last ' + winLabel + '. Try a wider window above, or wait for someone to start a hike.';
       }
     } catch (e) {
       console.warn('tt map render failed:', e);
