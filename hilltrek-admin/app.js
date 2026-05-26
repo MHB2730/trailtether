@@ -482,6 +482,7 @@ function route() {
   if (path === '/orders')                      return renderOrdersList();
   if (path === '/subscribers')                 return renderSubscribers();
   if (path === '/apk-downloads')               return renderApkDownloads();
+  if (path === '/trailtether')                 return renderTrailtether();
   if (path === '/newsletters')                 return renderNewslettersList();
   if (path === '/newsletters/new')             return renderNewsletterEdit(null);
   if (path === '/analytics')                   return renderAnalytics();
@@ -510,6 +511,7 @@ function setActiveNav(path) {
   else if (path.startsWith('/orders'))          $('[data-nav="orders"]')?.classList.add('active');
   else if (path === '/subscribers')             $('[data-nav="subscribers"]')?.classList.add('active');
   else if (path === '/apk-downloads')           $('[data-nav="apk-downloads"]')?.classList.add('active');
+  else if (path === '/trailtether')             $('[data-nav="trailtether"]')?.classList.add('active');
   else if (path.startsWith('/newsletters'))     $('[data-nav="newsletters"]')?.classList.add('active');
   else if (path === '/analytics')               $('[data-nav="analytics"]')?.classList.add('active');
   else if (path === '/health')                  $('[data-nav="health"]')?.classList.add('active');
@@ -2581,6 +2583,282 @@ async function renderApkDownloads() {
   });
 
   renderList();
+}
+
+// ----------------------------------------------------------------------------
+// View: Trailtether
+//
+// Live operational view of the Trailtether mobile/desktop app, surfacing
+// data this admin SPA wouldn't otherwise see:
+//   - stats strip (total users / teams / hikes / km / active right now)
+//   - live map of users with team_member_locations within the last 30 min
+//   - top hikers leaderboard
+//   - teams table (sortable, joined to team_stats)
+//   - recent incidents feed
+//
+// All data goes through is_admin()-gated SECURITY DEFINER RPCs so the new
+// owner-only RLS on profiles doesn't prevent us seeing other users' data.
+// Leaflet is loaded lazily — only when this tab is opened — so the admin
+// SPA shell stays small for the other tabs.
+// ----------------------------------------------------------------------------
+let _ttLeafletMap = null;       // hold the Leaflet instance across renders
+const TT_BERG_CENTER = [-29.0, 29.0];  // roughly central Drakensberg
+const TT_BERG_ZOOM   = 8;
+
+async function _ttLoadScript(src) {
+  if (document.querySelector(`script[src="${src}"]`)) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+function _ttLoadStyle(href) {
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const l = document.createElement('link');
+  l.rel = 'stylesheet'; l.href = href;
+  document.head.appendChild(l);
+}
+
+function _ttFmtKm(km) {
+  const n = Number(km || 0);
+  return n.toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' km';
+}
+function _ttFmtM(m) {
+  const n = Number(m || 0);
+  return n.toLocaleString() + ' m';
+}
+function _ttRelativeTime(iso) {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60_000)         return Math.round(ms / 1000) + 's ago';
+  if (ms < 3600_000)       return Math.round(ms / 60_000) + ' min ago';
+  if (ms < 86400_000)      return Math.round(ms / 3600_000) + ' h ago';
+  return Math.round(ms / 86400_000) + ' d ago';
+}
+
+async function renderTrailtether() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>Trailtether</h1>
+        <div class="sub">Live ops view of the app — who's hiking, where they are, what's flagged.</div>
+      </div>
+      <div class="page-actions">
+        <button id="tt-refresh" class="btn btn-ghost">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div id="tt-stats" class="stat-row">
+      <div class="stat"><div class="label">Loading…</div><div class="num">—</div></div>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;margin-bottom:6px;letter-spacing:-0.01em;">Live map</h3>
+      <div class="sub" style="margin-bottom:14px;font-size:12px;color:var(--muted);">
+        Users whose location pinged Trailtether in the last 30 minutes. Click a pin for status, battery, last update.
+      </div>
+      <div id="tt-map" style="height:420px;border-radius:10px;overflow:hidden;background:var(--bg-2);border:1px solid var(--border);"></div>
+      <div id="tt-map-meta" style="margin-top:10px;font-size:12px;color:var(--muted);"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:18px;">
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Top hikers</h3><div id="tt-hikers">Loading…</div></div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Teams</h3><div id="tt-teams">Loading…</div></div>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;margin-bottom:6px;letter-spacing:-0.01em;">Recent incidents</h3>
+      <div class="sub" style="margin-bottom:14px;font-size:12px;color:var(--muted);">
+        Last 20 from the incidents table. Flagged-as-spam entries are excluded by the read policy.
+      </div>
+      <div id="tt-incidents">Loading…</div>
+    </div>
+  `;
+
+  $('#tt-refresh').addEventListener('click', renderTrailtether);
+
+  // Lazy-load Leaflet (CSS + JS) only on first visit to this tab.
+  _ttLoadStyle('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css');
+  try {
+    await _ttLoadScript('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js');
+  } catch (e) {
+    $('#tt-map').innerHTML = '<p class="muted" style="padding:20px;">Could not load Leaflet from CDN.</p>';
+  }
+
+  // Wipe any prior Leaflet instance before binding the new <div>.
+  if (_ttLeafletMap) {
+    try { _ttLeafletMap.remove(); } catch (_) {}
+    _ttLeafletMap = null;
+  }
+
+  // Pull every data source in parallel. Each is independently fault-
+  // tolerant — one failing panel doesn't take the whole tab down.
+  const [statsRes, activeRes, teamsRes, hikersRes, incidentsRes] = await Promise.all([
+    query(() => supabase.rpc('admin_trailtether_stats'),                                                'Trailtether stats').catch(e => ({ error: e })),
+    query(() => supabase.rpc('admin_trailtether_active_users'),                                         'Active users').catch(e => ({ error: e })),
+    query(() => supabase.from('team_stats').select('*').order('total_km', { ascending: false }).limit(50), 'Teams').catch(e => ({ error: e })),
+    query(() => supabase.rpc('admin_trailtether_top_hikers', { p_limit: 20 }),                          'Top hikers').catch(e => ({ error: e })),
+    query(() => supabase.from('incidents').select('*').order('reported_at', { ascending: false }).limit(20), 'Incidents').catch(e => ({ error: e })),
+  ]);
+
+  // -- Stats strip ---------------------------------------------------------
+  if (statsRes.error || !statsRes.data) {
+    $('#tt-stats').innerHTML = `<div class="stat"><div class="label">Error</div><div class="num" style="font-size:13px;color:#ff6b6b;">${escapeHtml(explainError(statsRes.error))}</div></div>`;
+  } else {
+    const s = statsRes.data;
+    $('#tt-stats').innerHTML = `
+      <div class="stat"><div class="label">Users</div><div class="num">${s.total_users ?? 0}</div></div>
+      <div class="stat"><div class="label">Teams</div><div class="num">${s.total_teams ?? 0}<span class="dim" style="font-size:13px;margin-left:6px;">(${s.teams_with_members ?? 0} active)</span></div></div>
+      <div class="stat"><div class="label">Hikes (30d)</div><div class="num">${s.hikes_30d ?? 0}<span class="dim" style="font-size:13px;margin-left:6px;">/ ${s.hikes_total ?? 0} all-time</span></div></div>
+      <div class="stat"><div class="label">Total distance</div><div class="num">${_ttFmtKm(s.total_km)}</div></div>
+      <div class="stat"><div class="label">Total ascent</div><div class="num">${_ttFmtM(s.total_ascent_m)}</div></div>
+      <div class="stat"><div class="label">Active now</div><div class="num" style="color:${(s.active_now ?? 0) > 0 ? '#5ac26d' : 'inherit'};">${s.active_now ?? 0}</div></div>
+      <div class="stat"><div class="label">Incidents (30d)</div><div class="num" style="color:${(s.incidents_open ?? 0) > 0 ? '#ff7a1a' : 'inherit'};">${s.incidents_30d ?? 0}<span class="dim" style="font-size:13px;margin-left:6px;">(${s.incidents_open ?? 0} open)</span></div></div>
+    `;
+  }
+
+  // -- Live map ------------------------------------------------------------
+  if (typeof window.L === 'object') {
+    try {
+      _ttLeafletMap = window.L.map('tt-map', { zoomControl: true, attributionControl: true })
+        .setView(TT_BERG_CENTER, TT_BERG_ZOOM);
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 18,
+      }).addTo(_ttLeafletMap);
+
+      const users = (!activeRes.error && Array.isArray(activeRes.data)) ? activeRes.data : [];
+      if (users.length > 0) {
+        const bounds = [];
+        users.forEach(u => {
+          if (typeof u.lat !== 'number' || typeof u.lon !== 'number') return;
+          const popup = `
+            <div style="font-family:inherit;min-width:160px;">
+              <div style="font-weight:600;margin-bottom:4px;">${escapeHtml(u.display_name || 'Unknown')}</div>
+              <div style="font-size:11.5px;color:#666;">${_ttRelativeTime(u.ts)}</div>
+              ${u.status ? `<div style="font-size:11.5px;margin-top:4px;">Status: <strong>${escapeHtml(u.status)}</strong></div>` : ''}
+              ${u.battery_pct != null ? `<div style="font-size:11.5px;">Battery: ${u.battery_pct}%</div>` : ''}
+              ${u.connectivity ? `<div style="font-size:11.5px;">Signal: ${escapeHtml(u.connectivity)}</div>` : ''}
+              ${u.altitude != null ? `<div style="font-size:11.5px;">Alt: ${Math.round(u.altitude)} m</div>` : ''}
+            </div>`;
+          window.L.circleMarker([u.lat, u.lon], {
+            radius: 9,
+            fillColor: '#ff7a1a',
+            color: '#0a0908',
+            weight: 2,
+            fillOpacity: 0.85,
+          }).addTo(_ttLeafletMap).bindPopup(popup);
+          bounds.push([u.lat, u.lon]);
+        });
+        if (bounds.length > 1) _ttLeafletMap.fitBounds(bounds, { padding: [40, 40] });
+        else if (bounds.length === 1) _ttLeafletMap.setView(bounds[0], 12);
+        $('#tt-map-meta').textContent = users.length + ' active user' + (users.length === 1 ? '' : 's') + ' in the last 30 minutes.';
+      } else {
+        $('#tt-map-meta').textContent = 'No active users right now. Map will refresh when someone starts a hike.';
+      }
+    } catch (e) {
+      console.warn('tt map render failed:', e);
+      $('#tt-map').innerHTML = `<p class="muted" style="padding:20px;">Map render failed: ${escapeHtml(String(e?.message || e))}</p>`;
+    }
+  }
+
+  // -- Top hikers ----------------------------------------------------------
+  if (hikersRes.error || !Array.isArray(hikersRes.data)) {
+    $('#tt-hikers').innerHTML = `<p class="muted">Could not load: ${escapeHtml(explainError(hikersRes.error))}</p>`;
+  } else if (hikersRes.data.length === 0) {
+    $('#tt-hikers').innerHTML = '<p class="muted">No completed hikes yet.</p>';
+  } else {
+    const max = hikersRes.data[0].hikes || 1;
+    $('#tt-hikers').innerHTML = `
+      <table style="width:100%;font-size:13px;">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+          <th style="padding:6px 6px;">Hiker</th>
+          <th style="padding:6px 6px;text-align:right;">Hikes</th>
+          <th style="padding:6px 6px;text-align:right;">Distance</th>
+          <th style="padding:6px 6px;text-align:right;">Ascent</th>
+          <th style="padding:6px 6px;text-align:right;">Last</th>
+        </tr></thead>
+        <tbody>
+        ${hikersRes.data.map((h, i) => `<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 6px;">
+            <span class="dim" style="font-family:var(--font-mono);margin-right:8px;">${i + 1}.</span>
+            ${escapeHtml(h.display_name || h.username || '(unknown)')}
+          </td>
+          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);">${h.hikes}</td>
+          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${_ttFmtKm(h.total_km)}</td>
+          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${_ttFmtM(h.total_ascent)}</td>
+          <td style="padding:8px 6px;text-align:right;font-size:11.5px;color:var(--muted);">${_ttRelativeTime(h.last_hike)}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // -- Teams table ---------------------------------------------------------
+  if (teamsRes.error || !Array.isArray(teamsRes.data)) {
+    $('#tt-teams').innerHTML = `<p class="muted">Could not load: ${escapeHtml(explainError(teamsRes.error))}</p>`;
+  } else if (teamsRes.data.length === 0) {
+    $('#tt-teams').innerHTML = '<p class="muted">No teams yet.</p>';
+  } else {
+    $('#tt-teams').innerHTML = `
+      <table style="width:100%;font-size:13px;">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+          <th style="padding:6px 6px;">Team</th>
+          <th style="padding:6px 6px;text-align:right;">Members</th>
+          <th style="padding:6px 6px;text-align:right;">Distance</th>
+          <th style="padding:6px 6px;text-align:right;">Ascent</th>
+          <th style="padding:6px 6px;text-align:right;">Peaks</th>
+        </tr></thead>
+        <tbody>
+        ${teamsRes.data.map(t => `<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 6px;">${escapeHtml(t.team_name || '(unnamed)')}</td>
+          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);">${t.member_count ?? 0}</td>
+          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${_ttFmtKm(t.total_km)}</td>
+          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${_ttFmtM(t.total_ascent)}</td>
+          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${t.peaks_climbed ?? 0}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // -- Incidents -----------------------------------------------------------
+  if (incidentsRes.error || !Array.isArray(incidentsRes.data)) {
+    $('#tt-incidents').innerHTML = `<p class="muted">Could not load: ${escapeHtml(explainError(incidentsRes.error))}</p>`;
+  } else if (incidentsRes.data.length === 0) {
+    $('#tt-incidents').innerHTML = '<p class="muted">No incidents logged.</p>';
+  } else {
+    $('#tt-incidents').innerHTML = `
+      <table style="width:100%;font-size:13px;">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+          <th style="padding:6px 6px;">When</th>
+          <th style="padding:6px 6px;">Type</th>
+          <th style="padding:6px 6px;">Severity</th>
+          <th style="padding:6px 6px;">Status</th>
+          <th style="padding:6px 6px;">Title</th>
+          <th style="padding:6px 6px;">Trail</th>
+          <th style="padding:6px 6px;">Location</th>
+        </tr></thead>
+        <tbody>
+        ${incidentsRes.data.map(i => {
+          const isE = !!i.is_emergency;
+          const sevColor = i.severity === 'high' ? '#ff6b6b' : (i.severity === 'medium' ? '#e0a847' : 'var(--muted)');
+          return `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 6px;font-size:11.5px;color:var(--muted);">${_ttRelativeTime(i.reported_at)}</td>
+            <td style="padding:8px 6px;font-size:12px;">${isE ? '<span style="color:#ff6b6b;font-weight:600;">SOS</span> ' : ''}${escapeHtml(i.type || '—')}</td>
+            <td style="padding:8px 6px;font-size:12px;color:${sevColor};">${escapeHtml(i.severity || '—')}</td>
+            <td style="padding:8px 6px;font-size:12px;color:var(--muted);">${escapeHtml(i.status || 'open')}</td>
+            <td style="padding:8px 6px;">${escapeHtml(i.title || i.description?.slice(0, 60) || '—')}</td>
+            <td style="padding:8px 6px;font-size:12px;color:var(--muted);">${escapeHtml(i.trail_name || '—')}</td>
+            <td style="padding:8px 6px;font-size:11.5px;color:var(--muted);font-family:var(--font-mono);">${(i.lat != null && i.lon != null) ? (Number(i.lat).toFixed(4) + ', ' + Number(i.lon).toFixed(4)) : '—'}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
 }
 
 // ----------------------------------------------------------------------------
