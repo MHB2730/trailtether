@@ -3213,13 +3213,40 @@ async function renderNewslettersList() {
         <td style="padding:10px 6px;color:#5ac26d;">${r.sent_count || 0}</td>
         <td style="padding:10px 6px;color:${r.failed_count ? '#ff6b6b' : 'var(--muted)'};">${r.failed_count || 0}</td>
         <td style="padding:10px 6px;color:var(--muted);font-size:12px;">${r.sent_at ? formatDate(r.sent_at) : '—'}</td>
-        <td style="padding:10px 6px;text-align:right;">
-          ${r.status === 'draft' ? `<a href="#/newsletters/${r.id}/edit" class="btn btn-ghost btn-sm">Edit</a>` : `<a href="#/newsletters/${r.id}" class="btn btn-ghost btn-sm">View →</a>`}
+        <td style="padding:10px 6px;text-align:right;white-space:nowrap;">
+          ${r.status === 'draft' ? `<a href="#/newsletters/${r.id}/edit" class="btn btn-ghost btn-sm">Edit</a>` : `<a href="#/newsletters/${r.id}" class="btn btn-ghost btn-sm">View &rarr;</a>`}
+          <button data-nl-del="${r.id}" data-nl-status="${r.status}" data-nl-subject="${escapeHtml(r.subject || '(no subject)')}" class="btn btn-ghost btn-sm" style="margin-left:6px;color:#ff6b6b;" title="Permanently delete this newsletter">Delete</button>
         </td>
       </tr>`).join('')}
       </tbody>
     </table>
   `;
+
+  // Wire delete buttons. Sent newsletters get a harder warning because
+  // deletion drops the historical send record (subject + recipient stats)
+  // along with the row. Draft deletion is unscary — nothing's been sent.
+  $$('[data-nl-del]', $('#nl-list')).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id      = btn.dataset.nlDel;
+      const status  = btn.dataset.nlStatus;
+      const subject = btn.dataset.nlSubject;
+      const warning = status === 'sent'
+        ? `Permanently delete the sent newsletter "${subject}"?\n\nThis removes the historical send record (subject, body, recipient + send + failure counts). Subscribers stay subscribed. The action cannot be undone.`
+        : `Delete the ${status || 'draft'} newsletter "${subject}"?`;
+      if (!confirm(warning)) return;
+      try {
+        const { error } = await query(
+          () => supabase.from('site_newsletters').delete().eq('id', id),
+          'Delete newsletter'
+        );
+        if (error) throw error;
+        toast('Deleted', 'ok');
+        renderNewslettersList();
+      } catch (err) {
+        toast('Could not delete', 'error', explainError(err));
+      }
+    });
+  });
 }
 
 // ----------------------------------------------------------------------------
