@@ -5,6 +5,27 @@ import '../models/saved_hike.dart';
 import '../services/logger_service.dart';
 import '../services/recorded_trail_service.dart';
 
+/// Outcome of HikeHistoryProvider.add() — the UI uses this to decide
+/// whether to show a green success toast, an amber "saved locally, will
+/// sync later" toast, or a red error toast. Each step is independent so
+/// a partial success (local OK + trail upload failed) still surfaces
+/// what actually happened to the user.
+class HikeSaveResult {
+  final bool localSaved;        // wrote to SharedPreferences
+  final bool supabaseSynced;    // hike_history upsert succeeded
+  final bool trailUploaded;     // recorded_trails + GPX file landed
+  final String? error;          // human-readable last error, if any
+  final bool offlineOnly;       // userId was null (not signed in)
+  const HikeSaveResult({
+    required this.localSaved,
+    required this.supabaseSynced,
+    required this.trailUploaded,
+    this.error,
+    this.offlineOnly = false,
+  });
+  bool get isFullSuccess => localSaved && supabaseSynced && trailUploaded;
+}
+
 class HikeHistoryProvider extends ChangeNotifier {
   static const _prefKey = 'saved_hikes_v1';
   final List<SavedHike> _hikes = [];
@@ -28,58 +49,113 @@ class HikeHistoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> add(SavedHike hike, {String? userId}) async {
-    _hikes.removeWhere((h) => h.id == hike.id);
-    _hikes.insert(0, hike);
-    await _save();
+  /// Persist the hike locally and (if signed in) sync to Supabase + upload
+  /// the GPX. Returns a HikeSaveResult so the UI can show meaningful
+  /// feedback per step. Local save errors are caught and turned into a
+  /// failed HikeSaveResult; remote sync errors propagate as `error` text.
+  Future<HikeSaveResult> add(SavedHike hike, {String? userId}) async {
+    bool localSaved = false;
+    bool supabaseSynced = false;
+    bool trailUploaded = false;
+    String? lastError;
 
-    if (userId != null) {
+    try {
+      _hikes.removeWhere((h) => h.id == hike.id);
+      _hikes.insert(0, hike);
+      await _save();
+      localSaved = true;
+    } catch (e, stack) {
+      LoggerService.error('HISTORY', 'local save failed for ${hike.id}: $e', stack);
+      lastError = 'Could not save locally: $e';
+      notifyListeners();
+      return HikeSaveResult(
+        localSaved: false,
+        supabaseSynced: false,
+        trailUploaded: false,
+        error: lastError,
+      );
+    }
+
+    if (userId == null) {
+      // Not signed in — local save only. The janitor edge function will
+      // still pick up any orphaned team_member_track_points on its hourly
+      // run, but the user-facing message should make clear that nothing
+      // synced from this device this time.
+      notifyListeners();
+      return HikeSaveResult(
+        localSaved: true,
+        supabaseSynced: false,
+        trailUploaded: false,
+        offlineOnly: true,
+      );
+    }
+
+    try {
       await syncToSupabase(hike, userId);
+      supabaseSynced = true;
+    } catch (e, stack) {
+      LoggerService.error('SYNC', 'hike_history sync failed for ${hike.id}: $e', stack);
+      lastError = 'hike_history sync failed: $e';
+    }
+
+    try {
       // Promote the hike to a (private) recorded trail so it appears in the
       // Trails section with an elevation profile, ready to be shared to the
       // community via the share button on the detail screen.
-      try {
-        await RecordedTrailService.saveFromHike(hike, userId);
-      } catch (e, stack) {
-        LoggerService.error(
-            'TRAILS', 'promoteFromHike failed: $e', stack);
+      final trail = await RecordedTrailService.saveFromHike(hike, userId);
+      trailUploaded = (trail != null);
+      if (!trailUploaded) {
+        lastError ??= 'recorded_trails save returned null (likely DB validation)';
       }
+    } catch (e, stack) {
+      LoggerService.error('TRAILS', 'promoteFromHike failed: $e', stack);
+      lastError = 'recorded_trails upload failed: $e';
     }
 
     notifyListeners();
+    return HikeSaveResult(
+      localSaved: localSaved,
+      supabaseSynced: supabaseSynced,
+      trailUploaded: trailUploaded,
+      error: lastError,
+    );
   }
 
+  /// Now throws on failure (instead of swallowing) so add() can capture it
+  /// in HikeSaveResult.error and the UI can show a real error toast.
   Future<void> syncToSupabase(SavedHike hike, String userId) async {
-    try {
-      final client = Supabase.instance.client;
-      await client.from('hike_history').upsert({
-        'user_id': userId,
-        'team_id': hike.teamId,
-        'trail_id': hike.benchmarkRouteId,
-        'name': hike.name,
-        'distance_km': hike.distanceKm,
-        'ascent_m': hike.ascentM,
-        'peaks_climbed': hike.peaksClimbed,
-        'duration_seconds': hike.durationSeconds,
-        'activity_type': hike.activityType,
-        'activity_context': hike.activityContext,
-        'avg_accuracy_m': hike.averageAccuracyM,
-        'best_accuracy_m': hike.bestAccuracyM,
-        'worst_accuracy_m': hike.worstAccuracyM,
-        'accepted_fixes': hike.acceptedFixes,
-        'rejected_fixes': hike.rejectedFixes,
-        'points': hike.points.map((p) => p.toJson()).toList(),
-        'created_at': hike.startedAt.toIso8601String(),
-      });
-      LoggerService.log('SYNC', 'Hike synced to Supabase: ${hike.id}');
+    final client = Supabase.instance.client;
+    await client.from('hike_history').upsert({
+      'user_id': userId,
+      'team_id': hike.teamId,
+      'trail_id': hike.benchmarkRouteId,
+      'name': hike.name,
+      'distance_km': hike.distanceKm,
+      'ascent_m': hike.ascentM,
+      'peaks_climbed': hike.peaksClimbed,
+      'duration_seconds': hike.durationSeconds,
+      'activity_type': hike.activityType,
+      'activity_context': hike.activityContext,
+      'avg_accuracy_m': hike.averageAccuracyM,
+      'best_accuracy_m': hike.bestAccuracyM,
+      'worst_accuracy_m': hike.worstAccuracyM,
+      'accepted_fixes': hike.acceptedFixes,
+      'rejected_fixes': hike.rejectedFixes,
+      'points': hike.points.map((p) => p.toJson()).toList(),
+      'created_at': hike.startedAt.toIso8601String(),
+    });
+    LoggerService.log('SYNC', 'Hike synced to Supabase: ${hike.id}');
 
-      // Post to community_activities so the feed actually has content.
-      // Without this, the feed has only check-ins from cave/trail screens
-      // and shows nothing for recorded hikes.
+    // Post to community_activities so the feed actually has content.
+    // Without this, the feed has only check-ins from cave/trail screens
+    // and shows nothing for recorded hikes. Failure here is non-fatal
+    // (kept inside a separate try/catch) — the hike_history upsert is
+    // what matters for the funnel; the community post is gravy.
+    try {
       await _postCommunityActivity(client, hike, userId);
     } catch (e, stack) {
       LoggerService.error(
-          'SYNC', 'Failed to sync hike ${hike.id} to Supabase: $e', stack);
+          'COMMUNITY', 'activity post failed (non-fatal): $e', stack);
     }
   }
 

@@ -17,6 +17,7 @@ import '../services/location_service.dart';
 import '../services/logger_service.dart';
 import '../services/weather_alert_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../core/utils.dart';
 import 'package:flutter/services.dart';
 import 'package:battery_plus/battery_plus.dart';
@@ -24,6 +25,13 @@ import 'package:battery_plus/battery_plus.dart';
 enum RecordingStatus { idle, recording, paused }
 
 class RecordingProvider extends ChangeNotifier {
+  /// Shared session id for the currently-recording hike. Static so other
+  /// providers (notably TeamTrackingProvider) can stamp track-point inserts
+  /// with the same hike_id this provider will use when persisting the
+  /// SavedHike — without needing a constructor dependency on this class.
+  /// Null while idle. Set in start(), cleared in clear().
+  static String? currentHikeId;
+
   static const _draftKey = 'active_recording_draft_v2';
   static const _maxGoodAccuracyM = 30.0;
   static const _maxAdaptiveAccuracyM =
@@ -436,6 +444,14 @@ class RecordingProvider extends ChangeNotifier {
     final isFreshSession = _startTime == null;
     _startTime ??= DateTime.now();
 
+    // Allocate a real UUID for this session. Preserved across pause/resume
+    // (we only generate one the first time start() is called this session).
+    // Used as both the SavedHike.id when persisting and team_member_track_points.hike_id
+    // when TeamTrackingProvider pings location.
+    if (isFreshSession || currentHikeId == null) {
+      currentHikeId = const Uuid().v4();
+    }
+
     if (_pauseTime != null) {
       _totalPausedTime += DateTime.now().difference(_pauseTime!);
       _pauseTime = null;
@@ -737,6 +753,7 @@ class RecordingProvider extends ChangeNotifier {
     _staleRejects = 0;
     _gapWarnings = 0;
     _lastAccuracy = null;
+    currentHikeId = null;
     _lastFixTime = null;
     _lastAcceptedTime = null;
     _updateRemaining();
@@ -840,7 +857,13 @@ class RecordingProvider extends ChangeNotifier {
     final accuracies = _points.map((p) => p.accuracy).where((a) => a > 0);
 
     return SavedHike(
-      id: safeStart.microsecondsSinceEpoch.toString(),
+      // Real UUID, generated once per recording session. Was previously a
+      // microsecondsSinceEpoch string which failed RecordedTrailService's
+      // insert into recorded_trails (hike_id column is `uuid`, not text);
+      // RLS swallowed the error so the table stayed empty even when users
+      // tapped SAVE ACTIVITY. Fall back to a fresh uuid if start() was
+      // somehow skipped — defensive, shouldn't happen in normal flow.
+      id: currentHikeId ?? const Uuid().v4(),
       name: _customName ??
           _targetTrail?.name ??
           'Hike ${_formatDateForName(safeStart)}',

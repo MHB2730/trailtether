@@ -477,7 +477,13 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
 
   Future<void> _saveActivity(RecordingProvider rec,
       {int peaks = 0, String? teamId}) async {
-    if (rec.points.isEmpty) return;
+    if (rec.points.isEmpty) {
+      _showSaveSnack(
+        message: 'No GPS fixes recorded — nothing to save.',
+        color: const Color(0xFFE0A847),
+      );
+      return;
+    }
     final auth = context.read<ap.AuthProvider>();
 
     final baseHike = rec.toSavedHike();
@@ -513,7 +519,40 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
       peaksClimbed: peaks,
     );
 
-    await context.read<HikeHistoryProvider>().add(finalHike, userId: auth.uid);
+    final result = await context
+        .read<HikeHistoryProvider>()
+        .add(finalHike, userId: auth.uid);
+
+    // User-visible feedback. Previously this returned silently on every
+    // failure mode — local fail, sync fail, trail upload fail, not signed
+    // in. The result type now distinguishes them.
+    if (!result.localSaved) {
+      _showSaveSnack(
+        message: 'Could not save hike: ${result.error ?? "unknown error"}',
+        color: const Color(0xFFFF6B6B),
+      );
+    } else if (result.offlineOnly) {
+      _showSaveSnack(
+        message: 'Saved on device only — sign in to sync your hikes to Hilltrek.',
+        color: const Color(0xFFE0A847),
+      );
+    } else if (result.isFullSuccess) {
+      _showSaveSnack(
+        message: 'Hike saved & synced to Hilltrek.',
+        color: const Color(0xFF5AC26D),
+      );
+    } else if (result.supabaseSynced && !result.trailUploaded) {
+      _showSaveSnack(
+        message:
+            'Synced to your account, but trail file failed to upload. The hourly recovery job will retry.',
+        color: const Color(0xFFE0A847),
+      );
+    } else {
+      _showSaveSnack(
+        message: 'Saved locally. Sync failed: ${result.error ?? "check connection"}',
+        color: const Color(0xFFFF6B6B),
+      );
+    }
 
     if (finalHike.benchmarkRouteId != null &&
         finalHike.benchmarkRouteId!.isNotEmpty) {
@@ -524,6 +563,19 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
         }
       }
     }
+  }
+
+  void _showSaveSnack({required String message, required Color color}) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override

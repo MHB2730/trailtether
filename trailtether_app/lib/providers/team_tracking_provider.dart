@@ -189,6 +189,14 @@ class TeamTrackingProvider extends ChangeNotifier {
   HikePlan? _activeHike;
   HikePlan? get activeHike => _activeHike;
 
+  /// Effective hike id to stamp on team_member_track_points + reportLocation.
+  /// Prefers the explicit HikePlan id when a team hike is active, falls back
+  /// to RecordingProvider's session uuid so solo recordings also tag their
+  /// fixes with a hike_id (the janitor's session-grouping is much more robust
+  /// when hike_id isn't NULL).
+  String? get _effectiveHikeId =>
+      _activeHike?.id ?? RecordingProvider.currentHikeId;
+
   List<TeamMemberLocation> _teamLocations = [];
   List<TeamMemberLocation> get teamLocations => _teamLocations;
 
@@ -294,7 +302,7 @@ class TeamTrackingProvider extends ChangeNotifier {
       final trackPointRow = <String, dynamic>{
         'uid': uid,
         'team_id': teamId,
-        'hike_id': _activeHike?.id,
+        'hike_id': _effectiveHikeId,
         'lat': pos.latitude,
         'lon': pos.longitude,
         'altitude': pos.altitude,
@@ -318,7 +326,7 @@ class TeamTrackingProvider extends ChangeNotifier {
           speed: pos.speed,
           altitude: pos.altitude,
           teamId: teamId,
-          hikeId: _activeHike?.id,
+          hikeId: _effectiveHikeId,
           status: 'recording',
           batteryPct: vitals.battery,
           connectivity: vitals.connectivity,
@@ -329,7 +337,7 @@ class TeamTrackingProvider extends ChangeNotifier {
             lat: pos.latitude,
             lon: pos.longitude,
             teamId: teamId,
-            hikeId: _activeHike?.id,
+            hikeId: _effectiveHikeId,
             altitude: pos.altitude,
             heading: pos.heading,
             speed: pos.speed,
