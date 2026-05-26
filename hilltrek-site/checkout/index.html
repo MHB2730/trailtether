@@ -379,12 +379,19 @@
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Payment gateways tried in priority order. Each Edge Function
-    // returns 503 if its credentials aren't set in Supabase Secrets — we
-    // skip to the next. First one that returns a redirect URL wins.
-    // Add a new gateway here by deploying its <name>-checkout function
-    // and listing the name.
-    const PAYMENT_GATEWAYS = ['yoco', 'payfast'];
+    // Payment gateways tried in priority order. Each Edge Function returns
+    // 503 if its credentials aren't set; we skip to the next. The first one
+    // that returns a navigation URL wins.
+    //
+    // Hilltrek runs PayFast-only as of 2026-05-26. PayFast aggregates the
+    // SA payment-method mix that matters (cards, instant EFT, Masterpass,
+    // SnapScan, Zapper QR) behind a single hosted checkout, so we don't
+    // need a multi-gateway fallback chain. The Yoco edge functions are
+    // still deployed and would just need their slug added back to this
+    // list to re-enable. The Zapper functions were removed after a
+    // geo-routing block on api.zapper.com made them unusable from our
+    // edge region.
+    const PAYMENT_GATEWAYS = ['payfast'];
 
     async function startPayment(orderId) {
       for (const gw of PAYMENT_GATEWAYS) {
@@ -400,7 +407,8 @@
           });
           if (resp.status === 503) continue;  // gateway not configured
           const data = await resp.json().catch(() => ({}));
-          if (resp.ok && data.redirect_url) return data.redirect_url;
+          const url = data?.redirect_url || data?.pending_url;
+          if (resp.ok && url) return url;
           console.warn(`[checkout] ${gw} returned`, resp.status, data);
         } catch (err) {
           console.warn(`[checkout] ${gw} fetch failed:`, err);

@@ -1,7 +1,7 @@
 name: trailtether_app
 description: Trailtether - Trail Planner
 publish_to: 'none'
-version: 3.7.1+56
+version: 3.7.2+57
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -36,6 +36,12 @@ dependencies:
   # File handling
   file_picker: ^8.1.2
   gpx: ^2.2.0
+
+  # SHA-256 verification of self-hosted APK updates (update_service.dart).
+  # Already a transitive dependency of supabase_flutter; promoting to a
+  # direct dep so the import is explicit and won't break if a future
+  # dependency upgrade drops it from the transitive graph.
+  crypto: ^3.0.3
   path_provider: ^2.1.4
   share_plus: ^10.0.2
   image_picker: ^1.1.2

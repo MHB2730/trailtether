@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
@@ -96,6 +97,7 @@ class UpdateService {
           downloadUrl: latest.downloadUrl,
           releaseNotes: latest.releaseNotes,
           isCritical: mustUpdate,
+          sha256: latest.sha256,
         );
       }
 
@@ -126,6 +128,9 @@ class UpdateService {
       isCritical: (row['is_critical'] as bool?) ?? false,
       minSupportedVersionCode:
           (row['min_supported_version_code'] as num?)?.toInt() ?? 0,
+      // Lower-cased + trimmed so the comparison against the locally-computed
+      // hash is forgiving of whitespace / case drift in the DB column.
+      sha256: ((row['sha256'] as String?) ?? '').trim().toLowerCase(),
     );
   }
 
@@ -167,6 +172,10 @@ class UpdateService {
       releaseNotes: body,
       isCritical: false,
       minSupportedVersionCode: 0,
+      // GitHub Releases doesn't carry a SHA-256 the same way Supabase does;
+      // empty string skips verification on Windows. (MSIX installs are
+      // already gated by code-signing at the OS level.)
+      sha256: '',
     );
   }
 
@@ -229,6 +238,40 @@ class UpdateService {
       LoggerService.log('UPDATE',
           'Installer downloaded to ${file.path} (${file.lengthSync()} bytes)');
 
+      // Verify SHA-256 against the value in app_releases before we hand the
+      // file to the OS installer. Without this check, anyone with a MITM
+      // foothold on the user's network (rogue Wi-Fi, hostile ISP, DNS
+      // hijack) or any compromise of Supabase Storage could swap the APK
+      // bytes between upload and download — and Android happily installs
+      // whatever we point it at. The hash is published by
+      // scripts/publish_release.ps1 over the SAME row the URL came from,
+      // so an attacker would need to both swap the file AND mutate the
+      // app_releases row to bypass; the latter requires the service-role
+      // key, which never touches a client device.
+      //
+      // Empty expected hash → skip (Windows GitHub path; OS code-signing
+      // catches that case). Otherwise hash mismatch = delete + abort.
+      final expectedSha = (s.sha256 ?? '').trim().toLowerCase();
+      if (expectedSha.isNotEmpty) {
+        final bytes = await file.readAsBytes();
+        final actualSha = sha256.convert(bytes).toString().toLowerCase();
+        if (actualSha != expectedSha) {
+          LoggerService.error(
+            'UPDATE',
+            'SHA-256 mismatch — refusing to install. expected=$expectedSha actual=$actualSha',
+            StackTrace.current,
+          );
+          try { await file.delete(); } catch (_) { /* best-effort cleanup */ }
+          throw Exception(
+            'Update integrity check failed. The downloaded installer does not match the published hash.',
+          );
+        }
+        LoggerService.log('UPDATE', 'SHA-256 verified ($actualSha)');
+      } else {
+        LoggerService.log('UPDATE',
+            'No expected SHA-256 on release row — skipping hash check (Windows / legacy release).');
+      }
+
       // Hand the installer to the OS. Android uses FileProvider via
       // open_filex (REQUEST_INSTALL_PACKAGES). Windows opens the .msix with
       // App Installer, which prompts the user to update — same signature
@@ -265,6 +308,10 @@ class _LatestRelease {
   final String releaseNotes;
   final bool isCritical;
   final int minSupportedVersionCode;
+  /// Hex SHA-256 of the installer bytes. Empty string = no verification
+  /// available for this backend (Windows / GitHub path). When non-empty,
+  /// downloadAndInstall refuses to install on hash mismatch.
+  final String sha256;
   const _LatestRelease({
     required this.versionName,
     required this.versionCode,
@@ -272,6 +319,7 @@ class _LatestRelease {
     required this.releaseNotes,
     required this.isCritical,
     required this.minSupportedVersionCode,
+    required this.sha256,
   });
 }
 
@@ -289,6 +337,7 @@ sealed class UpdateStatus {
     required String downloadUrl,
     required String releaseNotes,
     required bool isCritical,
+    String? sha256,
   }) = _AvailableUpdate;
 }
 
@@ -308,6 +357,10 @@ class _AvailableUpdate extends UpdateStatus {
   final String downloadUrl;
   final String releaseNotes;
   final bool isCritical;
+  /// Expected hex SHA-256 of the installer bytes. May be null/empty on
+  /// the Windows GitHub path — in that case downloadAndInstall skips the
+  /// check and falls back to OS-level code-signing.
+  final String? sha256;
   const _AvailableUpdate({
     required this.currentVersion,
     required this.latestVersionName,
@@ -315,6 +368,7 @@ class _AvailableUpdate extends UpdateStatus {
     required this.downloadUrl,
     required this.releaseNotes,
     required this.isCritical,
+    this.sha256,
   });
 }
 

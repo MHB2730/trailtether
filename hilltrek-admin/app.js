@@ -127,6 +127,12 @@ function explainError(e) {
 let _verifiedAt = 0;
 const VERIFY_TTL_MS = 5 * 60 * 1000;
 
+// MFA enrolment gate. Set true in renderAuth when the admin has no verified
+// TOTP factor; route() then forces every navigation onto /security with a
+// blocking banner. Cleared once they enrol successfully (the next auth pass
+// re-evaluates listFactors and sets this back to false).
+let _mustEnrolMfa = false;
+
 // onAuthStateChange fires INITIAL_SESSION right after registration with the
 // same session we just resolved via getSession(). We track the first fire
 // and skip it so renderAuth runs once, not twice, on bootstrap.
@@ -252,14 +258,17 @@ async function renderAuth(session) {
   // these timeouts, a stalled SDK call (common right after mfa.verify())
   // would leave the user stuck on the loading/MFA screen forever — the
   // exact "stuck at 2FA, have to refresh to get in" symptom.
+  // listFactors() is added so we can hard-require enrolment, not just
+  // check AAL (which only mismatches when a factor already exists).
   const runChecks = () => Promise.all([
     withTimeout(supabase.rpc('is_admin'), QUERY_TIMEOUT_MS, 'is_admin'),
     withTimeout(supabase.auth.mfa.getAuthenticatorAssuranceLevel(), QUERY_TIMEOUT_MS, 'AAL check'),
+    withTimeout(supabase.auth.mfa.listFactors(), QUERY_TIMEOUT_MS, 'list factors'),
   ]);
 
-  let adminRes, aalRes;
+  let adminRes, aalRes, factorRes;
   try {
-    [adminRes, aalRes] = await runChecks();
+    [adminRes, aalRes, factorRes] = await runChecks();
   } catch (err) {
     // Either the SDK stalled (timeout) or a real network/DNS error.
     // Heal by forcing a session refresh (clears any stuck refresh queue
@@ -269,7 +278,7 @@ async function renderAuth(session) {
     console.warn('[admin] Auth checks stalled/errored, healing session and retrying:', err);
     await refreshSessionOnce();
     try {
-      [adminRes, aalRes] = await runChecks();
+      [adminRes, aalRes, factorRes] = await runChecks();
     } catch (err2) {
       console.warn('[admin] Auth checks failed twice — preserving session:', err2);
       hide(viewApp);
@@ -311,7 +320,28 @@ async function renderAuth(session) {
     return;
   }
 
+  // Hard-require an enrolled TOTP factor. listFactors errors are treated
+  // as "we don't know" — fail closed to be safe. The Security page knows
+  // how to enrol, so we route the user there with a blocking banner.
+  const totpVerified = factorRes && factorRes.data
+    ? (factorRes.data.totp || []).some(f => f.status === 'verified')
+    : false;
+  if (!totpVerified) {
+    _mustEnrolMfa = true;
+    _verifiedAt = 0; // never cache the "missing MFA" state
+    hide(viewLogin);
+    show(viewApp);
+    // Force the security view regardless of where the URL points.
+    if (location.hash !== '#/security') {
+      location.hash = '#/security';
+    } else {
+      route();
+    }
+    return;
+  }
+
   // All checks passed — cache + show app.
+  _mustEnrolMfa = false;
   _verifiedAt = Date.now();
   hide(viewLogin);
   show(viewApp);
@@ -433,6 +463,15 @@ async function onLogout() {
 // ----------------------------------------------------------------------------
 function route() {
   const path = location.hash.replace(/^#/, '') || '/';
+
+  // MFA enrolment gate — when set, every navigation lands on /security
+  // until a TOTP factor is verified. Stops a freshly-added admin from
+  // poking around the CMS before they've enrolled.
+  if (_mustEnrolMfa && path !== '/security') {
+    location.hash = '#/security';
+    return;
+  }
+
   setActiveNav(path);
 
   if (path === '/' || path === '')             return renderDashboard();
@@ -442,6 +481,7 @@ function route() {
   if (path === '/products/new')                return renderProductEdit(null);
   if (path === '/orders')                      return renderOrdersList();
   if (path === '/subscribers')                 return renderSubscribers();
+  if (path === '/apk-downloads')               return renderApkDownloads();
   if (path === '/newsletters')                 return renderNewslettersList();
   if (path === '/newsletters/new')             return renderNewsletterEdit(null);
   if (path === '/analytics')                   return renderAnalytics();
@@ -469,6 +509,7 @@ function setActiveNav(path) {
   else if (path.startsWith('/products'))        $('[data-nav="products"]')?.classList.add('active');
   else if (path.startsWith('/orders'))          $('[data-nav="orders"]')?.classList.add('active');
   else if (path === '/subscribers')             $('[data-nav="subscribers"]')?.classList.add('active');
+  else if (path === '/apk-downloads')           $('[data-nav="apk-downloads"]')?.classList.add('active');
   else if (path.startsWith('/newsletters'))     $('[data-nav="newsletters"]')?.classList.add('active');
   else if (path === '/analytics')               $('[data-nav="analytics"]')?.classList.add('active');
   else if (path === '/health')                  $('[data-nav="health"]')?.classList.add('active');
@@ -1530,6 +1571,11 @@ function formatPrice(cents) {
 // View: Security (2FA enrolment, account info)
 // ----------------------------------------------------------------------------
 async function renderSecurity() {
+  const enrolBanner = _mustEnrolMfa ? `
+    <div class="card" style="border-left: 4px solid #ff7a1a; background: rgba(255,122,26,0.08); margin-bottom: 16px;">
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 6px; color: #ff7a1a;">Two-factor authentication required</h3>
+      <p class="muted" style="font-size: 13.5px; margin: 0;">You must enrol an authenticator app before you can use the rest of the admin. Tap <strong>+ Enable 2FA</strong> below, scan the QR with Google Authenticator / Authy / 1Password, and enter the 6-digit code. The other nav links unlock as soon as it's verified.</p>
+    </div>` : '';
   outlet.innerHTML = `
     <div class="page-header">
       <div>
@@ -1537,6 +1583,7 @@ async function renderSecurity() {
         <div class="sub">Two-factor authentication, session info, account.</div>
       </div>
     </div>
+    ${enrolBanner}
     <div id="security-body" class="muted">Loading…</div>
   `;
   await reloadSecurity();
@@ -2369,67 +2416,405 @@ async function renderSubscribers() {
 }
 
 // ----------------------------------------------------------------------------
+// View: APK Downloads
+//
+// One row per gated download attempt on hilltrek.co.za/trailtether/. The
+// gate flow inserts a row after Turnstile + T&Cs are passed, regardless of
+// whether the user also opted into the newsletter. Useful for:
+//   - audit trail of who accepted the App Terms (legal compliance)
+//   - conversion funnel sanity (downloads vs. newsletter signups)
+//   - spotting abuse patterns by IP / country
+// ----------------------------------------------------------------------------
+async function renderApkDownloads() {
+  outlet.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>APK Downloads</h1>
+        <div class="sub">Trailtether APK gate — one row per gated download. T&Cs acceptance is logged here.</div>
+      </div>
+      <div class="page-actions">
+        <button id="apk-export" class="btn btn-ghost">↓ Export CSV</button>
+      </div>
+    </div>
+    <div id="apk-stats" class="stat-row">
+      <div class="stat"><div class="label">Loading…</div><div class="num">—</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+        <input id="apk-search" type="search" placeholder="Search email, version, country or IP…" style="flex:1;min-width:240px;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);" />
+        <select id="apk-filter" style="padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);">
+          <option value="all">All downloads</option>
+          <option value="newsletter">Newsletter opt-in only</option>
+          <option value="no-newsletter">Skipped newsletter</option>
+        </select>
+      </div>
+      <div id="apk-list">Loading…</div>
+    </div>
+  `;
+
+  let rows = [];
+  try {
+    const { data, error } = await query(
+      () => supabase.from('apk_downloads').select('*').order('created_at', { ascending: false }).limit(5000),
+      'Load APK downloads'
+    );
+    if (error) throw error;
+    rows = data || [];
+  } catch (err) {
+    $('#apk-list').innerHTML = `<p class="muted">Could not load: ${escapeHtml(explainError(err))}</p>`;
+    return;
+  }
+
+  const total = rows.length;
+  const since7  = new Date(Date.now() - 7  * 86400000).toISOString();
+  const since1  = new Date(Date.now() - 1  * 86400000).toISOString();
+  const last7   = rows.filter(r => r.created_at > since7).length;
+  const last24h = rows.filter(r => r.created_at > since1).length;
+  const uniqueEmails = new Set(rows.map(r => (r.email || '').toLowerCase())).size;
+  const newsletterCount = rows.filter(r => r.newsletter_opt_in).length;
+  const newsletterPct   = total > 0 ? Math.round((newsletterCount / total) * 100) : 0;
+
+  $('#apk-stats').innerHTML = `
+    <div class="stat"><div class="label">Total downloads</div><div class="num">${total}</div></div>
+    <div class="stat"><div class="label">Last 24h</div><div class="num">${last24h}</div></div>
+    <div class="stat"><div class="label">Last 7 days</div><div class="num">${last7}</div></div>
+    <div class="stat"><div class="label">Unique emails</div><div class="num">${uniqueEmails}</div></div>
+    <div class="stat"><div class="label">Newsletter opt-in</div><div class="num">${newsletterCount}<span class="dim" style="font-size:13px;margin-left:6px;">(${newsletterPct}%)</span></div></div>
+  `;
+
+  const renderList = () => {
+    const q = $('#apk-search').value.toLowerCase().trim();
+    const f = $('#apk-filter').value;
+    const filtered = rows.filter(r => {
+      if (f === 'newsletter' && !r.newsletter_opt_in) return false;
+      if (f === 'no-newsletter' && r.newsletter_opt_in) return false;
+      if (q) {
+        const hay = [
+          r.email, r.apk_version_name, r.apk_filename,
+          r.ip_country, r.ip, r.user_agent,
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    if (filtered.length === 0) {
+      $('#apk-list').innerHTML = `<p class="muted">No downloads match.</p>`;
+      return;
+    }
+    $('#apk-list').innerHTML = `
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:920px;">
+          <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+            <th style="padding:8px 6px;">Email</th>
+            <th style="padding:8px 6px;">Version</th>
+            <th style="padding:8px 6px;">Country</th>
+            <th style="padding:8px 6px;">IP</th>
+            <th style="padding:8px 6px;">Newsletter</th>
+            <th style="padding:8px 6px;">T&amp;Cs accepted</th>
+            <th style="padding:8px 6px;">Downloaded</th>
+            <th style="padding:8px 6px;text-align:right;">Actions</th>
+          </tr></thead>
+          <tbody>
+          ${filtered.map(r => {
+            const news = r.newsletter_opt_in
+              ? '<span style="color:#5ac26d;">✓ yes</span>'
+              : '<span style="color:#888;">no</span>';
+            const version = r.apk_version_name
+              ? `v${escapeHtml(r.apk_version_name)}${r.apk_version_code ? ` <span class="dim" style="font-size:11px;">·${r.apk_version_code}</span>` : ''}`
+              : '<span class="dim">—</span>';
+            return `<tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:10px 6px;">${escapeHtml(r.email)}</td>
+              <td style="padding:10px 6px;font-size:12px;">${version}</td>
+              <td style="padding:10px 6px;font-size:12px;">${escapeHtml(r.ip_country || '—')}</td>
+              <td style="padding:10px 6px;font-size:12px;color:var(--muted);font-family:var(--font-mono);">${escapeHtml(r.ip || '—')}</td>
+              <td style="padding:10px 6px;font-size:12px;">${news}</td>
+              <td style="padding:10px 6px;font-size:12px;color:var(--muted);">${formatDate(r.terms_accepted_at)}</td>
+              <td style="padding:10px 6px;font-size:12px;color:var(--muted);">${formatDate(r.created_at)}</td>
+              <td style="padding:10px 6px;text-align:right;">
+                <button data-apk-del="${r.id}" class="btn btn-ghost btn-sm" title="Permanently delete this audit row">Delete</button>
+              </td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    $$('[data-apk-del]', $('#apk-list')).forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.apkDel;
+        // Stronger warning than subscribers — this is the T&Cs evidence row.
+        if (!confirm('Permanently delete this download record?\n\nThis row is the legal evidence of T&Cs acceptance. Only delete test or junk entries — never real downloads.')) return;
+        try {
+          const { error } = await query(
+            () => supabase.from('apk_downloads').delete().eq('id', id),
+            'Delete APK download record'
+          );
+          if (error) throw error;
+          rows = rows.filter(r => r.id !== id);
+          renderList();
+          toast('Deleted', 'ok');
+        } catch (err) {
+          toast('Could not delete', 'error', explainError(err));
+        }
+      });
+    });
+  };
+
+  $('#apk-search').addEventListener('input', renderList);
+  $('#apk-filter').addEventListener('change', renderList);
+  $('#apk-export').addEventListener('click', () => {
+    const header = 'email,apk_version_name,apk_version_code,apk_filename,ip_country,ip,user_agent,newsletter_opt_in,terms_accepted_at,created_at\n';
+    const lines = rows.map(r => [
+      r.email, r.apk_version_name || '', r.apk_version_code || '', r.apk_filename || '',
+      r.ip_country || '', r.ip || '', r.user_agent || '',
+      r.newsletter_opt_in ? 'yes' : 'no',
+      r.terms_accepted_at || '', r.created_at,
+    ].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(','));
+    const csv = header + lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `apk-downloads-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  renderList();
+}
+
+// ----------------------------------------------------------------------------
 // View: Analytics (D5b)
 // ----------------------------------------------------------------------------
 async function renderAnalytics() {
+  // Range selector — default 30d, but the user can flip to 7d / 24h for a
+  // tighter look. Stored on the function so re-renders don't lose it.
+  const range = renderAnalytics._range || 30;
+
   outlet.innerHTML = `
     <div class="page-header">
       <div>
         <h1>Analytics</h1>
-        <div class="sub">Self-hosted pageview tracking. Last 30 days.</div>
+        <div class="sub">
+          Self-hosted pageview tracking. JS-fired events only — JS-less bots and exploit scanners don't appear here.
+          For those, see <a href="https://dash.cloudflare.com/?to=/:account/:zone/security/events" target="_blank" rel="noopener" class="subtle-link">Cloudflare Security Events</a>.
+        </div>
+      </div>
+      <div class="page-actions" style="display:flex;gap:6px;">
+        <button data-ana-range="1"  class="btn btn-ghost btn-sm${range === 1  ? ' active' : ''}">24h</button>
+        <button data-ana-range="7"  class="btn btn-ghost btn-sm${range === 7  ? ' active' : ''}">7d</button>
+        <button data-ana-range="30" class="btn btn-ghost btn-sm${range === 30 ? ' active' : ''}">30d</button>
       </div>
     </div>
+
     <div id="ana-stats" class="stat-row"><div class="stat"><div class="label">Loading…</div><div class="num">—</div></div></div>
+
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Traffic over time</h3>
+      <div id="ana-timeseries">Loading…</div>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;margin-bottom:6px;letter-spacing:-0.01em;">When people visit</h3>
+      <div class="sub" style="margin-bottom:14px;font-size:12px;color:var(--muted);">Hour of day × day of week (your local timezone). Darker = more traffic.</div>
+      <div id="ana-heatmap" style="overflow-x:auto;">Loading…</div>
+    </div>
+
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:18px;">
-      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Top pages</h3><div id="ana-pages">Loading…</div></div>
-      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Top countries</h3><div id="ana-countries">Loading…</div></div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Most-visited pages</h3><div id="ana-pages">Loading…</div></div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">First page visitors land on</h3><div id="ana-entry">Loading…</div></div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Last page before leaving</h3><div id="ana-exit">Loading…</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:18px;">
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Where visitors come from</h3><div id="ana-countries">Loading…</div></div>
       <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Top referrers</h3><div id="ana-refs">Loading…</div></div>
       <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Devices</h3><div id="ana-devices">Loading…</div></div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:14px;letter-spacing:-0.01em;">Browsers</h3><div id="ana-browsers">Loading…</div></div>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;margin-bottom:6px;letter-spacing:-0.01em;">Conversion funnel</h3>
+      <div class="sub" style="margin-bottom:14px;font-size:12px;color:var(--muted);">Approximate — APK downloads + newsletter signups use email, not session ID, so the per-step drop-off is a date-range comparison, not a per-visitor flow.</div>
+      <div id="ana-funnel">Loading…</div>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;margin-bottom:6px;letter-spacing:-0.01em;">Session quality</h3>
+      <div class="sub" style="margin-bottom:14px;font-size:12px;color:var(--muted);">A bounce is a session that visited one page and left. Engaged = 2–3 pages. Deep = 4+.</div>
+      <div id="ana-quality">Loading…</div>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;margin-bottom:6px;letter-spacing:-0.01em;">Possible bots / suspicious sessions</h3>
+      <div class="sub" style="margin-bottom:14px;font-size:12px;color:var(--muted);">
+        JS-aware sessions that look automated: single page, no referrer, and the same UA fingerprint hitting fast. Not exhaustive — real scrapers don't run JS at all and won't show here.
+      </div>
+      <div id="ana-suspicious">Loading…</div>
     </div>
   `;
 
-  let events = [];
+  // Wire range buttons (re-renders the whole view).
+  $$('[data-ana-range]').forEach(b => b.addEventListener('click', () => {
+    renderAnalytics._range = parseInt(b.getAttribute('data-ana-range'), 10) || 30;
+    renderAnalytics();
+  }));
+
+  // Load all three signal sources in parallel so we can build the funnel.
+  const sinceMs  = Date.now() - range * 86400000;
+  const sinceISO = new Date(sinceMs).toISOString();
+
+  let events = [], apkRows = [], subRows = [];
   try {
-    const since = new Date(Date.now() - 30 * 86400000).toISOString();
-    const { data, error } = await query(
-      () => supabase.from('site_analytics_events').select('*').gte('ts', since).order('ts', { ascending: false }).limit(10000),
-      'Load analytics'
-    );
-    if (error) throw error;
-    events = data || [];
+    const [eventsRes, apkRes, subRes] = await Promise.all([
+      query(
+        () => supabase.from('site_analytics_events').select('*').gte('ts', sinceISO).order('ts', { ascending: true }).limit(50000),
+        'Load analytics events'
+      ),
+      query(
+        () => supabase.from('apk_downloads').select('id, email, created_at, newsletter_opt_in').gte('created_at', sinceISO),
+        'Load APK downloads'
+      ),
+      query(
+        () => supabase.from('site_subscribers').select('id, source, created_at, confirmed_at').gte('created_at', sinceISO),
+        'Load subscribers'
+      ),
+    ]);
+    if (eventsRes.error) throw eventsRes.error;
+    events  = eventsRes.data  || [];
+    apkRows = apkRes.data     || [];
+    subRows = subRes.data     || [];
   } catch (err) {
     $('#ana-stats').innerHTML = `<div class="stat"><div class="label">Error</div><div class="num" style="font-size:13px;color:#ff6b6b;">${escapeHtml(explainError(err))}</div></div>`;
     return;
   }
 
+  // -------------------------------------------------------------------------
+  // Empty state
+  // -------------------------------------------------------------------------
   if (events.length === 0) {
     $('#ana-stats').innerHTML = `<div class="stat"><div class="label">Total events</div><div class="num">0</div></div>`;
-    $('#ana-pages').innerHTML = '<p class="muted">No data yet. Visit hilltrek.co.za to generate the first event.</p>';
-    $('#ana-countries').innerHTML = '<p class="muted">—</p>';
-    $('#ana-refs').innerHTML = '<p class="muted">—</p>';
-    $('#ana-devices').innerHTML = '<p class="muted">—</p>';
+    ['ana-timeseries','ana-heatmap','ana-pages','ana-entry','ana-exit','ana-countries','ana-refs','ana-devices','ana-browsers','ana-funnel','ana-quality','ana-suspicious'].forEach(id => {
+      $('#' + id).innerHTML = '<p class="muted">No data in this range.</p>';
+    });
     return;
   }
 
+  // -------------------------------------------------------------------------
+  // Top stats
+  // -------------------------------------------------------------------------
   const now = Date.now();
   const today = events.filter(e => now - new Date(e.ts).getTime() < 86400000).length;
-  const last7 = events.filter(e => now - new Date(e.ts).getTime() < 7 * 86400000).length;
   const uniqueSessions = new Set(events.map(e => e.session_id)).size;
-  const uniqueVisitors = new Set(events.map(e => e.ua_hash)).size;
-
+  const uniqueVisitors = new Set(events.map(e => e.ua_hash).filter(Boolean)).size;
+  const rangeLabel = range === 1 ? '24h' : (range + 'd');
+  // Approximate conversion: APK downloads / unique sessions in this range.
+  // Not a per-visitor flow (no shared id between events and apk_downloads),
+  // but a useful "of the people who hit the site, how many gated downloads
+  // resulted" sanity check.
+  const conversionPct = uniqueSessions > 0 ? Math.round((apkRows.length / uniqueSessions) * 1000) / 10 : 0;
   $('#ana-stats').innerHTML = `
-    <div class="stat"><div class="label">Events (30d)</div><div class="num">${events.length}</div></div>
-    <div class="stat"><div class="label">Last 7 days</div><div class="num">${last7}</div></div>
-    <div class="stat"><div class="label">Today</div><div class="num">${today}</div></div>
-    <div class="stat"><div class="label">Unique sessions</div><div class="num">${uniqueSessions}</div></div>
+    <div class="stat"><div class="label">Events (${rangeLabel})</div><div class="num">${events.length}</div></div>
+    <div class="stat"><div class="label">Sessions</div><div class="num">${uniqueSessions}</div></div>
     <div class="stat"><div class="label">Unique visitors</div><div class="num">${uniqueVisitors}</div></div>
+    <div class="stat"><div class="label">APK downloads</div><div class="num">${apkRows.length}</div></div>
+    <div class="stat"><div class="label">Newsletter signups</div><div class="num">${subRows.length}</div></div>
+    <div class="stat"><div class="label">Visit → download</div><div class="num">${conversionPct}<span class="dim" style="font-size:14px;margin-left:2px;">%</span></div></div>
   `;
 
-  const tally = (key) => {
-    const m = new Map();
+  // -------------------------------------------------------------------------
+  // Time series — one bar per day, scaled by max
+  // -------------------------------------------------------------------------
+  const bucketBy = (msPerBucket, formatLabel) => {
+    const bk = new Map();
     events.forEach(e => {
-      const v = e[key] || '—';
-      m.set(v, (m.get(v) || 0) + 1);
+      const t = new Date(e.ts).getTime();
+      const slot = Math.floor(t / msPerBucket) * msPerBucket;
+      bk.set(slot, (bk.get(slot) || 0) + 1);
+    });
+    // Fill missing buckets so the chart doesn't compress
+    const startSlot = Math.floor(sinceMs / msPerBucket) * msPerBucket;
+    const endSlot   = Math.floor(now      / msPerBucket) * msPerBucket;
+    const out = [];
+    for (let s = startSlot; s <= endSlot; s += msPerBucket) {
+      out.push([s, bk.get(s) || 0]);
+    }
+    return out;
+  };
+  // 24h view uses hourly buckets; 7d uses 3-hour; 30d uses daily.
+  const bucketMs = range === 1 ? 3600_000 : (range === 7 ? 3 * 3600_000 : 86400_000);
+  const series = bucketBy(bucketMs);
+  const maxVal = series.reduce((m, [_, v]) => Math.max(m, v), 0) || 1;
+  const chartW = Math.max(series.length * 22, 360);
+  const chartH = 140;
+  const barW   = Math.max(Math.floor(chartW / series.length) - 4, 4);
+  const labelFmt = (slot) => {
+    const d = new Date(slot);
+    if (range === 1) return d.getHours().toString().padStart(2, '0') + ':00';
+    if (range === 7) return d.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + d.getHours() + 'h';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+  const labelEvery = Math.max(1, Math.ceil(series.length / 10));
+  $('#ana-timeseries').innerHTML = `
+    <div style="overflow-x:auto;">
+      <svg viewBox="0 0 ${chartW} ${chartH + 22}" width="${chartW}" height="${chartH + 22}" style="max-width:100%;">
+        ${series.map(([slot, v], i) => {
+          const h = Math.round((v / maxVal) * chartH);
+          const x = i * (barW + 4);
+          const y = chartH - h;
+          return `<g>
+            <rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="var(--accent,#ff7a1a)" opacity="${v > 0 ? 0.85 : 0.2}" rx="2"><title>${escapeHtml(labelFmt(slot))}: ${v}</title></rect>
+            ${i % labelEvery === 0 ? `<text x="${x + barW/2}" y="${chartH + 14}" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5">${escapeHtml(labelFmt(slot))}</text>` : ''}
+          </g>`;
+        }).join('')}
+      </svg>
+    </div>
+  `;
+
+  // -------------------------------------------------------------------------
+  // Hour-of-day × day-of-week heat map
+  // -------------------------------------------------------------------------
+  const heat = Array.from({ length: 7 }, () => Array(24).fill(0));
+  events.forEach(e => {
+    const d = new Date(e.ts);
+    heat[d.getDay()][d.getHours()]++;
+  });
+  const heatMax = Math.max(1, ...heat.flat());
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const heatRows = heat.map((row, di) => {
+    const cells = row.map((v, hi) => {
+      const op = v === 0 ? 0.04 : (0.15 + 0.85 * (v / heatMax));
+      return `<td title="${dayNames[di]} ${hi.toString().padStart(2,'0')}:00 — ${v} events" style="background:rgba(255,122,26,${op});width:22px;height:20px;border:1px solid var(--bg-2);"></td>`;
+    }).join('');
+    return `<tr><td style="font-size:10.5px;color:var(--muted);padding-right:8px;text-align:right;font-family:var(--font-mono);">${dayNames[di]}</td>${cells}</tr>`;
+  }).join('');
+  const heatHeader = '<tr><td></td>' + Array.from({length:24},(_,h) => `<td style="font-size:9.5px;color:var(--muted);text-align:center;font-family:var(--font-mono);">${h%3===0 ? h.toString().padStart(2,'0') : ''}</td>`).join('') + '</tr>';
+  $('#ana-heatmap').innerHTML = `<table style="border-collapse:collapse;">${heatHeader}${heatRows}</table>`;
+
+  // -------------------------------------------------------------------------
+  // Session-derived stats: entry, exit, depth
+  // events are already ordered ASC by ts above.
+  // -------------------------------------------------------------------------
+  const sessions = new Map();
+  events.forEach(e => {
+    const sid = e.session_id;
+    if (!sid) return;
+    let s = sessions.get(sid);
+    if (!s) {
+      s = { entry: e.path, exit: e.path, depth: 0, ua: e.ua_hash, referrer: e.referrer, country: e.country, browser: e.browser, paths: new Set() };
+      sessions.set(sid, s);
+    }
+    s.exit = e.path;
+    s.depth++;
+    s.paths.add(e.path);
+  });
+  const sessionArr = [...sessions.values()];
+
+  const tally = (arr) => {
+    const m = new Map();
+    arr.forEach(v => {
+      const k = v == null || v === '' ? '—' : v;
+      m.set(k, (m.get(k) || 0) + 1);
     });
     return [...m.entries()].sort((a,b) => b[1] - a[1]).slice(0, 10);
   };
@@ -2437,16 +2822,117 @@ async function renderAnalytics() {
     if (rows.length === 0) return '<p class="muted">—</p>';
     const max = rows[0][1];
     return `<table style="width:100%;font-size:13px;table-layout:fixed;">${rows.map(([k,v]) => `<tr>
-      <td style="padding:4px 6px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(String(k))}</td>
+      <td style="padding:4px 6px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(String(k))}">${escapeHtml(String(k))}</td>
       <td style="padding:4px 0;text-align:right;color:var(--muted);width:50px;">${v}</td>
       <td style="padding:4px 0 4px 8px;width:55%;"><div style="background:var(--accent,#ff7a1a);height:6px;border-radius:3px;width:${Math.round(v/max*100)}%;"></div></td>
     </tr>`).join('')}</table>`;
   };
 
-  $('#ana-pages').innerHTML = renderTally(tally('path'));
-  $('#ana-countries').innerHTML = renderTally(tally('country'));
-  $('#ana-refs').innerHTML = renderTally(tally('referrer'));
-  $('#ana-devices').innerHTML = renderTally(tally('device_type'));
+  $('#ana-pages').innerHTML     = renderTally(tally(events.map(e => e.path)));
+  $('#ana-entry').innerHTML     = renderTally(tally(sessionArr.map(s => s.entry)));
+  $('#ana-exit').innerHTML      = renderTally(tally(sessionArr.map(s => s.exit)));
+  $('#ana-countries').innerHTML = renderTally(tally(events.map(e => e.country)));
+  $('#ana-refs').innerHTML      = renderTally(tally(events.map(e => {
+    if (!e.referrer) return 'Direct / none';
+    try { return new URL(e.referrer).hostname || e.referrer; } catch { return e.referrer; }
+  })));
+  $('#ana-devices').innerHTML   = renderTally(tally(events.map(e => e.device_type)));
+  $('#ana-browsers').innerHTML  = renderTally(tally(events.map(e => e.browser)));
+
+  // -------------------------------------------------------------------------
+  // Conversion funnel
+  // -------------------------------------------------------------------------
+  const funnelRows = [
+    { label: 'Pageviews',           value: events.length },
+    { label: 'Unique sessions',     value: uniqueSessions },
+    { label: 'Visited /trailtether/', value: sessionArr.filter(s => [...s.paths].some(p => (p || '').startsWith('/trailtether'))).length },
+    { label: 'APK downloads',       value: apkRows.length },
+    { label: 'Newsletter signups',  value: subRows.length },
+  ];
+  const funnelMax = Math.max(1, ...funnelRows.map(r => r.value));
+  $('#ana-funnel').innerHTML = `<table style="width:100%;font-size:13px;">${funnelRows.map((r, i) => {
+    const dropPct = i > 0 && funnelRows[i-1].value > 0
+      ? Math.round((r.value / funnelRows[i-1].value) * 100)
+      : null;
+    return `<tr>
+      <td style="padding:6px 8px 6px 0;width:160px;">${escapeHtml(r.label)}</td>
+      <td style="padding:6px 0;text-align:right;color:var(--muted);width:60px;font-family:var(--font-mono);">${r.value}</td>
+      <td style="padding:6px 0;text-align:right;color:var(--muted);width:50px;font-size:11.5px;font-family:var(--font-mono);">${dropPct === null ? '' : dropPct + '%'}</td>
+      <td style="padding:6px 0 6px 12px;"><div style="background:var(--accent,#ff7a1a);height:8px;border-radius:4px;width:${Math.round((r.value/funnelMax)*100)}%;opacity:${0.4 + 0.6*(r.value/funnelMax)};"></div></td>
+    </tr>`;
+  }).join('')}</table>`;
+
+  // -------------------------------------------------------------------------
+  // Session quality / bounce
+  // -------------------------------------------------------------------------
+  const bounceCount   = sessionArr.filter(s => s.depth === 1).length;
+  const engagedCount  = sessionArr.filter(s => s.depth >= 2 && s.depth <= 3).length;
+  const deepCount     = sessionArr.filter(s => s.depth >= 4).length;
+  const totalSessions = sessionArr.length || 1;
+  const avgDepth      = sessionArr.length > 0
+    ? (sessionArr.reduce((a, s) => a + s.depth, 0) / sessionArr.length).toFixed(2)
+    : 0;
+  const qualRow = (label, count, color) => {
+    const pct = Math.round((count / totalSessions) * 100);
+    return `<tr>
+      <td style="padding:5px 8px 5px 0;width:130px;">${label}</td>
+      <td style="padding:5px 0;text-align:right;color:var(--muted);width:50px;font-family:var(--font-mono);">${count}</td>
+      <td style="padding:5px 0;text-align:right;color:var(--muted);width:50px;font-size:11.5px;font-family:var(--font-mono);">${pct}%</td>
+      <td style="padding:5px 0 5px 12px;"><div style="background:${color};height:8px;border-radius:4px;width:${pct}%;"></div></td>
+    </tr>`;
+  };
+  $('#ana-quality').innerHTML = `
+    <table style="width:100%;font-size:13px;">
+      ${qualRow('Bounce (1 page)',  bounceCount,  '#c44a4a')}
+      ${qualRow('Engaged (2–3)',    engagedCount, '#ff7a1a')}
+      ${qualRow('Deep (4+)',        deepCount,    '#5ac26d')}
+    </table>
+    <div style="margin-top:10px;font-size:12px;color:var(--muted);">Average pages per session: <strong style="color:var(--text);font-family:var(--font-mono);">${avgDepth}</strong></div>
+  `;
+
+  // -------------------------------------------------------------------------
+  // Suspicious / bot-like sessions
+  // Heuristic: single-page + no referrer. Group by ua_hash so we can see
+  // which fingerprints are repeating. This won't catch JS-less scrapers
+  // (they never appear in events), but does catch headless browsers that
+  // execute JS and crawl one URL each time.
+  // -------------------------------------------------------------------------
+  const suspicious = sessionArr.filter(s => s.depth === 1 && (!s.referrer || s.referrer === ''));
+  if (suspicious.length === 0) {
+    $('#ana-suspicious').innerHTML = '<p class="muted">Nothing matching the heuristic in this range. (Doesn\'t mean there were no bots — just none that ran the JS tracker.)</p>';
+  } else {
+    // Group by ua_hash
+    const byUa = new Map();
+    suspicious.forEach(s => {
+      const k = (s.ua || 'unknown') + ' / ' + (s.browser || '?') + ' / ' + (s.country || '?');
+      if (!byUa.has(k)) byUa.set(k, { count: 0, paths: new Map() });
+      const e = byUa.get(k);
+      e.count++;
+      e.paths.set(s.entry, (e.paths.get(s.entry) || 0) + 1);
+    });
+    const sorted = [...byUa.entries()].sort((a,b) => b[1].count - a[1].count).slice(0, 20);
+    $('#ana-suspicious').innerHTML = `
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${suspicious.length} suspicious session${suspicious.length === 1 ? '' : 's'} from ${byUa.size} fingerprint${byUa.size === 1 ? '' : 's'}.</div>
+      <table style="width:100%;font-size:12.5px;">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+          <th style="padding:8px 6px;">UA hash / browser / country</th>
+          <th style="padding:8px 6px;text-align:right;width:80px;">Sessions</th>
+          <th style="padding:8px 6px;">Hits (top entry paths)</th>
+        </tr></thead>
+        <tbody>
+        ${sorted.map(([k, v]) => {
+          const topPaths = [...v.paths.entries()].sort((a,b) => b[1] - a[1]).slice(0, 3)
+            .map(([p, c]) => `<code style="background:var(--bg-2);padding:1px 5px;border-radius:3px;font-size:11px;">${escapeHtml(p || '/')}</code> ×${c}`).join(' &nbsp; ');
+          return `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 6px;font-family:var(--font-mono);font-size:11.5px;word-break:break-all;">${escapeHtml(k)}</td>
+            <td style="padding:8px 6px;text-align:right;color:var(--muted);font-family:var(--font-mono);">${v.count}</td>
+            <td style="padding:8px 6px;">${topPaths}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
 }
 
 // ----------------------------------------------------------------------------

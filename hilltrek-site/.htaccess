@@ -2,8 +2,18 @@
 # Hilltrek — Apache config for static hosting on cPanel
 # ============================================================================
 
-# 1. Force HTTPS
+# 0. Origin lockdown — require Cloudflare's auth header on every request.
+#    CF adds X-Hilltrek-CF-Auth via a Request Header Transform Rule.
+#    Direct attackers hitting origin (102.222.124.20) don't have the header → 403.
+#    /.well-known/ is exempted so any ACME / Let's Encrypt HTTP-01 challenges
+#    keep working if Aserv ever needs to renew the origin cert.
+#    To rotate the secret: update the Transform Rule in Cloudflare AND this line.
 RewriteEngine On
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteCond %{HTTP:X-Hilltrek-CF-Auth} !^hk-cf-origin-a8d2e6b9f3c1054782b9e3f6d8a1c2e5$
+RewriteRule .* - [F,L]
+
+# 1. Force HTTPS (RewriteEngine already on from section 0)
 RewriteCond %{HTTPS} !=on
 RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
 
@@ -37,9 +47,20 @@ ErrorDocument 404 /404.html
 </IfModule>
 
 # 7. Security headers
+#
+# CSP allowlist mirrors the admin SPA's policy + adds Cloudflare Turnstile
+# endpoints (the APK gate widget). 'unsafe-inline' on scripts is required
+# by the existing inline IIFEs on /trailtether/ and a few page-level setters
+# (year, etc.) — moving to nonces/hashes would let us drop it later but
+# isn't blocking the rest of the hardening pass.
+#
+# HSTS: 2 years + includeSubDomains + preload, so the domain can be
+# submitted to https://hstspreload.org and shipped baked into every browser.
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
   Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  Header set Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+  Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://*.supabase.co https://hilltrek.co.za https://*.hilltrek.co.za; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 </IfModule>

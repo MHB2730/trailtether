@@ -76,6 +76,7 @@ switch ($Target) {
       # Top-level modified pages
       'index.html',
       'trailtether/index.html',
+      'trailtether/terms/index.html',
       '404.html',
       # Modified static pages (maintenance-gate script tag injected)
       'cart/index.html',

@@ -85,7 +85,13 @@ if ($apkSizeBytes -gt 50000000) {
 $apkSha256 = (Get-FileHash -Algorithm SHA256 -Path $apkPath).Hash.ToLower()
 
 # -- 2. Upload to Supabase Storage -----------------------------------------
-$objectName  = "trailtether-$versionName-$versionCode.apk"
+# Random per-release prefix so the URL cannot be guessed from the version
+# number. The anon LIST permission on the bucket is disabled by the
+# 20260526_apk_download_gate migration, and the website button is gated
+# via apk-download-gate -- random paths make sure that a leaked URL for
+# one release tells you nothing about the URL of the next one.
+$randomPrefix = "r/" + ([guid]::NewGuid().ToString("N").Substring(0, 16))
+$objectName  = "$randomPrefix/trailtether-$versionName-$versionCode.apk"
 $uploadUrl   = "$env:SUPABASE_URL/storage/v1/object/app-releases/$objectName"
 $downloadUrl = "$env:SUPABASE_URL/storage/v1/object/public/app-releases/$objectName"
 

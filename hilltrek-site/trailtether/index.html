@@ -17,6 +17,11 @@
 
   <link rel="stylesheet" href="/assets/css/site.css" />
 
+  <!-- Cloudflare Turnstile — explicit-render mode so we can mount the widget
+       inside the download gate modal only when it opens, instead of the
+       auto-mount default (which doesn't reliably render in hidden elements). -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileApiReady" async defer></script>
+
   <style>
     /* ===== TrailTether-specific layout ===== */
     .tt-hero {
@@ -385,6 +390,189 @@
       .download-pair-cta { justify-items: center; }
       .tt-qr-canvas { width: 148px; height: 148px; }
     }
+
+    /* ===== Gated download modal — opens when [data-gate-trigger] is clicked.
+       Two stages: the form (email + T&Cs + newsletter + Turnstile) and a
+       success view that re-paints the QR with the issued URL and triggers
+       the actual download. ===== */
+    .gate-modal {
+      position: fixed; inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .gate-modal[data-open="true"] { display: flex; }
+    .gate-modal-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(10,9,8,0.86);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+    .gate-modal-card {
+      position: relative; z-index: 1;
+      width: 100%;
+      max-width: 520px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      padding: 36px 32px;
+      background: linear-gradient(180deg, #1a1410 0%, #0d0a08 100%);
+      border: 1px solid var(--border-2);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px -10px rgba(0,0,0,0.6);
+    }
+    .gate-modal-close {
+      position: absolute;
+      top: 12px; right: 12px;
+      width: 36px; height: 36px;
+      display: grid; place-items: center;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 20px; line-height: 1;
+      transition: all 0.15s ease;
+    }
+    .gate-modal-close:hover {
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      border-color: var(--border-2);
+    }
+    .gate-modal-card h2 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+      margin: 10px 0 12px;
+    }
+    .gate-modal-sub {
+      color: var(--muted);
+      font-size: 14.5px;
+      line-height: 1.6;
+      margin: 0 0 22px;
+    }
+    .gate-form { display: grid; gap: 16px; }
+    .gate-field { display: grid; gap: 6px; }
+    .gate-label {
+      font-family: var(--font-mono);
+      font-size: 11.5px; letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .gate-form input[type="email"] {
+      width: 100%;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 15px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .gate-form input[type="email"]:focus {
+      outline: none;
+      border-color: var(--ember);
+      background: rgba(255,255,255,0.05);
+    }
+    .gate-check {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 13.5px;
+      color: rgba(244,241,237,0.78);
+      cursor: pointer;
+      line-height: 1.55;
+    }
+    .gate-check input[type="checkbox"] {
+      flex-shrink: 0;
+      width: 18px; height: 18px;
+      margin-top: 2px;
+      accent-color: var(--ember);
+      cursor: pointer;
+    }
+    .gate-check a { color: var(--ember); text-decoration: underline; }
+    .gate-required { color: var(--ember); }
+    .gate-turnstile { margin: 4px 0 0; min-height: 65px; }
+    .gate-error {
+      color: #ff6b6b;
+      font-size: 13.5px;
+      margin: 0;
+      padding: 10px 12px;
+      background: rgba(255,107,107,0.08);
+      border-radius: 8px;
+      border-left: 3px solid #ff6b6b;
+    }
+    .gate-submit {
+      width: 100%;
+      margin-top: 4px;
+      justify-content: center;
+    }
+    .gate-submit:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+    }
+    .gate-stage-success { text-align: center; }
+    .gate-success-mark {
+      width: 56px; height: 56px;
+      margin: 0 auto 18px;
+      display: grid; place-items: center;
+      background: rgba(255,122,26,0.14);
+      color: var(--ember);
+      border-radius: 50%;
+      font-size: 28px; font-weight: 600;
+    }
+    .gate-success-qr {
+      margin: 22px auto 14px;
+      width: 168px;
+      padding: 14px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 14px 36px -10px rgba(255,122,26,0.3);
+    }
+    .gate-success-qr .tt-qr-canvas { width: 140px; height: 140px; }
+    .gate-success-qr svg { width: 100% !important; height: 100% !important; display: block; }
+    .gate-meta {
+      font-family: var(--font-mono);
+      font-size: 11px; letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 6px 0 0;
+      text-align: center;
+      word-break: break-all;
+    }
+    /* Locked-state QR placeholder shown next to the download button before
+       the user passes the gate. The grid of dots evokes a QR without
+       encoding a real URL, and a centered padlock signals the gate. */
+    .tt-qr-locked {
+      position: relative;
+      width: 168px; height: 168px;
+      background:
+        radial-gradient(circle, rgba(255,122,26,0.22) 1.2px, transparent 1.6px) 0 0 / 12px 12px,
+        #ffffff;
+      border-radius: 14px;
+      display: grid; place-items: center;
+    }
+    .tt-qr-locked::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(180deg, rgba(10,9,8,0.05), rgba(10,9,8,0.25));
+    }
+    .tt-qr-locked svg {
+      position: relative;
+      z-index: 1;
+      width: 42px; height: 42px;
+      color: #0a0908;
+      filter: drop-shadow(0 1px 0 rgba(255,255,255,0.4));
+    }
+    body.gate-open { overflow: hidden; }
+    @media (max-width: 520px) {
+      .gate-modal-card { padding: 28px 22px; }
+      .gate-modal-card h2 { font-size: 22px; }
+      .gate-modal-sub { font-size: 14px; }
+    }
   </style>
 </head>
 <body>
@@ -650,13 +838,13 @@
 
         <div class="download-pair">
           <div class="download-pair-cta">
-            <a class="btn btn-primary" href="https://xuqmdujupbmxahyhkdwl.supabase.co/storage/v1/object/public/app-releases/trailtether-3.7.1-56.apk?download" download data-apk-link>
+            <button type="button" class="btn btn-primary" data-gate-trigger>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13"/><path d="m6 10 6 6 6-6"/><path d="M5 21h14"/></svg>
               <span class="btn-stack">
-                <span class="sub">Direct download · Android APK</span>
-                <span class="main" data-apk-filename>trailtether-3.7.1-56.apk</span>
+                <span class="sub">Sign up + agree to terms</span>
+                <span class="main">Get Trailtether for Android</span>
               </span>
-            </a>
+            </button>
             <div class="download-meta" style="justify-content: flex-start; margin-top: 4px;">
               <span><span class="dot"></span> Android 9+ (API 28)</span>
               <span><span class="dot"></span> SHA-256 verified</span>
@@ -665,10 +853,18 @@
           </div>
 
           <div>
-            <div class="tt-qr">
-              <div id="tt-qr-canvas" class="tt-qr-canvas" data-apk-qr aria-label="QR code linking to the latest Trailtether APK"></div>
+            <!-- Locked-state QR placeholder. The real QR is rendered inside
+                 the gate modal's success screen, with the issued APK URL —
+                 we never paint a scannable QR pre-gate. -->
+            <div class="tt-qr" aria-hidden="true">
+              <div class="tt-qr-locked" role="img" aria-label="Sign up to reveal the APK QR code">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="4" y="11" width="16" height="10" rx="2"/>
+                  <path d="M8 11V8a4 4 0 0 1 8 0v3"/>
+                </svg>
+              </div>
             </div>
-            <div class="tt-qr-label">Scan with your <span class="ember">phone</span> →</div>
+            <div class="tt-qr-label">Sign up to reveal <span class="ember">QR &rarr;</span></div>
           </div>
         </div>
       </div>
@@ -722,6 +918,63 @@
     </div>
   </footer>
 
+  <!-- ===== Gated APK download modal =====================================
+       Opened by any [data-gate-trigger] click. Stage 1 collects email +
+       T&Cs + (optional) newsletter + Cloudflare Turnstile token. Stage 2
+       is shown after the apk-download-gate edge function returns a valid
+       URL: we trigger the download, render the QR with the issued URL,
+       and surface a direct link in case the auto-download is blocked. -->
+  <div class="gate-modal" id="gate-modal" role="dialog" aria-modal="true" aria-labelledby="gate-modal-title" aria-hidden="true" data-open="false">
+    <div class="gate-modal-backdrop" data-gate-close></div>
+    <div class="gate-modal-card">
+      <button type="button" class="gate-modal-close" aria-label="Close" data-gate-close>&times;</button>
+
+      <div class="gate-stage" data-gate-stage="form">
+        <span class="eyebrow">// Open beta access</span>
+        <h2 id="gate-modal-title">One step before the download.</h2>
+        <p class="gate-modal-sub">Pop your email in, accept the app terms, and the APK is yours. We use this to keep the beta accountable and to ping you if a critical fix ships. No spam.</p>
+
+        <form id="gate-form" class="gate-form" novalidate>
+          <label class="gate-field" for="gate-email">
+            <span class="gate-label">Email</span>
+            <input type="email" name="email" id="gate-email" required autocomplete="email" placeholder="you@somewhere.za" />
+          </label>
+
+          <label class="gate-check">
+            <input type="checkbox" name="terms" id="gate-terms" required />
+            <span>I have read and agree to the <a href="/trailtether/terms/" target="_blank" rel="noopener">Trailtether App Terms</a>, <a href="/legal-notice/" target="_blank" rel="noopener">Legal Notice</a>, and <a href="/privacy/" target="_blank" rel="noopener">Privacy Policy</a>. <span class="gate-required">*</span></span>
+          </label>
+
+          <label class="gate-check">
+            <input type="checkbox" name="newsletter" id="gate-newsletter" />
+            <span>Also send me Trailtether release notes and hike updates from Hilltrek. (Optional &mdash; unsubscribe with one click any time.)</span>
+          </label>
+
+          <div id="gate-turnstile" class="gate-turnstile" aria-label="Captcha challenge"></div>
+
+          <p class="gate-error" id="gate-error" hidden></p>
+
+          <button type="submit" class="btn btn-primary gate-submit" id="gate-submit" disabled>
+            <span class="btn-stack">
+              <span class="sub">Tick the box + solve the captcha</span>
+              <span class="main">Get the APK</span>
+            </span>
+          </button>
+        </form>
+      </div>
+
+      <div class="gate-stage" data-gate-stage="success" hidden>
+        <div class="gate-success-mark" aria-hidden="true">&#10003;</div>
+        <h2>You&rsquo;re in.</h2>
+        <p class="gate-modal-sub">Download is starting. If your browser blocked the redirect, <a href="#" id="gate-direct-link" download>tap here to start it manually</a>. Or scan the QR with your phone.</p>
+        <div class="gate-success-qr">
+          <div id="gate-qr-canvas" class="tt-qr-canvas" role="img" aria-label="QR code linking to the Trailtether APK"></div>
+        </div>
+        <p class="gate-meta" id="gate-success-meta"></p>
+      </div>
+    </div>
+  </div>
+
   <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
   <script src="/assets/js/site.js" defer></script>
 
@@ -729,117 +982,282 @@
        ecLevel). typeNumber 0 = auto-size. ecLevel M survives ~15% damage. -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
 
-  <!-- Dynamic APK lookup: hits Supabase Storage with the anon key, finds the
-       newest .apk in app-releases, and rewrites every [data-apk-link],
-       [data-apk-filename] and [data-apk-version] on this page. Silently falls
-       back to the hardcoded link above if the call fails. Also renders the
-       QR code (or refreshes it once a newer APK is detected). -->
+  <!-- ===== Trailtether gated APK download =================================
+       Replaces the old anon bucket-listing flow. The button no longer
+       carries a download URL — clicking it opens the gate modal. Submit
+       posts to /functions/v1/apk-download-gate which verifies Turnstile,
+       records the gate row, optionally enrolls the newsletter, and
+       returns the APK download URL. We then trigger the download and
+       paint a QR with that URL inside the modal's success screen.
+
+       A separate, public-safe RPC (app_release_meta) keeps the version
+       label in the hero/download eyebrow fresh — it returns metadata
+       only, no download URL. ============================================ -->
   <script>
   (function () {
-    var SUPABASE_URL      = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
-    var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
-    var BUCKET            = 'app-releases';
-    // Pick the real APK link (with [download] attr), not the hero button
-    // that just anchors to #download — that one would encode the page URL
-    // into the QR instead of the APK URL.
-    var FALLBACK_APK_URL = (function () {
-      var links = document.querySelectorAll('a[data-apk-link]');
-      for (var i = 0; i < links.length; i++) {
-        var href = links[i].getAttribute('href') || '';
-        if (href && href.charAt(0) !== '#') return href;
-      }
-      return '';
-    })();
+    'use strict';
 
-    // Render the QR. Tries up to ~2s for the qrcode-generator script to
-    // arrive (it's deferred + on a CDN), then renders SVG into every
-    // [data-apk-qr] container. Re-callable: each call wipes + re-renders.
+    var SUPABASE_URL       = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
+    var SUPABASE_ANON_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
+    // Cloudflare Turnstile public site key — safe to ship. The matching
+    // secret lives in the apk-download-gate edge function env (TURNSTILE_SECRET).
+    var TURNSTILE_SITE_KEY = '0x4AAAAAADWvHNUuFO5dfWZ5';
+
+    var modal             = document.getElementById('gate-modal');
+    var form              = document.getElementById('gate-form');
+    var emailEl           = document.getElementById('gate-email');
+    var termsEl           = document.getElementById('gate-terms');
+    var newsEl            = document.getElementById('gate-newsletter');
+    var submitEl          = document.getElementById('gate-submit');
+    var errorEl           = document.getElementById('gate-error');
+    var directLinkEl      = document.getElementById('gate-direct-link');
+    var successMetaEl     = document.getElementById('gate-success-meta');
+    var qrMountEl         = document.getElementById('gate-qr-canvas');
+    var turnstileMountSel = '#gate-turnstile';
+
+    if (!modal || !form) return;
+
+    var turnstileWidgetId = null;
+    var turnstileToken    = null;
+    var submittedOnce     = false;
+
+    // Turnstile auto-render is disabled (api.js?render=explicit). When the
+    // CF script finishes loading it calls window.onTurnstileApiReady so we
+    // can decide *when* to mount — i.e. only after the modal is shown.
+    window.onTurnstileApiReady = function () { /* nothing to do here yet */ };
+
+    function showStage(name) {
+      var stages = modal.querySelectorAll('[data-gate-stage]');
+      for (var i = 0; i < stages.length; i++) {
+        stages[i].hidden = stages[i].getAttribute('data-gate-stage') !== name;
+      }
+    }
+
+    function setError(text) {
+      if (text) { errorEl.textContent = text; errorEl.hidden = false; }
+      else { errorEl.textContent = ''; errorEl.hidden = true; }
+    }
+
+    function updateSubmitState() {
+      var canSubmit = (
+        termsEl.checked &&
+        emailEl.value.trim().length > 0 &&
+        turnstileToken !== null
+      );
+      submitEl.disabled = !canSubmit;
+    }
+
+    function mountTurnstile() {
+      if (turnstileWidgetId !== null) return; // already mounted
+      // Retry until the Turnstile script is loaded. Bail after ~5s.
+      var deadline = Date.now() + 5000;
+      (function attempt() {
+        if (!window.turnstile || typeof window.turnstile.render !== 'function') {
+          if (Date.now() < deadline) return setTimeout(attempt, 120);
+          setError('Captcha failed to load. Check your network/ad-blocker and try again.');
+          return;
+        }
+        try {
+          turnstileWidgetId = window.turnstile.render(turnstileMountSel, {
+            sitekey: TURNSTILE_SITE_KEY,
+            theme: 'dark',
+            callback: function (token) { turnstileToken = token; updateSubmitState(); },
+            'expired-callback': function () { turnstileToken = null; updateSubmitState(); },
+            'error-callback':   function () {
+              turnstileToken = null;
+              updateSubmitState();
+              setError('Captcha errored out. Try again.');
+            }
+          });
+        } catch (e) {
+          console.warn('turnstile render failed:', e);
+          setError('Captcha failed to mount. Try again.');
+        }
+      })();
+    }
+
+    function resetTurnstile() {
+      if (window.turnstile && turnstileWidgetId !== null) {
+        try { window.turnstile.reset(turnstileWidgetId); } catch (e) { /* ignore */ }
+      }
+      turnstileToken = null;
+      updateSubmitState();
+    }
+
+    function openModal() {
+      showStage('form');
+      setError(null);
+      modal.setAttribute('data-open', 'true');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('gate-open');
+      // Mount Turnstile lazily so the iframe lays out correctly inside
+      // the now-visible modal.
+      setTimeout(mountTurnstile, 50);
+      setTimeout(function () { try { emailEl.focus(); } catch (e) {} }, 120);
+    }
+
+    function closeModal() {
+      modal.setAttribute('data-open', 'false');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('gate-open');
+    }
+
     function paintQR(url) {
-      if (!url) return;
+      if (!url || !qrMountEl) return;
       var deadline = Date.now() + 2000;
       (function attempt() {
         if (typeof window.qrcode !== 'function') {
           if (Date.now() < deadline) return setTimeout(attempt, 80);
-          console.warn('[Trailtether] qrcode-generator did not load — QR not rendered.');
           return;
         }
-        var qr = window.qrcode(0, 'M');
-        qr.addData(url);
-        qr.make();
-        var svg = qr.createSvgTag({ scalable: true, margin: 0 });
-        document.querySelectorAll('[data-apk-qr]').forEach(function (host) {
-          host.innerHTML = svg;
-        });
+        try {
+          var qr = window.qrcode(0, 'M');
+          qr.addData(url);
+          qr.make();
+          qrMountEl.innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
+        } catch (e) { console.warn('paintQR error:', e); }
       })();
     }
 
-    function updateLatestAPK() {
-      fetch(SUPABASE_URL + '/storage/v1/object/list/' + BUCKET, {
+    function triggerDownload(url) {
+      // Programmatic anchor click — keeps the user on the page (vs
+      // location.href which navigates away from the success screen).
+      try {
+        var a = document.createElement('a');
+        a.href = url;
+        a.rel = 'noopener';
+        // download attribute is hint-only across origins; SPA-style
+        // anchor click is enough on every modern browser we target.
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { try { document.body.removeChild(a); } catch (e) {} }, 0);
+      } catch (e) {
+        // Last-resort: navigate. The success screen will be replaced
+        // by the download negotiation but the file still arrives.
+        window.location.href = url;
+      }
+    }
+
+    // --- Refresh the version label on first paint ------------------------
+    // Calls app_release_meta which returns ONLY metadata — never the
+    // download URL. Silently no-ops on failure.
+    function refreshVersionLabel() {
+      fetch(SUPABASE_URL + '/rest/v1/rpc/app_release_meta', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'apikey': SUPABASE_ANON_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json'
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ p_platform: 'android' })
+      })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (rows) {
+          if (!Array.isArray(rows) || rows.length === 0) return;
+          var meta = rows[0];
+          if (meta && meta.version_name) {
+            document.querySelectorAll('[data-apk-version]').forEach(function (el) {
+              el.textContent = 'v' + meta.version_name;
+            });
+          }
+        })
+        .catch(function (e) { /* silent — hardcoded label remains */ });
+    }
+
+    // --- Wire UI ---------------------------------------------------------
+    document.querySelectorAll('[data-gate-trigger]').forEach(function (b) {
+      b.addEventListener('click', function (e) { e.preventDefault(); openModal(); });
+    });
+    modal.querySelectorAll('[data-gate-close]').forEach(function (c) {
+      c.addEventListener('click', closeModal);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.getAttribute('data-open') === 'true') closeModal();
+    });
+
+    termsEl.addEventListener('change', updateSubmitState);
+    emailEl.addEventListener('input', updateSubmitState);
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      setError(null);
+
+      var email = (emailEl.value || '').trim().toLowerCase();
+      if (!email) { setError('Your email is required.'); return; }
+      if (!termsEl.checked) { setError('You need to accept the app terms to download.'); return; }
+      if (!turnstileToken) { setError('Solve the captcha first.'); return; }
+
+      submittedOnce = true;
+      submitEl.disabled = true;
+      submitEl.innerHTML = '<span class="btn-stack"><span class="sub">&hellip;</span><span class="main">Verifying</span></span>';
+
+      fetch(SUPABASE_URL + '/functions/v1/apk-download-gate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
-          prefix: '', limit: 100,
-          sortBy: { column: 'created_at', order: 'desc' }
+          email: email,
+          terms_accepted: true,
+          newsletter_opt_in: newsEl.checked,
+          turnstile_token: turnstileToken
         })
       })
-      .then(function (res) {
-        if (!res.ok) throw new Error('Supabase list returned HTTP ' + res.status);
-        return res.json();
-      })
-      .then(function (files) {
-        if (!Array.isArray(files)) throw new Error('Unexpected response shape');
-        var apks = files.filter(function (f) {
-          return f && f.name && f.name.toLowerCase().endsWith('.apk');
-        });
-        if (apks.length === 0) {
-          console.warn('[Trailtether] No .apk files found in bucket.');
-          return;
-        }
-        var latest = apks[0];
-        var filename = latest.name;
-        var url = SUPABASE_URL + '/storage/v1/object/public/' + BUCKET + '/' +
-                  encodeURIComponent(filename) + '?download';
+        .then(function (res) {
+          return res.json().then(function (data) { return { status: res.status, data: data }; });
+        })
+        .then(function (r) {
+          var data = r.data || {};
+          if (r.status < 200 || r.status >= 300 || !data.ok) {
+            var code = data.error || 'request_failed';
+            var msg  = 'Could not verify the download right now. Try again in a moment.';
+            if (code === 'email_invalid') msg = 'That email does not look right. Double-check it.';
+            else if (code === 'rate_limited') msg = 'Too many attempts. Give it a minute and try again.';
+            else if (code === 'captcha_failed' || code === 'captcha_required') {
+              msg = 'Captcha failed. Solve it again.';
+              resetTurnstile();
+            }
+            else if (code === 'terms_required') msg = 'Tick the box to accept the terms.';
+            else if (code === 'release_not_found') msg = 'No published release yet. Check back soon.';
+            setError(msg);
+            submitEl.disabled = false;
+            submitEl.innerHTML = '<span class="btn-stack"><span class="sub">Try again</span><span class="main">Get the APK</span></span>';
+            return;
+          }
 
-        document.querySelectorAll('[data-apk-link]').forEach(function (link) {
-          var href = link.getAttribute('href') || '';
-          if (href.charAt(0) === '#') return;
-          link.setAttribute('href', url);
-        });
-        document.querySelectorAll('[data-apk-filename]').forEach(function (el) {
-          el.textContent = filename;
-        });
-        var m = filename.match(/(\d+\.\d+\.\d+(?:[-.]\d+)?)/);
-        if (m) {
-          document.querySelectorAll('[data-apk-version]').forEach(function (el) {
-            el.textContent = 'v' + m[1];
-          });
-        }
-        paintQR(url);
-      })
-      .catch(function (err) {
-        console.warn('[Trailtether] Could not fetch latest APK (falling back to hardcoded URL):', err);
-        // Even if the lookup failed, the hardcoded link below the button is
-        // still a valid APK URL — encode it so the QR is never broken.
-        if (FALLBACK_APK_URL) paintQR(FALLBACK_APK_URL);
-      });
-    }
+          // Success — switch to the confirmation stage, paint the QR, fire the download.
+          var url = data.download_url;
+          directLinkEl.setAttribute('href', url);
+          if (data.filename) directLinkEl.setAttribute('download', data.filename);
 
-    function start() {
-      // Paint a QR from the hardcoded URL right away so the box is never
-      // empty during the Supabase round-trip. The dynamic update will
-      // re-paint over it once the latest APK URL resolves.
-      if (FALLBACK_APK_URL) paintQR(FALLBACK_APK_URL);
-      updateLatestAPK();
-    }
+          var bits = [];
+          if (data.version_name) bits.push('v' + data.version_name);
+          if (data.filename)     bits.push(data.filename);
+          successMetaEl.textContent = bits.join(' · ');
 
+          showStage('success');
+          paintQR(url);
+
+          // Slight delay so the success stage paints before the browser
+          // pops the download negotiation dialog.
+          setTimeout(function () { triggerDownload(url); }, 280);
+        })
+        .catch(function (err) {
+          console.warn('gate submit error:', err);
+          setError('Could not reach the server. Check your connection and try again.');
+          submitEl.disabled = false;
+          submitEl.innerHTML = '<span class="btn-stack"><span class="sub">Try again</span><span class="main">Get the APK</span></span>';
+        });
+    });
+
+    // Fire the version refresh on load. Doesn't block anything if it fails.
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', start);
+      document.addEventListener('DOMContentLoaded', refreshVersionLabel);
     } else {
-      start();
+      refreshVersionLabel();
     }
   })();
   </script>
