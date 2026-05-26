@@ -94,10 +94,17 @@ Deno.serve(async (req) => {
   //    are skipped in the signature step (per their spec).
   //    custom_str1 carries our order UUID so the ITN can match the order
   //    even if m_payment_id (the human-readable number) is somehow lost.
+  // The confirmation_token gates PII on the /order-confirmation/ page. The
+  // shopper-facing return URL embeds it so PayFast's post-payment redirect
+  // lands on the full confirmation view (name, address, items). Without it
+  // the page would render the bare "order received" branch.
+  const confirmToken = String(order.confirmation_token ?? "");
+
   const fields: Array<[string, string]> = [
     ["merchant_id",   PF_MERCHANT_ID],
     ["merchant_key",  PF_MERCHANT_KEY],
-    ["return_url",    `${SITE_PUBLIC}/order-confirmation/?id=${order.id}`],
+    ["return_url",    `${SITE_PUBLIC}/order-confirmation/?id=${order.id}` +
+                      (confirmToken ? `&token=${confirmToken}` : "")],
     ["cancel_url",    `${SITE_PUBLIC}/payment-cancelled/?id=${order.id}`],
     ["notify_url",    `${SUPABASE_URL}/functions/v1/payfast-itn`],
     ["name_first",    firstName || "Customer"],

@@ -69,7 +69,12 @@ Deno.serve(async (req) => {
 
   // 2. Build the Yoco checkout payload. Amount is in cents (matches our
   //    DB). Metadata travels through the webhook so we can map back to
-  //    our order on the other side.
+  //    our order on the other side. The confirmation_token gates PII on
+  //    the /order-confirmation/ page — Yoco's success redirect carries
+  //    it so the shopper sees the full receipt, not the stripped one.
+  const confirmToken = String(order.confirmation_token ?? "");
+  const tokenQS = confirmToken ? `&token=${confirmToken}` : "";
+
   const payload = {
     amount:   Number(order.total_cents),
     currency: "ZAR",
@@ -77,7 +82,7 @@ Deno.serve(async (req) => {
       order_id:     String(order.id),
       order_number: String(order.order_number),
     },
-    successUrl: `${SITE_PUBLIC}/order-confirmation/?id=${order.id}`,
+    successUrl: `${SITE_PUBLIC}/order-confirmation/?id=${order.id}${tokenQS}`,
     cancelUrl:  `${SITE_PUBLIC}/payment-cancelled/?id=${order.id}`,
     failureUrl: `${SITE_PUBLIC}/payment-cancelled/?id=${order.id}&failed=1`,
   };
