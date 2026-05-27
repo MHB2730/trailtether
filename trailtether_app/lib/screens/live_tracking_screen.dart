@@ -148,13 +148,26 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
         TextEditingController(text: rec.customName ?? rec.targetTrail?.name);
     int peaks = 0;
 
+    // Finish sheet is intentionally NON-dismissable: tapping STOP/FINISH
+    // pauses recording, so if the user swipes the sheet away or backs out
+    // they end up in a paused-but-undecided "limbo" where neither save nor
+    // discard has happened.  Forcing a choice (Save / Discard / Keep
+    // Recording) eliminates that state.  Reported on 2026-05-27 — see
+    // user feedback re: hike-cancel UX.
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl))),
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => PopScope(
+        // Blocks the Android system back button — same rationale as
+        // isDismissible: false.  The user must pick one of the three
+        // explicit actions inside the sheet to leave it.
+        canPop: false,
+        child: StatefulBuilder(
         builder: (ctx, setLocalState) => Container(
           decoration: const BoxDecoration(
             color: TT.bg2,
@@ -179,12 +192,54 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                   ),
                 ),
               ),
-              Text('FINISH & SAVE',
-                  style: TT.label(
-                      size: 12, color: TT.ember, letterSpacing: 1.4)),
-              const SizedBox(height: 6),
-              Text('Great work — name this activity and pick its type.',
-                  style: TT.body(size: 12.5, color: TT.text2)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('FINISH HIKE',
+                            style: TT.label(
+                                size: 12,
+                                color: TT.ember,
+                                letterSpacing: 1.4)),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Save this hike or discard it — you’ve got to pick one.',
+                          style: TT.body(size: 12.5, color: TT.text2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // "Keep recording" escape hatch for accidental FINISH
+                  // taps.  Resumes the GPS subscription and closes the
+                  // sheet; the hike continues exactly where it left off.
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () async {
+                      await rec.start();
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 12, top: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.arrow_back_rounded,
+                              size: 14, color: TT.text2),
+                          const SizedBox(width: 4),
+                          Text('KEEP RECORDING',
+                              style: TT.label(
+                                  size: 10,
+                                  color: TT.text2,
+                                  letterSpacing: 1.2)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 18),
               _SheetField(
                 controller: nameCtrl,
@@ -308,8 +363,9 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: _SecondaryButton(
+                    child: _DangerButton(
                       label: 'DISCARD',
+                      icon: Icons.delete_outline,
                       onTap: () {
                         rec.clear();
                         Navigator.pop(ctx);
@@ -342,6 +398,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
