@@ -34,7 +34,23 @@ param(
   # script uses the default list baked in below -- this session's deliverables.
   [string[]]$Files,
 
-  [switch]$DryRun
+  [switch]$DryRun,
+
+  # Milliseconds to wait between uploads. cPanel's LFD daemon trips around
+  # 5-10 hits in 30 seconds (default thresholds for Aserv) -- without this
+  # throttle a 26-file batch reliably triggers a CSF autoban about a third
+  # of the way through, with the first ~11 files returning real 403s and
+  # the rest returning generic 415s from the firewall layer. 800ms keeps
+  # us comfortably under 5/sec while still finishing a typical site push
+  # in under 30s. Override with -DelayMs 0 to disable.
+  [int]$DelayMs = 800,
+
+  # If a request fails with 403/415/429 (the autoban-shaped statuses),
+  # back off by this many seconds and retry once more before giving up.
+  # Lets the script self-recover from a brief LFD trip mid-run instead
+  # of cascading every remaining file into a failure.
+  [int]$RetryAfterSec = 90,
+  [int]$MaxRetries    = 1
 )
 
 # Stop on any uncaught error so a bad credential doesn't silently push half the
@@ -203,15 +219,39 @@ $succeeded = 0
 $failed    = 0
 $skipped   = 0
 
-foreach ($rel in $List) {
+# Track whether the previous request looked like an autoban trip so we
+# only sleep when there's a reason to -- a healthy run finishes fast.
+$autobanTripped = $false
+
+for ($i = 0; $i -lt $List.Count; $i++) {
+  $rel       = $List[$i]
   $localPath = Join-Path $SourceDir ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
   if (-not (Test-Path $localPath)) {
     Write-Host ("[--] {0,-58} (missing locally -- skipped)" -f $rel) -ForegroundColor Yellow
     $skipped++
     continue
   }
+
+  # Throttle between successful uploads to stay under LFD's burst limit.
+  # Skip the sleep before the first file and in -DryRun mode.
+  if ($i -gt 0 -and -not $DryRun -and $DelayMs -gt 0) {
+    Start-Sleep -Milliseconds $DelayMs
+  }
+
   $remoteSitePath = '/' + $rel
   $ok = Send-OneFile -localPath $localPath -remoteSitePath $remoteSitePath
+
+  # If we just tripped the autoban, back off once and retry. The retry
+  # itself is one extra request -- if that also fails, we accept the
+  # failure and move on (CSF cooldown is usually 15+ min, longer than
+  # we want to block the script).
+  if (-not $ok -and -not $DryRun -and $MaxRetries -gt 0 -and -not $autobanTripped) {
+    Write-Host ("     CSF autoban suspected -- sleeping {0}s then retrying once..." -f $RetryAfterSec) -ForegroundColor Yellow
+    Start-Sleep -Seconds $RetryAfterSec
+    $ok = Send-OneFile -localPath $localPath -remoteSitePath $remoteSitePath
+    $autobanTripped = -not $ok
+  }
+
   if ($ok) { $succeeded++ } else { $failed++ }
 }
 
