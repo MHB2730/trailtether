@@ -90,6 +90,7 @@ switch ($Target) {
       'order-confirmation/index.html',
       'payment-cancelled/index.html',
       'privacy/index.html',
+      'pulse/index.html',
       'reach-out/index.html',
       'reviews/index.html',
       'reviews/fire-maple-fire-force-stove/index.html',

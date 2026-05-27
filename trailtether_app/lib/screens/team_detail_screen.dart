@@ -1413,6 +1413,8 @@ class _MembersTabState extends State<_MembersTab> {
             ),
           ),
           const SizedBox(height: 14),
+          _PublicLeaderboardCard(team: widget.team),
+          const SizedBox(height: 14),
         ],
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1545,6 +1547,240 @@ class _MemberRow extends StatelessWidget {
                     color: TT.red, size: 16),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────── PUBLIC LEADERBOARD ─────────────────────────
+//
+// Admin-only card that flips `teams.is_public` + `public_display_name` so
+// the team appears on hilltrek.co.za/pulse/.  Default OFF for every team
+// (DB default).  See docs/design/the-berg-live.md §6 + §9.
+//
+//   * Switch + display-name field are the only knobs.
+//   * Display name is REQUIRED when public (DB has a CHECK constraint,
+//     so we validate locally too rather than letting Postgres error out).
+//   * Save is only enabled when something actually changed.  We refresh
+//     the parent TeamProvider after a successful save so the next
+//     navigation cycle sees the new values.
+//   * Removal from /pulse/ is instant DB-side, but the public page only
+//     refreshes its materialized view nightly — the explainer line under
+//     the switch makes that clear so the admin isn't surprised.
+
+class _PublicLeaderboardCard extends StatefulWidget {
+  final Team team;
+  const _PublicLeaderboardCard({required this.team});
+
+  @override
+  State<_PublicLeaderboardCard> createState() => _PublicLeaderboardCardState();
+}
+
+class _PublicLeaderboardCardState extends State<_PublicLeaderboardCard> {
+  late bool _isPublic;
+  late TextEditingController _nameCtrl;
+  late bool _initialIsPublic;
+  late String _initialName;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialIsPublic = widget.team.isPublic;
+    _initialName = widget.team.publicDisplayName ?? '';
+    _isPublic = _initialIsPublic;
+    _nameCtrl = TextEditingController(text: _initialName);
+    _nameCtrl.addListener(_onAnyChange);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onAnyChange() {
+    setState(() {}); // re-evaluate _dirty + Save button enabled state
+  }
+
+  bool get _dirty {
+    return _isPublic != _initialIsPublic ||
+        _nameCtrl.text.trim() != _initialName.trim();
+  }
+
+  bool get _saveable {
+    if (_saving || !_dirty) return false;
+    // Display name is required when the team is public.
+    if (_isPublic && _nameCtrl.text.trim().isEmpty) return false;
+    return true;
+  }
+
+  Future<void> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final teamProv = context.read<TeamProvider>();
+    setState(() => _saving = true);
+    try {
+      final name = _nameCtrl.text.trim();
+      await TeamService.setPublicVisibility(
+        teamId: widget.team.id,
+        isPublic: _isPublic,
+        publicDisplayName: _isPublic ? name : null,
+      );
+      _initialIsPublic = _isPublic;
+      _initialName = name;
+      // Refresh the team list so the parent screen reflects the new state
+      // next time it rebuilds.  Best-effort — don't fail the save if the
+      // refresh errors.
+      try {
+        await teamProv.refresh();
+      } catch (_) {/* ignore */}
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            _isPublic
+                ? 'Team will appear on hilltrek.co.za/pulse/ after the next nightly refresh.'
+                : 'Team removed from the public leaderboard.',
+            style: TT.body(size: 13, color: TT.text),
+          ),
+          backgroundColor: TT.surf2,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Could not save: $e',
+              style: TT.body(size: 13, color: TT.text)),
+          backgroundColor: TT.surf2,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TTCard(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('PUBLIC LEADERBOARD', style: TT.label(color: TT.ember)),
+              const Spacer(),
+              if (_initialIsPublic)
+                const TTPill(label: 'LIVE', variant: TTPillVariant.ember),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Show this team on hilltrek.co.za/pulse/. Distance, ascent, and peaks only — '
+            'no member names, no individual hikes. You can toggle it off at any time.',
+            style: TT.body(size: 12, color: TT.text2).copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _isPublic
+                      ? 'On — published as the name below.'
+                      : 'Off — team is not on /pulse/.',
+                  style: TT.body(size: 13, w: FontWeight.w700, color: TT.text),
+                ),
+              ),
+              Switch.adaptive(
+                value: _isPublic,
+                activeColor: TT.ember,
+                onChanged: _saving
+                    ? null
+                    : (v) {
+                        setState(() {
+                          _isPublic = v;
+                        });
+                      },
+              ),
+            ],
+          ),
+          if (_isPublic) ...[
+            const SizedBox(height: 6),
+            Text('PUBLIC DISPLAY NAME',
+                style: TT.label(color: TT.text3, size: 10)),
+            const SizedBox(height: 6),
+            Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: TT.surf,
+                borderRadius: BorderRadius.circular(TT.rMd),
+                border: Border.all(color: TT.line2, width: 1),
+              ),
+              child: TextField(
+                controller: _nameCtrl,
+                cursorColor: TT.ember,
+                maxLength: 60,
+                style: TT.body(size: 13, color: TT.text),
+                decoration: InputDecoration(
+                  hintText: 'e.g. The Drakensberg Disciples',
+                  hintStyle: TT.body(size: 13, color: TT.text3),
+                  counterText: '',
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Pick something you’re happy strangers will see. Real names / inside jokes stay in the app under the team’s real name.',
+              style: TT.body(size: 11, color: TT.text3).copyWith(height: 1.4),
+            ),
+          ],
+          const SizedBox(height: 12),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _saveable ? _save : null,
+            child: Opacity(
+              opacity: _saveable ? 1.0 : 0.45,
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(TT.rMd),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [TT.ember2, TT.ember],
+                  ),
+                  boxShadow: _saveable ? TT.shadowEmber : null,
+                ),
+                alignment: Alignment.center,
+                child: _saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(TT.emberInk),
+                        ),
+                      )
+                    : Text(
+                        'SAVE',
+                        style: TT.label(
+                            size: 12,
+                            color: TT.emberInk,
+                            letterSpacing: 1.6),
+                      ),
+              ),
+            ),
+          ),
         ],
       ),
     );

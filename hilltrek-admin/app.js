@@ -2720,7 +2720,7 @@ async function renderTrailtether() {
     query(() => supabase.rpc('admin_trailtether_stats'),                                                'Trailtether stats').catch(e => ({ error: e })),
     query(() => supabase.rpc('admin_trailtether_active_users', { p_minutes: winMinutes }),              'Active users').catch(e => ({ error: e })),
     query(() => supabase.rpc('admin_trailtether_recent_hikes', { p_days: 30 }),                         'Recent hikes').catch(e => ({ error: e })),
-    query(() => supabase.from('team_stats').select('*').order('total_km', { ascending: false }).limit(50), 'Teams').catch(e => ({ error: e })),
+    query(() => supabase.rpc('admin_trailtether_teams'),                                                 'Teams').catch(e => ({ error: e })),
     query(() => supabase.rpc('admin_trailtether_top_hikers', { p_limit: 20 }),                          'Top hikers').catch(e => ({ error: e })),
     query(() => supabase.from('incidents').select('*').order('reported_at', { ascending: false }).limit(50), 'Incidents').catch(e => ({ error: e })),
   ]);
@@ -2886,6 +2886,12 @@ async function renderTrailtether() {
   }
 
   // -- Teams table ---------------------------------------------------------
+  // The "Public" column is the Berg Live kill switch: one click flips
+  // teams.is_public via admin_set_team_public(). The DB CHECK constraint
+  // requires a non-empty public_display_name when going LIVE, so the
+  // toggle prompts for one if none exists. Removal from /pulse/ is
+  // immediate at the DB level, but the materialized view only refreshes
+  // nightly — that's surfaced in the confirm dialog.
   if (teamsRes.error || !Array.isArray(teamsRes.data)) {
     $('#tt-teams').innerHTML = `<p class="muted">Could not load: ${escapeHtml(explainError(teamsRes.error))}</p>`;
   } else if (teamsRes.data.length === 0) {
@@ -2895,22 +2901,103 @@ async function renderTrailtether() {
       <table style="width:100%;font-size:13px;">
         <thead><tr style="text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
           <th style="padding:6px 6px;">Team</th>
+          <th style="padding:6px 6px;text-align:center;">Public</th>
           <th style="padding:6px 6px;text-align:right;">Members</th>
           <th style="padding:6px 6px;text-align:right;">Distance</th>
           <th style="padding:6px 6px;text-align:right;">Ascent</th>
           <th style="padding:6px 6px;text-align:right;">Peaks</th>
         </tr></thead>
         <tbody>
-        ${teamsRes.data.map(t => `<tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:8px 6px;">${escapeHtml(t.team_name || '(unnamed)')}</td>
-          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);">${t.member_count ?? 0}</td>
-          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${_ttFmtKm(t.total_km)}</td>
-          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${_ttFmtM(t.total_ascent)}</td>
-          <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${t.peaks_climbed ?? 0}</td>
-        </tr>`).join('')}
+        ${teamsRes.data.map(t => {
+          const live = !!t.is_public;
+          const displayHtml = t.public_display_name
+            ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">/pulse/ as <strong style="color:var(--text);">${escapeHtml(t.public_display_name)}</strong></div>`
+            : '';
+          const btnLabel = live ? 'Kill' : 'Publish';
+          const btnColor = live ? '#ff6b6b' : '#5ac26d';
+          const pillHtml = live
+            ? '<span style="display:inline-block;padding:2px 8px;font-size:10.5px;font-weight:700;letter-spacing:0.08em;background:#5ac26d22;color:#5ac26d;border:1px solid #5ac26d55;border-radius:99px;text-transform:uppercase;">Live</span>'
+            : '<span style="display:inline-block;padding:2px 8px;font-size:10.5px;font-weight:700;letter-spacing:0.08em;background:#ffffff0c;color:var(--muted);border:1px solid var(--border);border-radius:99px;text-transform:uppercase;">Off</span>';
+          return `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 6px;">
+              <div>${escapeHtml(t.team_name || '(unnamed)')}</div>
+              ${displayHtml}
+            </td>
+            <td style="padding:8px 6px;text-align:center;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                ${pillHtml}
+                <button
+                  class="btn btn-ghost btn-sm tt-pub-toggle"
+                  data-team-id="${escapeHtml(t.team_id)}"
+                  data-team-name="${escapeHtml(t.team_name || '')}"
+                  data-public-display-name="${escapeHtml(t.public_display_name || '')}"
+                  data-current-public="${live ? '1' : '0'}"
+                  style="font-size:11px;padding:3px 10px;color:${btnColor};border-color:${btnColor}66;">
+                  ${btnLabel}
+                </button>
+              </div>
+            </td>
+            <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);">${t.member_count ?? 0}</td>
+            <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${_ttFmtKm(t.total_km)}</td>
+            <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${_ttFmtM(t.total_ascent)}</td>
+            <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--muted);">${t.peaks_climbed ?? 0}</td>
+          </tr>`;
+        }).join('')}
         </tbody>
       </table>
     `;
+
+    // Wire up the kill-switch buttons. Each click hits
+    // admin_set_team_public() and then re-renders the entire tab so
+    // the row reflects the new state without a manual refresh.
+    $$('.tt-pub-toggle').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const teamId      = btn.getAttribute('data-team-id');
+        const teamName    = btn.getAttribute('data-team-name') || '(unnamed)';
+        const currentPub  = btn.getAttribute('data-current-public') === '1';
+        const existingDn  = btn.getAttribute('data-public-display-name') || '';
+        if (!teamId) return;
+        let displayName = existingDn;
+        if (!currentPub) {
+          // Going LIVE — prompt for a public display name if not already set.
+          const proposed = prompt(
+            `Publish "${teamName}" on hilltrek.co.za/pulse/?\n\n` +
+            `Pick a public display name (60 chars max — strangers will see this on /pulse/).\n` +
+            `Leave existing name to keep "${existingDn || teamName}".`,
+            existingDn || teamName,
+          );
+          if (proposed === null) return; // cancelled
+          displayName = (proposed || '').trim();
+          if (!displayName) {
+            alert('Display name is required when publishing.');
+            return;
+          }
+        } else {
+          // Killing — confirm.
+          if (!confirm(
+            `Take "${teamName}" off the public leaderboard?\n\n` +
+            `It will disappear from /pulse/ after the next nightly refresh (~02:17 UTC). ` +
+            `The team itself is not deleted.`,
+          )) return;
+        }
+        btn.disabled = true;
+        btn.textContent = '…';
+        try {
+          const { error } = await supabase.rpc('admin_set_team_public', {
+            p_team_id:      teamId,
+            p_is_public:    !currentPub,
+            p_display_name: displayName || null,
+          });
+          if (error) throw error;
+          // Re-render the tab to pick up the new state.
+          renderTrailtether();
+        } catch (e) {
+          alert('Failed: ' + (e?.message || e));
+          btn.disabled = false;
+          btn.textContent = currentPub ? 'Kill' : 'Publish';
+        }
+      });
+    });
   }
 
   // -- Incidents -----------------------------------------------------------

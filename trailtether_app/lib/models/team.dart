@@ -53,6 +53,15 @@ class Team {
   final int peaksClimbed;
   final int memberCount;
 
+  /// Has the team creator opted this team into the public
+  /// hilltrek.co.za/pulse/ leaderboard? Default false; gated by a
+  /// trigger that requires [publicDisplayName] to be set when true.
+  final bool isPublic;
+
+  /// Sanitized name to publish on /pulse/ — separate from [name] so
+  /// inside jokes / real names never leave the app.
+  final String? publicDisplayName;
+
   const Team({
     required this.id,
     required this.name,
@@ -66,6 +75,8 @@ class Team {
     this.totalAscent = 0.0,
     this.peaksClimbed = 0,
     this.memberCount = 0,
+    this.isPublic = false,
+    this.publicDisplayName,
   });
 
   factory Team.fromMap(Map<String, dynamic> d) {
@@ -89,6 +100,7 @@ class Team {
         rawUids.add(e.toString());
       }
     }
+    final rawDisplay = d['public_display_name'];
     return Team(
       id: d['id'] as String? ?? '',
       name: d['name'] as String? ?? '',
@@ -102,6 +114,10 @@ class Team {
       totalAscent: (d['total_ascent'] as num? ?? 0.0).toDouble(),
       peaksClimbed: (d['peaks_climbed'] as num? ?? 0).toInt(),
       memberCount: (d['member_count'] as num? ?? 0).toInt(),
+      isPublic: (d['is_public'] as bool?) ?? false,
+      publicDisplayName: rawDisplay is String && rawDisplay.isNotEmpty
+          ? rawDisplay
+          : null,
     );
   }
 

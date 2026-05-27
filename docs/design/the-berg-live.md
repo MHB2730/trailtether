@@ -1,8 +1,8 @@
 # The Berg, Live — design doc
 
-**Status:** Draft, awaiting signoff
-**Author:** Drafted 2026-05-26 in conversation with Matt
-**Estimated build:** ~2 focused weeks (or ~3 days for "just the leaderboard" carve-out)
+**Status:** **APPROVED 2026-05-27** — full V1 scope, all 8 §13 defaults accepted
+**Author:** Drafted 2026-05-26 in conversation with Matt; approved 2026-05-27
+**Estimated build:** ~2 focused weeks (or ~3 days for "just the leaderboard" carve-out — *not* the chosen path)
 
 ---
 
@@ -411,13 +411,55 @@ These need a yes/no before any migration runs.
 
 ## 13. Decisions needed from you before I start
 
-1. ✅ / ❌ POPIA model in §4 (opt-in for teams, never personal-level data)
-2. ✅ / ❌ Schema changes in §6 (new columns + trigger)
-3. ✅ / ❌ Map library = MapLibre + tiles from a free-tier provider
-4. Pick one answer to each of §11 open questions
-5. Pick scope: full V1 (~2 weeks) vs leaderboard-only carve-out (~3 days)
+**Approved 2026-05-27 by Matt — "Approve all + full V1 (~2 weeks)".**
 
-Once these are answered, I can apply the migration and start §7.
+1. ✅ POPIA model in §4 (opt-in for teams, never personal-level data) — **accepted**
+2. ✅ Schema changes in §6 (new columns + trigger) — **accepted**, applied as
+   `20260527_berg_live_teams_consent.sql` (default `is_public=false` for every
+   existing team, CHECK constraint + audit trigger).
+3. ✅ Map library = MapLibre GL JS + OpenStreetMap raster tiles direct
+   (no API key needed) — **accepted**, no Mapbox account required for V1.
+4. §11 open questions — **all 5 sub-defaults accepted**:
+   1. Heatmap source = `team_member_track_points` (skip §7.4 routes table for V1)
+   2. Min-N per heatmap cell = **3** (can tighten to 5 later if abuse appears)
+   3. Leaderboard refresh = **nightly** at 02:17 / 02:37 UTC (totals every 15 min)
+   4. Admin kill switch = **yes** — built as `admin_set_team_public()` RPC,
+      surfaced in hilltrek-admin Trailtether tab
+   5. Active-now count = **distinct hikers in last 30 min**, exposed via
+      `berg_pulse_active_count()` (live function, no materialization)
+5. ✅ Full V1 scope (~2 weeks, all four panels + privacy + Flutter toggle +
+   admin kill switch) — **accepted**, not the carve-out.
+
+### What's shipped (as of 2026-05-27)
+
+- Migrations applied: `20260527_berg_live_teams_consent.sql`,
+  `20260527_berg_live_views_rpcs.sql`,
+  `20260527_berg_live_admin_kill_switch.sql`
+- pg_cron jobs registered: `berg-pulse-totals-15min`,
+  `berg-pulse-leaderboard-night`, `berg-pulse-heatmap-night`
+- RPCs live (anon-callable, locked search_path): `berg_pulse_stats`,
+  `berg_pulse_active_count`, `berg_pulse_leaderboard`,
+  `berg_pulse_heatmap_cells`
+- Admin RPCs live (authenticated + is_admin): `admin_trailtether_teams`,
+  `admin_set_team_public`
+- Public page: `hilltrek-site/pulse/index.html` — stats strip + MapLibre
+  heatmap + leaderboard + POPIA explainer
+- Flutter consent toggle: `team_detail_screen.dart` Members tab → "Public
+  Leaderboard" card (admin-only, default OFF, requires display name when ON)
+- Admin kill switch: hilltrek-admin Trailtether tab → Teams card now has
+  a Public column with one-click Publish / Kill button
+- Privacy policy: new "Trailtether and The Berg, Live" section in
+  `hilltrek-site/privacy/index.html`
+- CSP: `.htaccess` updated to allow MapLibre (unpkg.com / cdn.jsdelivr.net),
+  OSM tiles (tile.openstreetmap.org), and worker-src 'self' blob:
+
+### Rollout
+
+The leaderboard panel ships visible but empty — no team appears until
+its creator opts in via the Flutter toggle. The stats strip and heatmap
+work from day one with whatever telemetry exists; the heatmap requires
+≥3 distinct hikers per ~50m cell so it'll be sparse for the first few
+weeks of opt-ins.
 
 ---
 

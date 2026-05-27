@@ -114,6 +114,32 @@ class TeamService {
         .update({'invite_code': _generateInviteCode()}).eq('id', teamId);
   }
 
+  // ── Public-leaderboard opt-in (Berg Live) ──────────────────────────────
+  //
+  // Flips teams.is_public + public_display_name. The DB has a CHECK
+  // constraint requiring a non-empty display name when is_public=true,
+  // and a BEFORE trigger that stamps is_public_changed_at +
+  // is_public_changed_by from auth.uid() — so we don't manage either
+  // here. RLS on `teams` already allows the creator to update their
+  // own team, so this is a plain update (no RPC needed).
+  //
+  // Used by team_detail_screen.dart's "PUBLIC LEADERBOARD" admin card.
+  // See docs/design/the-berg-live.md §6 + §9.
+  static Future<void> setPublicVisibility({
+    required String teamId,
+    required bool isPublic,
+    String? publicDisplayName,
+  }) async {
+    final patch = <String, dynamic>{
+      'is_public': isPublic,
+    };
+    if (publicDisplayName != null) {
+      final trimmed = publicDisplayName.trim();
+      patch['public_display_name'] = trimmed.isEmpty ? null : trimmed;
+    }
+    await _db.from(kColTeams).update(patch).eq('id', teamId);
+  }
+
   // Ã¢â€â‚¬Ã¢â€â‚¬ Hike plans Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   static Future<List<HikePlan>> fetchPlansForTeam(String teamId) async {
