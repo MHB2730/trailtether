@@ -61,6 +61,39 @@ if ($MinSupportedVersionCode -gt 0) {
 }
 Write-Host ""
 
+# -- 0. Duplicate-version guard --------------------------------------------
+# Same versionName+code already in app_releases? Abort before doing any work.
+# Without this guard, re-running the script without bumping pubspec inserts a
+# second row with the same version_code, the updater compares versionCode >
+# currentCode which is false (equal), and clients never see the new build.
+# Found out the hard way on 2026-05-26 with the 3.7.2 / save-fix re-publish.
+Write-Host "[0/3] Checking app_releases for existing v$versionName+$versionCode..." -ForegroundColor Cyan
+$arm64Probe   = 2 * 1000 + $versionCode
+$probeHeaders = @{
+    "Authorization" = "Bearer $env:SUPABASE_SERVICE_ROLE_KEY"
+    "apikey"        = $env:SUPABASE_SERVICE_ROLE_KEY
+    "Accept"        = "application/json"
+}
+$probeUrl = "$env:SUPABASE_URL/rest/v1/app_releases?platform=eq.android&version_name=eq.$versionName&version_code=eq.$arm64Probe&select=id,released_at"
+try {
+    $existing = Invoke-RestMethod -Uri $probeUrl -Method Get -Headers $probeHeaders -UserAgent "trailtether-publisher/1.0"
+    if ($existing -and $existing.Count -gt 0) {
+        Write-Host ""
+        Write-Host "ABORT: v$versionName (code $arm64Probe) already exists in app_releases:" -ForegroundColor Red
+        foreach ($r in $existing) {
+            Write-Host "  - id=$($r.id)  released_at=$($r.released_at)" -ForegroundColor Red
+        }
+        Write-Host ""
+        Write-Host "Bump trailtether_app/pubspec.yaml (e.g. 'version: $versionName+$versionCode' -> '$versionName+$($versionCode + 1)' or bump the patch number) and re-run." -ForegroundColor Yellow
+        Write-Host ""
+        exit 1
+    }
+    Write-Host "  [OK] No existing row -- safe to proceed" -ForegroundColor Green
+} catch {
+    Write-Warning "Could not query app_releases for existing version (skipping guard): $_"
+}
+Write-Host ""
+
 # -- 1. Build APK ----------------------------------------------------------
 # Split-per-ABI on so each APK stays under the 50 MB Supabase free-plan upload cap.
 # Modern Android phones (~2017+) all use arm64-v8a; we publish only that variant.
