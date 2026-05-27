@@ -81,6 +81,12 @@ async function verifyTurnstile(token: string, ip: string): Promise<{ ok: boolean
   // If no secret is configured, fail closed — refusing the request is
   // safer than silently letting every download through.
   if (!TURNSTILE_SECRET) return { ok: false, error: 'turnstile_not_configured' };
+  // 5s timeout so a slow Cloudflare doesn't hang the gate for minutes.
+  // Mobile users on flaky 3G are the worst-case caller; a missed verify
+  // is recoverable (they retry with a fresh challenge), a 2-minute hang
+  // is not.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
   try {
     const body = new URLSearchParams({
       secret: TURNSTILE_SECRET,
@@ -91,6 +97,7 @@ async function verifyTurnstile(token: string, ip: string): Promise<{ ok: boolean
       method: 'POST',
       body,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: controller.signal,
     });
     const data: any = await res.json();
     if (!data.success) {
@@ -99,8 +106,11 @@ async function verifyTurnstile(token: string, ip: string): Promise<{ ok: boolean
     }
     return { ok: true };
   } catch (e: any) {
-    console.error('Turnstile verify error:', e);
-    return { ok: false, error: 'turnstile_unreachable' };
+    const isTimeout = e?.name === 'AbortError';
+    console.error('Turnstile verify error:', isTimeout ? 'timeout' : e);
+    return { ok: false, error: isTimeout ? 'turnstile_timeout' : 'turnstile_unreachable' };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

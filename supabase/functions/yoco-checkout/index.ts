@@ -29,18 +29,34 @@ const YOCO_SECRET_KEY = Deno.env.get("YOCO_SECRET_KEY") ?? "";
 const YOCO_API_URL = "https://payments.yoco.com/api";
 const SITE_PUBLIC  = "https://hilltrek.co.za";
 
-const cors = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Restrict CORS to the Hilltrek origins instead of '*' — the public site
+// and admin SPA are the only browser callers; any other origin trying to
+// initiate a checkout is suspicious.
+const ALLOWED_ORIGINS = [
+  "https://hilltrek.co.za",
+  "https://www.hilltrek.co.za",
+  "https://admin.hilltrek.co.za",
+];
+
+function corsHeaders(origin: string | null): Record<string, string> {
+  const allow = origin && ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin":  allow,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+}
 
 Deno.serve(async (req) => {
+  const cors = corsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-  if (req.method !== "POST")    return j(405, { error: "POST only" });
+  if (req.method !== "POST")    return j(cors, 405, { error: "POST only" });
 
   if (!YOCO_SECRET_KEY) {
-    return j(503, {
+    return j(cors, 503, {
       error: "yoco_not_configured",
       detail: "Set YOCO_SECRET_KEY in Supabase Edge Function Secrets.",
     });
@@ -48,10 +64,10 @@ Deno.serve(async (req) => {
 
   let body: any;
   try { body = await req.json(); }
-  catch { return j(400, { error: "Invalid JSON body" }); }
+  catch { return j(cors, 400, { error: "Invalid JSON body" }); }
 
   const orderId = String(body?.order_id ?? "").trim();
-  if (!orderId) return j(400, { error: "order_id required" });
+  if (!orderId) return j(cors, 400, { error: "order_id required" });
 
   // 1. Load the order with the service role (RLS would block anon reads).
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -61,10 +77,10 @@ Deno.serve(async (req) => {
     .eq("id", orderId)
     .maybeSingle();
 
-  if (error)  return j(500, { error: "DB error", detail: error.message });
-  if (!order) return j(404, { error: "Order not found" });
+  if (error)  return j(cors, 500, { error: "DB error", detail: error.message });
+  if (!order) return j(cors, 404, { error: "Order not found" });
   if (order.status !== "pending") {
-    return j(409, { error: "Order is not pending", detail: `status=${order.status}` });
+    return j(cors, 409, { error: "Order is not pending", detail: `status=${order.status}` });
   }
 
   // 2. Build the Yoco checkout payload. Amount is in cents (matches our
@@ -100,7 +116,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify(payload),
     });
   } catch (e: any) {
-    return j(502, { error: "yoco_unreachable", detail: String(e?.message ?? e) });
+    return j(cors, 502, { error: "yoco_unreachable", detail: String(e?.message ?? e) });
   }
 
   const respText = await yocoResp.text();
@@ -108,7 +124,7 @@ Deno.serve(async (req) => {
   try { yocoData = JSON.parse(respText); } catch { /* keep as text */ }
 
   if (!yocoResp.ok) {
-    return j(502, {
+    return j(cors, 502, {
       error:  "yoco_api_error",
       status: yocoResp.status,
       detail: yocoData ?? respText,
@@ -116,7 +132,7 @@ Deno.serve(async (req) => {
   }
 
   if (!yocoData?.redirectUrl) {
-    return j(502, {
+    return j(cors, 502, {
       error:  "yoco_no_redirect",
       detail: "Yoco response missing redirectUrl",
       raw:    yocoData,
@@ -135,7 +151,7 @@ Deno.serve(async (req) => {
     })
     .eq("id", order.id);
 
-  return j(200, {
+  return j(cors, 200, {
     redirect_url:      yocoData.redirectUrl,
     order_number:      order.order_number,
     amount:            (Number(order.total_cents) / 100).toFixed(2),
@@ -144,7 +160,7 @@ Deno.serve(async (req) => {
   });
 });
 
-function j(status: number, body: any): Response {
+function j(cors: Record<string, string>, status: number, body: any): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...cors, "Content-Type": "application/json" },
