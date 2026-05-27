@@ -1,45 +1,74 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import '../models/trail.dart';
+import 'logger_service.dart';
+import 'trail_repository.dart';
 
 class TrailService {
   static List<Trail>? _cache;
 
-  static Future<List<Trail>> loadTrails() async {
-    if (_cache != null) return _cache!;
+  /// Resolve the curated trail catalogue.
+  ///
+  /// Layering (each falls through to the next on miss / failure):
+  ///   1. In-memory cache (set after first successful load)
+  ///   2. Supabase `public.trails` via TrailRepository.fetchAll
+  ///   3. SharedPreferences cache from a previous fetch (offline)
+  ///   4. Bundled assets/data/routes_cleaned.json (first launch / no signal)
+  ///
+  /// Admin edits land in Supabase, so step 2 always wins once we have a
+  /// signal. The bundled JSON is the unchanging fallback — it shipped with
+  /// the binary and is here purely so the app works on first launch
+  /// without a network round-trip.
+  static Future<List<Trail>> loadTrails({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cache != null) return _cache!;
+
+    List<Map<String, dynamic>> rows = const [];
+    var source = 'bundle';
+
     try {
-      final raw =
-          await rootBundle.loadString('assets/data/routes_cleaned.json');
-      final list = json.decode(raw) as List<dynamic>;
-
-      final loadedTrails = <Trail>[];
-      for (final e in list) {
-        try {
-          final json = e as Map<String, dynamic>;
-          // Normalize the name at load time so search results, list rows,
-          // detail headers and map labels all show the same uniform text. The
-          // upstream JSON has mixed conventions (kebab-case, leading-zero
-          // typos, "via via" duplication, inconsistent possessive casing —
-          // see normalizeTrailName for the full ruleset).
-          final original = json['name']?.toString() ?? '';
-          json['name'] = normalizeTrailName(original);
-          loadedTrails.add(Trail.fromJson(json));
-        } catch (err) {
-          debugPrint(
-              'Error parsing trail: ${e['name'] ?? 'unknown'}. Error: $err');
-          // Skip corrupt trails instead of failing entirely
-        }
-      }
-
-      _cache = loadedTrails;
-      // Sort alphabetically
-      _cache!.sort((a, b) => a.name.compareTo(b.name));
-      return _cache!;
+      rows = await TrailRepository.fetchAll();
+      source = 'supabase';
     } catch (e) {
-      debugPrint('Global trail load failed: $e');
-      rethrow;
+      LoggerService.log(
+          'TRAILS', 'Supabase fetch failed ($e); falling back to cache');
+      rows = await TrailRepository.loadCache();
+      if (rows.isNotEmpty) source = 'cache';
     }
+
+    if (rows.isEmpty) {
+      rows = await TrailRepository.loadBundleAsRows();
+      source = 'bundle';
+    }
+
+    final loadedTrails = <Trail>[];
+    for (final row in rows) {
+      try {
+        // Normalize the name at load time so search results, list rows,
+        // detail headers and map labels all show the same uniform text. The
+        // upstream JSON has mixed conventions (kebab-case, leading-zero
+        // typos, "via via" duplication, inconsistent possessive casing —
+        // see normalizeTrailName for the full ruleset).
+        final original = row['name']?.toString() ?? '';
+        row['name'] = normalizeTrailName(original);
+        loadedTrails.add(Trail.fromJson(row));
+      } catch (err) {
+        debugPrint(
+            'Error parsing trail: ${row['name'] ?? 'unknown'}. Error: $err');
+        // Skip corrupt trails instead of failing entirely
+      }
+    }
+
+    loadedTrails.sort((a, b) => a.name.compareTo(b.name));
+    _cache = loadedTrails;
+    LoggerService.log(
+        'TRAILS', 'Loaded ${loadedTrails.length} trails from $source');
+    return loadedTrails;
+  }
+
+  /// Invalidate the in-memory cache. The next `loadTrails()` call will
+  /// hit Supabase again. Used after admin edits / seeds so changes
+  /// surface without an app restart.
+  static void invalidateCache() {
+    _cache = null;
   }
 
   static List<Trail> filter(

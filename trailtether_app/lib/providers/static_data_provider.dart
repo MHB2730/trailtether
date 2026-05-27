@@ -74,6 +74,27 @@ class StaticDataProvider extends ChangeNotifier {
     }
   }
 
+  /// Force a fresh fetch from Supabase. Called by the PC Trails admin
+  /// section after edit / add / delete / seed so the change is reflected
+  /// across the rest of the app (map, list, search) without a restart.
+  Future<void> refreshTrails() async {
+    TrailService.invalidateCache();
+    try {
+      final list = await TrailService.loadTrails(forceRefresh: true);
+      _allTrails = list;
+      _filteredTrails = TrailService.filter(
+        _allTrails,
+        query: _query,
+        difficulty: _difficulty == 'All' ? null : _difficulty,
+      );
+      LoggerService.log(
+          'STATIC_DATA', 'Refreshed ${_allTrails.length} trails');
+    } catch (e) {
+      LoggerService.error('STATIC_DATA', 'refreshTrails failed: $e');
+    }
+    notifyListeners();
+  }
+
   void selectTrail(Trail? trail) {
     _selectedTrail = trail;
     _profileCursor = null;

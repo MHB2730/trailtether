@@ -40,6 +40,7 @@ import '../admin/admin_settings_tab.dart';
 import '../admin/mission_control_tab.dart';
 import '../hike_history_screen.dart';
 import '../team_detail_screen.dart';
+import 'pc_trails_screen.dart';
 
 // ─────────────────────────── tokens (pc-local) ──────────────────────────────
 //
@@ -60,18 +61,32 @@ class PC {
 
 // ───────────────────────────── nav model ────────────────────────────────────
 
-enum _PcSection { dashboard, watch, hikers, history, alerts, pair, settings }
+enum _PcSection {
+  dashboard,
+  watch,
+  hikers,
+  history,
+  trails,
+  alerts,
+  pair,
+  settings,
+}
 
 class _NavSpec {
   final _PcSection id;
   final IconData icon;
   final String label;
   final bool live;
+  /// Whether this nav entry should be hidden from non-admin users. RLS
+  /// already gates server-side writes, but showing tabs that error on use
+  /// is a poor experience — better to hide them entirely.
+  final bool adminOnly;
   const _NavSpec({
     required this.id,
     required this.icon,
     required this.label,
     this.live = false,
+    this.adminOnly = false,
   });
 }
 
@@ -80,9 +95,10 @@ const _kNav = [
   _NavSpec(id: _PcSection.watch,     icon: Icons.visibility_outlined, label: 'Hike Watch', live: true),
   _NavSpec(id: _PcSection.hikers,    icon: Icons.people_outline, label: 'Hikers'),
   _NavSpec(id: _PcSection.history,   icon: Icons.history, label: 'History'),
+  _NavSpec(id: _PcSection.trails,    icon: Icons.alt_route_outlined, label: 'Trails', adminOnly: true),
   _NavSpec(id: _PcSection.alerts,    icon: Icons.notifications_none_rounded, label: 'Alerts'),
   _NavSpec(id: _PcSection.pair,      icon: Icons.qr_code_2_rounded, label: 'Pair Device'),
-  _NavSpec(id: _PcSection.settings,  icon: Icons.settings_outlined, label: 'Settings'),
+  _NavSpec(id: _PcSection.settings,  icon: Icons.settings_outlined, label: 'Settings', adminOnly: true),
 ];
 
 // ───────────────────────────── main shell ───────────────────────────────────
@@ -159,6 +175,8 @@ class _PcContent extends StatelessWidget {
         return _PcHikersList(onNavigate: onNavigate);
       case _PcSection.history:
         return const _PcHistory();
+      case _PcSection.trails:
+        return const PcTrailsScreen();
       case _PcSection.alerts:
         return const _PcAlerts();
       case _PcSection.pair:
@@ -297,6 +315,13 @@ class _PCSidebar extends StatelessWidget {
       final raw = (a.displayName ?? 'Watcher').trim();
       return raw.isEmpty ? 'Watcher' : raw;
     });
+    // Filter admin-only nav items (Trails catalogue editor + Hilltrek
+    // settings tab) out of the sidebar for non-admin viewers. RLS still
+    // gates writes server-side, but showing tabs that error on use is a
+    // worse UX than just hiding them.
+    final isAdmin = context.watch<ap.AuthProvider>().isAdmin;
+    final visibleNav =
+        _kNav.where((n) => isAdmin || !n.adminOnly).toList(growable: false);
     final hikerCount = teams.fold<int>(0, (sum, t) => sum + t.members.length);
 
     return Container(
@@ -370,7 +395,7 @@ class _PCSidebar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final n in _kNav)
+                for (final n in visibleNav)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),
                     child: _PCSidebarItem(
