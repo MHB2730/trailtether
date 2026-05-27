@@ -28,6 +28,7 @@ import '../services/offline_map_service.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
+import '../widgets/finish_hike_sheet.dart';
 import '../widgets/start_hike_ramp.dart';
 import '../models/incident.dart';
 import '../providers/safety_provider.dart';
@@ -1828,7 +1829,15 @@ class _RecordingPanel extends StatelessWidget {
                     _StartButton(onTap: onStart),
                   if (recording.isRecording || recording.isPaused) ...[
                     const SizedBox(width: 8),
-                    _StopButton(onTap: recording.stop),
+                    _StopButton(
+                      // STOP opens the shared Save/Discard/Resume sheet in
+                      // place — same Strava-style flow used by the
+                      // LiveTrackingScreen route. The sheet pauses GPS,
+                      // forces a decision, and on Save promotes the hike
+                      // to recorded_trails + hike_history.
+                      onTap: () =>
+                          FinishHikeSheet.show(context, recording),
+                    ),
                   ],
                 ],
               ),
@@ -2125,8 +2134,21 @@ class _StatRow extends StatelessWidget {
     final speedKmh = recording.averageSpeedKmh;
     final speedValue = units.speedFromKmh(speedKmh).toStringAsFixed(1);
     final speedUnit = units.speedUnit;
-    final elev = units.elevationFromM(recording.totalGainM.toDouble()).round();
     final elevUnit = units.elevationUnit;
+    final gain =
+        units.elevationFromM(recording.totalGainM.toDouble()).round();
+    // Show CURRENT altitude as the primary number (so the user can see at a
+    // glance whether the GPS is even returning vertical data) and gain as a
+    // small subtitle. Falls back to "—" when no fix yet OR the device is
+    // reporting an unusable 0 (common in weak-signal valleys / emulators).
+    final hasAltitude = recording.points.isNotEmpty &&
+        recording.points.last.altitude.abs() > 0.01;
+    final altValue = hasAltitude
+        ? units
+            .elevationFromM(recording.points.last.altitude)
+            .round()
+            .toString()
+        : '—';
     final time = recording.duration;
 
     return Container(
@@ -2141,9 +2163,10 @@ class _StatRow extends StatelessWidget {
           children: [
             Expanded(
               child: _MiniStat(
-                label: 'Elev',
-                value: elev.toString(),
-                unit: elevUnit,
+                label: 'Alt',
+                value: altValue,
+                unit: hasAltitude ? elevUnit : null,
+                subtitle: '+$gain $elevUnit gain',
                 ember: true,
               ),
             ),
@@ -2180,11 +2203,13 @@ class _MiniStat extends StatelessWidget {
   final String label;
   final String value;
   final String? unit;
+  final String? subtitle;
   final bool ember;
   const _MiniStat({
     required this.label,
     required this.value,
     this.unit,
+    this.subtitle,
     this.ember = false,
   });
 
@@ -2223,6 +2248,14 @@ class _MiniStat extends StatelessWidget {
               ],
             ],
           ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle!,
+              style: TT.mono(size: 9.5, color: TT.text3),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
       ),
     );

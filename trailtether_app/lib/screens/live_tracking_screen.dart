@@ -22,11 +22,7 @@ import '../core/constants.dart';
 import '../core/design_tokens.dart';
 import '../core/sun_utils.dart';
 import '../models/incident.dart';
-import '../models/saved_hike.dart';
 import '../models/weather.dart';
-import '../providers/app_state_provider.dart';
-import '../providers/auth_provider.dart' as ap;
-import '../providers/hike_history_provider.dart';
 import '../providers/recording_provider.dart';
 import '../providers/safety_provider.dart';
 import '../providers/static_data_provider.dart';
@@ -38,6 +34,7 @@ import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_count_up.dart';
 import '../widgets/design/tt_glass_card.dart';
 import '../widgets/design/tt_pill.dart';
+import '../widgets/finish_hike_sheet.dart';
 import '../widgets/map/speed_path_layer.dart';
 import '../widgets/map/trail_map_3d_selector.dart';
 
@@ -138,268 +135,19 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   }
 
   void _showFinishDialog(RecordingProvider rec) {
-    HapticFeedback.heavyImpact();
-    rec.pause();
-
-    String type = rec.activityType;
-    String contextStr = rec.activityContext;
-    String? teamId = rec.toSavedHike().teamId;
-    final nameCtrl =
-        TextEditingController(text: rec.customName ?? rec.targetTrail?.name);
-    int peaks = 0;
-
-    // Finish sheet is intentionally NON-dismissable: tapping STOP/FINISH
-    // pauses recording, so if the user swipes the sheet away or backs out
-    // they end up in a paused-but-undecided "limbo" where neither save nor
-    // discard has happened.  Forcing a choice (Save / Discard / Keep
-    // Recording) eliminates that state.  Reported on 2026-05-27 — see
-    // user feedback re: hike-cancel UX.
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl))),
-      builder: (ctx) => PopScope(
-        // Blocks the Android system back button — same rationale as
-        // isDismissible: false.  The user must pick one of the three
-        // explicit actions inside the sheet to leave it.
-        canPop: false,
-        child: StatefulBuilder(
-        builder: (ctx, setLocalState) => Container(
-          decoration: const BoxDecoration(
-            color: TT.bg2,
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(TT.rXl)),
-            border: Border(top: BorderSide(color: TT.line2)),
-          ),
-          padding: EdgeInsets.fromLTRB(
-              22, 22, 22, MediaQuery.of(ctx).viewInsets.bottom + 22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: TT.line3,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('FINISH HIKE',
-                            style: TT.label(
-                                size: 12,
-                                color: TT.ember,
-                                letterSpacing: 1.4)),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Save this hike or discard it — you’ve got to pick one.',
-                          style: TT.body(size: 12.5, color: TT.text2),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // "Keep recording" escape hatch for accidental FINISH
-                  // taps.  Resumes the GPS subscription and closes the
-                  // sheet; the hike continues exactly where it left off.
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () async {
-                      await rec.start();
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 12, top: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.arrow_back_rounded,
-                              size: 14, color: TT.text2),
-                          const SizedBox(width: 4),
-                          Text('KEEP RECORDING',
-                              style: TT.label(
-                                  size: 10,
-                                  color: TT.text2,
-                                  letterSpacing: 1.2)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              _SheetField(
-                controller: nameCtrl,
-                label: 'ACTIVITY NAME',
-              ),
-              const SizedBox(height: 18),
-              Text('ACTIVITY TYPE',
-                  style: TT.label(
-                      size: 10.5,
-                      color: TT.text3,
-                      letterSpacing: 1.4)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _TypeButton(
-                      label: 'HIKE',
-                      icon: Icons.hiking,
-                      active: type == 'hike',
-                      onTap: () => setLocalState(() => type = 'hike')),
-                  const SizedBox(width: 8),
-                  _TypeButton(
-                      label: 'WALK',
-                      icon: Icons.directions_walk,
-                      active: type == 'walk',
-                      onTap: () => setLocalState(() => type = 'walk')),
-                  const SizedBox(width: 8),
-                  _TypeButton(
-                      label: 'RUN',
-                      icon: Icons.directions_run,
-                      active: type == 'run',
-                      onTap: () => setLocalState(() => type = 'run')),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Text('CONTEXT',
-                  style: TT.label(
-                      size: 10.5,
-                      color: TT.text3,
-                      letterSpacing: 1.4)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _TypeButton(
-                      label: 'PERSONAL',
-                      icon: Icons.person,
-                      active: contextStr == 'personal',
-                      onTap: () =>
-                          setLocalState(() => contextStr = 'personal')),
-                  const SizedBox(width: 8),
-                  _TypeButton(
-                      label: 'TEAM',
-                      icon: Icons.groups,
-                      active: contextStr == 'team',
-                      onTap: () =>
-                          setLocalState(() => contextStr = 'team')),
-                  const SizedBox(width: 8),
-                  _TypeButton(
-                      label: 'TRAINING',
-                      icon: Icons.fitness_center,
-                      active: contextStr == 'training',
-                      onTap: () =>
-                          setLocalState(() => contextStr = 'training')),
-                ],
-              ),
-              if (contextStr == 'team') ...[
-                const SizedBox(height: 18),
-                Text('SELECT TEAM',
-                    style: TT.label(
-                        size: 10.5,
-                        color: TT.text3,
-                        letterSpacing: 1.4)),
-                const SizedBox(height: 8),
-                Consumer<TeamProvider>(
-                  builder: (_, tp, __) => _TeamDropdown(
-                    value: teamId,
-                    teams: tp.teams,
-                    onChanged: (v) => setLocalState(() => teamId = v),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('PEAKS RECORDED',
-                            style: TT.label(
-                                size: 10.5,
-                                color: TT.text3,
-                                letterSpacing: 1.4)),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            _StepperButton(
-                              icon: Icons.remove,
-                              onTap: () => setLocalState(
-                                  () => peaks = (peaks - 1).clamp(0, 10)),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16),
-                              child: Text('$peaks',
-                                  style: TT.numStyle(
-                                      size: 20, color: TT.text)),
-                            ),
-                            _StepperButton(
-                              icon: Icons.add,
-                              onTap: () =>
-                                  setLocalState(() => peaks = peaks + 1),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              Row(
-                children: [
-                  Expanded(
-                    child: _DangerButton(
-                      label: 'DISCARD',
-                      icon: Icons.delete_outline,
-                      onTap: () {
-                        rec.clear();
-                        Navigator.pop(ctx);
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: _PrimaryButton(
-                      label: 'SAVE ACTIVITY',
-                      onTap: () async {
-                        rec.setActivityMetadata(
-                            type: type,
-                            context: contextStr,
-                            name: nameCtrl.text);
-                        await _saveActivity(rec,
-                            peaks: peaks, teamId: teamId);
-                        rec.clear();
-                        if (!mounted) return;
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-      ),
+    // Delegates to the shared FinishHikeSheet (single source of truth for
+    // the Save/Discard/Resume UX, used by both this route and the Map tab's
+    // recording sheet). On Save or Discard we pop this LiveTrackingScreen
+    // route — Keep Recording leaves the screen in place.
+    FinishHikeSheet.show(
+      context,
+      rec,
+      onSaved: () {
+        if (mounted) Navigator.of(context).pop();
+      },
+      onDiscarded: () {
+        if (mounted) Navigator.of(context).pop();
+      },
     );
   }
 
@@ -532,108 +280,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     );
   }
 
-  Future<void> _saveActivity(RecordingProvider rec,
-      {int peaks = 0, String? teamId}) async {
-    if (rec.points.isEmpty) {
-      _showSaveSnack(
-        message: 'No GPS fixes recorded — nothing to save.',
-        color: const Color(0xFFE0A847),
-      );
-      return;
-    }
-    final auth = context.read<ap.AuthProvider>();
-
-    final baseHike = rec.toSavedHike();
-    final finalHike = SavedHike(
-      id: baseHike.id,
-      name: baseHike.name,
-      startedAt: baseHike.startedAt,
-      endedAt: baseHike.endedAt,
-      points: baseHike.points,
-      distanceKm: baseHike.distanceKm,
-      durationSeconds: baseHike.durationSeconds,
-      movingSeconds: baseHike.movingSeconds,
-      averageSpeedKmh: baseHike.averageSpeedKmh,
-      movingSpeedKmh: baseHike.movingSpeedKmh,
-      maxSpeedKmh: baseHike.maxSpeedKmh,
-      ascentM: baseHike.ascentM,
-      descentM: baseHike.descentM,
-      minElevationM: baseHike.minElevationM,
-      maxElevationM: baseHike.maxElevationM,
-      averageAccuracyM: baseHike.averageAccuracyM,
-      bestAccuracyM: baseHike.bestAccuracyM,
-      worstAccuracyM: baseHike.worstAccuracyM,
-      acceptedFixes: baseHike.acceptedFixes,
-      rejectedFixes: baseHike.rejectedFixes,
-      poorAccuracyRejects: baseHike.poorAccuracyRejects,
-      jumpRejects: baseHike.jumpRejects,
-      staleRejects: baseHike.staleRejects,
-      gapWarnings: baseHike.gapWarnings,
-      activityType: baseHike.activityType,
-      activityContext: baseHike.activityContext,
-      benchmarkRouteId: baseHike.benchmarkRouteId,
-      teamId: teamId ?? baseHike.teamId,
-      peaksClimbed: peaks,
-    );
-
-    final result = await context
-        .read<HikeHistoryProvider>()
-        .add(finalHike, userId: auth.uid);
-
-    // User-visible feedback. Previously this returned silently on every
-    // failure mode — local fail, sync fail, trail upload fail, not signed
-    // in. The result type now distinguishes them.
-    if (!result.localSaved) {
-      _showSaveSnack(
-        message: 'Could not save hike: ${result.error ?? "unknown error"}',
-        color: const Color(0xFFFF6B6B),
-      );
-    } else if (result.offlineOnly) {
-      _showSaveSnack(
-        message: 'Saved on device only — sign in to sync your hikes to Hilltrek.',
-        color: const Color(0xFFE0A847),
-      );
-    } else if (result.isFullSuccess) {
-      _showSaveSnack(
-        message: 'Hike saved & synced to Hilltrek.',
-        color: const Color(0xFF5AC26D),
-      );
-    } else if (result.supabaseSynced && !result.trailUploaded) {
-      _showSaveSnack(
-        message:
-            'Synced to your account, but trail file failed to upload. The hourly recovery job will retry.',
-        color: const Color(0xFFE0A847),
-      );
-    } else {
-      _showSaveSnack(
-        message: 'Saved locally. Sync failed: ${result.error ?? "check connection"}',
-        color: const Color(0xFFFF6B6B),
-      );
-    }
-
-    if (finalHike.benchmarkRouteId != null &&
-        finalHike.benchmarkRouteId!.isNotEmpty) {
-      if (mounted) {
-        final appState = context.read<AppStateProvider>();
-        if (!appState.isCompleted(finalHike.benchmarkRouteId!)) {
-          await appState.toggleCompleted(finalHike.benchmarkRouteId!);
-        }
-      }
-    }
-  }
-
-  void _showSaveSnack({required String message, required Color color}) {
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        duration: const Duration(seconds: 5),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1560,36 +1206,6 @@ class _PrimaryButton extends StatelessWidget {
   }
 }
 
-class _SecondaryButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _SecondaryButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 54,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: const Color(0x08FFFFFF),
-          borderRadius: BorderRadius.circular(TT.rMd),
-          border: Border.all(color: TT.line2),
-        ),
-        child: Text(
-          label,
-          style: TT.body(
-            size: 12.5,
-            w: FontWeight.w800,
-            color: TT.text2,
-          ).copyWith(letterSpacing: 0.16 * 12.5),
-        ),
-      ),
-    );
-  }
-}
-
 class _DangerButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1673,44 +1289,6 @@ class _TypeButton extends StatelessWidget {
       );
 }
 
-class _SheetField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  const _SheetField({required this.controller, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: TT.label(
-                size: 10.5, color: TT.ember, letterSpacing: 1.4)),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: TT.surf,
-            borderRadius: BorderRadius.circular(TT.rMd),
-            border: Border.all(color: TT.line2),
-          ),
-          child: TextField(
-            controller: controller,
-            cursorColor: TT.ember,
-            style: TT.body(size: 14, color: TT.text),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 12),
-              hintText: 'Untitled activity',
-              hintStyle: TT.body(size: 14, color: TT.text3),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _TeamDropdown extends StatelessWidget {
   final String? value;
   final List teams;
@@ -1760,30 +1338,6 @@ class _TeamDropdown extends StatelessWidget {
               .toList(),
           onChanged: onChanged,
         ),
-      ),
-    );
-  }
-}
-
-class _StepperButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _StepperButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: TT.emberDim,
-          borderRadius: BorderRadius.circular(TT.rSm),
-          border: Border.all(color: const Color(0x52FF6A2C)),
-        ),
-        child: Icon(icon, size: 16, color: TT.ember),
       ),
     );
   }
