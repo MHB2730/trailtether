@@ -11,6 +11,7 @@ import '../providers/team_provider.dart';
 import 'recording_provider.dart';
 import '../services/logger_service.dart';
 import '../services/offline_track_queue.dart';
+import '../services/offline_incident_queue.dart';
 
 class TeamTrackingProvider extends ChangeNotifier {
   TeamTrackingProvider() {
@@ -43,6 +44,7 @@ class TeamTrackingProvider extends ChangeNotifier {
     if (_draining || _disposed) return;
     _draining = true;
     try {
+      await _drainOfflineIncidentsQueue();
       final fixes = await OfflineTrackQueue.drainAll();
       if (fixes.isEmpty) return;
       LoggerService.log(
@@ -85,6 +87,26 @@ class TeamTrackingProvider extends ChangeNotifier {
       LoggerService.log('TRACKING', 'Offline drain complete');
     } finally {
       _draining = false;
+    }
+  }
+
+  Future<void> _drainOfflineIncidentsQueue() async {
+    if (_disposed) return;
+    try {
+      final incidents = await OfflineIncidentQueue.drainAll();
+      if (incidents.isEmpty) return;
+      LoggerService.log(
+          'OFF_TRAIL', 'Draining ${incidents.length} offline incident alerts to Supabase');
+      try {
+        await Supabase.instance.client.from('incidents').insert(incidents);
+        LoggerService.log('OFF_TRAIL', 'Offline incidents drain complete');
+      } catch (e, stack) {
+        LoggerService.error(
+            'OFF_TRAIL', 'Failed to insert drained incidents; re-queueing: $e', stack);
+        await OfflineIncidentQueue.reenqueue(incidents);
+      }
+    } catch (e, stack) {
+      LoggerService.error('OFF_TRAIL', '_drainOfflineIncidentsQueue failed: $e', stack);
     }
   }
 

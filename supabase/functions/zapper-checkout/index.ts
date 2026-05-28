@@ -3,7 +3,7 @@
 // ============================================================================
 
 // deno-lint-ignore-file no-explicit-any
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -16,13 +16,34 @@ const ZAPPER_API_BASE       = (Deno.env.get("ZAPPER_API_BASE_URL")   ?? "https:/
 
 const SITE_PUBLIC = "https://hilltrek.co.za";
 
-const cors = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://hilltrek.co.za",
+  "https://www.hilltrek.co.za",
+  "https://admin.hilltrek.co.za",
+];
+
+function corsHeaders(origin: string | null): Record<string, string> {
+  const allow = origin && ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin":  allow,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+}
 
 Deno.serve(async (req) => {
+  const cors = corsHeaders(req.headers.get("origin"));
+
+  function j(status: number, body: any): Response {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST")    return j(405, { error: "POST only" });
 
@@ -145,10 +166,3 @@ Deno.serve(async (req) => {
     invoice_reference: invoiceReference,
   });
 });
-
-function j(status: number, body: any): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...cors, "Content-Type": "application/json" },
-  });
-}

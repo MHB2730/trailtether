@@ -472,12 +472,12 @@ class _MedallionPainter extends CustomPainter {
         [-6.0, -26.0, 2.1],
       ];
       for (final e in embers) {
-        final delay = (e[2] as double) / 6.0;
+        final delay = e[2] / 6.0;
         final t = ((animation.value - delay) % 1.0 + 1.0) % 1.0;
         if (t > 0.95) continue; // brief gap between cycles
         final fade = t < 0.18 ? t / 0.18 : (1 - (t - 0.18) / 0.82);
-        final cx = 50 + (e[0] as double) * t;
-        final cy = 30 + (e[1] as double) * t;
+        final cx = 50 + e[0] * t;
+        final cy = 30 + e[1] * t;
         final emberPaint = Paint()
           ..shader = RadialGradient(
             colors: [

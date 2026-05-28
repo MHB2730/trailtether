@@ -82,7 +82,7 @@ class HikeHistoryProvider extends ChangeNotifier {
       // run, but the user-facing message should make clear that nothing
       // synced from this device this time.
       notifyListeners();
-      return HikeSaveResult(
+      return const HikeSaveResult(
         localSaved: true,
         supabaseSynced: false,
         trailUploaded: false,

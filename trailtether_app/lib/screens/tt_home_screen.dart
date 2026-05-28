@@ -516,7 +516,7 @@ class _HomeQuickActions extends StatelessWidget {
             return;
           }
           final confirmed = await StartHikeRamp.show(context);
-          if (!confirmed) return;
+          if (!confirmed || !context.mounted) return;
           final rec = context.read<RecordingProvider>();
           final ok = await rec.start();
           if (!context.mounted) return;

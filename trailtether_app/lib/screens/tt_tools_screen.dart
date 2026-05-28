@@ -951,7 +951,7 @@ class _CompassPainter extends CustomPainter {
     // ── OUTER MIL-TICK RING — 64 ticks ─────────────────────────────────
     for (var i = 0; i < 64; i++) {
       final ang = (i * 5.625 - 90) * math.pi / 180;
-      final r1 = 107.0;
+      const r1 = 107.0;
       final r2 = i % 8 == 0 ? 102.0 : 104.5;
       final isMajor = i % 8 == 0;
       canvas.drawLine(
@@ -1257,7 +1257,7 @@ class _CompassPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
     )..layout(minWidth: 44);
-    tp.paint(canvas, Offset(98, 11));
+    tp.paint(canvas, const Offset(98, 11));
 
     // ── HUD corner brackets (tactical reticle frame) ─────────────────
     final bracket = Paint()

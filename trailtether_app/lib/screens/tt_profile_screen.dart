@@ -591,9 +591,9 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                       ],
                     ),
                     const SizedBox(height: 20),
-                    _FadeUp(
-                      delay: const Duration(milliseconds: 1600),
-                      child: const Center(child: _AppVersionLabel()),
+                    const _FadeUp(
+                      delay: Duration(milliseconds: 1600),
+                      child: Center(child: _AppVersionLabel()),
                     ),
                   ],
                 ),

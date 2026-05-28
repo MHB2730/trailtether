@@ -1328,8 +1328,8 @@ class _MembersTabState extends State<_MembersTab> {
                             ),
                           );
                         },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 6),
                           child: Icon(Icons.copy_rounded,
                               size: 16, color: TT.text3),
                         ),

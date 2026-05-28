@@ -239,7 +239,7 @@ class _WarningsSheet extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: TT.ember, size: 18),
+                  const Icon(Icons.warning_amber_rounded, color: TT.ember, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     'Weather warnings',

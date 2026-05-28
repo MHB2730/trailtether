@@ -16,6 +16,7 @@ import '../models/incident.dart';
 import '../services/location_service.dart';
 import '../services/logger_service.dart';
 import '../services/weather_alert_service.dart';
+import '../services/offline_incident_queue.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../core/utils.dart';
@@ -383,7 +384,7 @@ class RecordingProvider extends ChangeNotifier {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
     final off = _offTrailDist.round();
-    unawaited(Supabase.instance.client.from('incidents').insert({
+    final incidentPayload = {
       // Reuse the existing `lost_disoriented` type for off-trail drift since it
       // best matches the semantic — hiker has deviated from the planned route.
       'type': 'lost_disoriented',
@@ -396,11 +397,13 @@ class RecordingProvider extends ChangeNotifier {
       'reported_by_name': 'Off-trail sentinel',
       'is_emergency': false,
       'status': 'open',
-    }).then((_) {
+    };
+    unawaited(Supabase.instance.client.from('incidents').insert(incidentPayload).then((_) {
       LoggerService.log('OFF_TRAIL',
           'Published off-trail alert: ${off}m, threshold ${thresholdM.toStringAsFixed(0)}m');
     }).catchError((e) {
-      LoggerService.error('OFF_TRAIL', 'alert insert failed: $e');
+      LoggerService.error('OFF_TRAIL', 'alert insert failed; queueing offline: $e');
+      unawaited(OfflineIncidentQueue.enqueue(incidentPayload));
     }));
   }
 

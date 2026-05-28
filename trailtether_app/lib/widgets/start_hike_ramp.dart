@@ -126,14 +126,14 @@ class _StartHikeRampState extends State<StartHikeRamp>
   Future<void> _runCountdown() async {
     setState(() => _counting = true);
     _countdown.reset();
-    HapticFeedback.lightImpact();
-    _countdown.forward();
+    unawaited(HapticFeedback.lightImpact());
+    unawaited(_countdown.forward());
     // 3 distinct haptic ticks at second boundaries — confirms each beat.
     Timer(const Duration(seconds: 1), () => HapticFeedback.lightImpact());
     Timer(const Duration(seconds: 2), () => HapticFeedback.lightImpact());
     await _countdown.forward().orCancel.catchError((_) {});
     if (!mounted) return;
-    HapticFeedback.heavyImpact();
+    unawaited(HapticFeedback.heavyImpact());
     Navigator.of(context).pop(true);
   }
 

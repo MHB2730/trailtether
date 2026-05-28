@@ -180,9 +180,19 @@ if ($probeExit -eq 0 -and $existing) {
     $ghArgs = @(
         "release", "create", $tagName
     ) + $assets + @(
-        "--title", "Trailtether v$versionName build $versionCode",
-        "--notes", $ReleaseNotes
+        "--title", "Trailtether v$versionName build $versionCode"
     )
+    # WinPS 5.1 drops empty-string arguments during array splatting, so
+    # `--notes ""` reaches gh as a bare `--notes` with no value, failing
+    # with "flag needs an argument: --notes". Fall through to
+    # --generate-notes when no notes were supplied so gh pulls them from
+    # the commit log instead.
+    if ([string]::IsNullOrWhiteSpace($ReleaseNotes)) {
+        $ghArgs += "--generate-notes"
+    } else {
+        $ghArgs += "--notes"
+        $ghArgs += $ReleaseNotes
+    }
     if ($Prerelease) { $ghArgs += "--prerelease" }
     & gh @ghArgs
     if ($LASTEXITCODE -ne 0) { Write-Error "gh release create failed" }

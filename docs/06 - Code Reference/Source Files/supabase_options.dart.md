@@ -1,0 +1,21 @@
+---
+type: source-file
+status: stub
+area: code
+source_paths:
+  - trailtether_app/lib/core/supabase_options.dart
+aliases:
+  - supabase_options.dart
+---
+
+# supabase_options.dart
+
+Source-file reference used by one or more codebase notes.
+
+## Source Files
+
+- `trailtether_app/lib/core/supabase_options.dart`
+
+## Maintenance
+
+This stub exists to resolve Obsidian backlinks. Expand it only if this item becomes important enough to deserve its own note.

@@ -469,7 +469,7 @@ class _PCSidebarItem extends StatelessWidget {
                   style: TT.body(size: 12.5, w: FontWeight.w700, color: color),
                 ),
               ),
-              if (spec.live) _PulseDot(color: TT.ember),
+              if (spec.live) const _PulseDot(color: TT.ember),
             ],
           ),
         ),
@@ -562,7 +562,7 @@ class _AccountFooter extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    _PulseDot(),
+                    const _PulseDot(),
                     const SizedBox(width: 4),
                     Text(
                       'WATCHING · ${hikerCount > 0 ? hikerCount : 0} HIKERS',
@@ -1279,15 +1279,15 @@ class _PcHistory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PCPageHeader(
+        PCPageHeader(
           eyebrow: 'ARCHIVE',
           title: 'History',
           sub: Text('Past hikes, GPX exports, recorded routes'),
         ),
-        const Expanded(
+        Expanded(
           // Embed the existing mobile screen — already shows the full
           // hike list with the new design tokens.
           child: HikeHistoryScreen(embedded: true),
@@ -1376,7 +1376,7 @@ class _PcAlertsState extends State<_PcAlerts> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.check_circle_outline,
+                        const Icon(Icons.check_circle_outline,
                             size: 48, color: TT.green),
                         const SizedBox(height: 16),
                         Text('All clear',
@@ -1504,7 +1504,7 @@ class _PcPairDeviceScreenState extends State<PcPairDeviceScreen> {
       });
       // Subscribe to this row so when the mobile app claims the token
       // we know instantly.
-      _sub?.cancel();
+      unawaited(_sub?.cancel());
       _sub = Supabase.instance.client
           .from('tether_pairings')
           .stream(primaryKey: ['id'])
@@ -1575,17 +1575,17 @@ class _PcPairDeviceScreenState extends State<PcPairDeviceScreen> {
                                 color: TT.ember,
                                 letterSpacing: 0.2 * 10.5)),
                         const SizedBox(height: 16),
-                        _PairStep(
+                        const _PairStep(
                             n: 1,
                             title: 'Open the mobile app',
                             body:
                                 'Tap the QR icon in Settings → "Pair PC". The camera opens.'),
-                        _PairStep(
+                        const _PairStep(
                             n: 2,
                             title: 'Point at this screen',
                             body:
                                 'The mobile app reads the 8-character code embedded in the QR.'),
-                        _PairStep(
+                        const _PairStep(
                             n: 3,
                             title: 'Confirm pairing',
                             body:
@@ -1650,9 +1650,7 @@ class _QrPanel extends StatelessWidget {
       );
     }
     final payload = 'trailtether://pair?t=$token';
-    final mins = expiresAt == null
-        ? null
-        : expiresAt!.difference(DateTime.now()).inMinutes;
+    final mins = expiresAt?.difference(DateTime.now()).inMinutes;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1828,9 +1826,9 @@ class _PcSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: const [
+      children: [
         PCPageHeader(
           eyebrow: 'PREFERENCES',
           title: 'Settings',
