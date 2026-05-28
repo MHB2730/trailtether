@@ -88,19 +88,30 @@ $certPath = if ($env:MSIX_CERTIFICATE_PATH) {
 } else {
     Join-Path $env:USERPROFILE ".trailtether-signing\trailtether.pfx"
 }
-if (-not (Test-Path $certPath)) {
-    Write-Error "Signing cert not found at $certPath. Set MSIX_CERTIFICATE_PATH or regenerate via the stable-cert setup instructions."
+
+# Check if the certificate is already installed in the personal store to sign via thumbprint without a password
+$useThumbprint = $false
+$thumbprint = "DCEF755D97F906249E897EF8CA5CAB75BF71B300"
+if (Get-ChildItem Cert:\CurrentUser\My\$thumbprint -ErrorAction SilentlyContinue) {
+    $useThumbprint = $true
 }
 
-$certPasswordPlain = if ($env:MSIX_CERTIFICATE_PASSWORD) {
-    $env:MSIX_CERTIFICATE_PASSWORD
-} else {
-    $secure = Read-Host -AsSecureString "Enter the .pfx password"
-    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-    try {
-        [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    } finally {
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+$certPasswordPlain = $null
+if (-not $useThumbprint) {
+    if (-not (Test-Path $certPath)) {
+        Write-Error "Signing cert not found at $certPath. Set MSIX_CERTIFICATE_PATH or regenerate via the stable-cert setup instructions."
+    }
+
+    $certPasswordPlain = if ($env:MSIX_CERTIFICATE_PASSWORD) {
+        $env:MSIX_CERTIFICATE_PASSWORD
+    } else {
+        $secure = Read-Host -AsSecureString "Enter the .pfx password"
+        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+        try {
+            [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+        }
     }
 }
 
@@ -110,11 +121,19 @@ try {
     # Identity Version matches the pubspec version (otherwise PackageInfo on
     # installed clients reads the stale 1.0.0.0 default and the updater never
     # detects a new release).
-    dart run msix:create `
-        --version $msixVersion `
-        --certificate-path $certPath `
-        --certificate-password $certPasswordPlain `
-        --install-certificate false
+    if ($useThumbprint) {
+        Write-Host "Using installed signing certificate (Thumbprint: $thumbprint) from local store" -ForegroundColor Green
+        dart run msix:create `
+            --version $msixVersion `
+            --signtool-options "/fd sha256 /sha1 $thumbprint" `
+            --install-certificate false
+    } else {
+        dart run msix:create `
+            --version $msixVersion `
+            --certificate-path $certPath `
+            --certificate-password $certPasswordPlain `
+            --install-certificate false
+    }
     if ($LASTEXITCODE -ne 0) { Write-Error "msix:create failed" }
 } finally {
     # Best-effort wipe of the plaintext password from this process's memory.
