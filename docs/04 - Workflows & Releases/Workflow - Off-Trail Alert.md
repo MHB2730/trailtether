@@ -61,12 +61,16 @@ Compass-style direction: N / NE / E / SE / S / SW / W / NW. Displayed as a rotat
 
 `_lastOffTrailAlertAt` ensures we don't post more than one incident per 5 minutes per hiker. Without this, prolonged off-trail drift would spam the incidents table.
 
-## Known issue
+## Persistent Offline Delivery (Resilience)
 
-The current insert uses `unawaited(...catchError(...))` which silently swallows failures. Flagged in [[Audit Findings]] (P1) — should move to retry queue similar to [[Workflow - Live Team Tracking]]'s offline buffer.
+To ensure that critical off-trail alerts are never lost during offline hikes or poor connectivity drops, the app uses [[offline_incident_queue.dart]]:
+- When `_maybePublishOffTrailAlert` fails to insert into the remote `incidents` table, it catches the error and serializes the incident payload into a persistent local list.
+- During periodic tracking intervals (or on connectivity restoration), [[team_tracking_provider.dart]] drains this queue and bulk-pushes any pending off-trail alerts to Supabase.
+- If the bulk push fails, the incidents are re-queued back to preserve integrity.
 
 ## See also
 
 - [[Workflow - Record Hike]]
 - [[Workflow - Live Team Tracking]]
+- [[offline_incident_queue.dart]]
 - [[Known Issues]]

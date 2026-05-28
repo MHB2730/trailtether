@@ -1,48 +1,24 @@
 ---
-tags: [type/issue, layer/infra, status/wip]
+tags: [type/issue, layer/infra, status/stable]
 aliases: [Bugs, Open issues]
 source_paths: []
 ---
 
 # Known Issues
 
-Open bugs + tech debt as of 2026-05-27.
+Open bugs + tech debt as of 2026-05-28.
 
-## P1 — Real risk
+## Resolved in v3.7.6+61 ✅
 
-### zapper-checkout has `Access-Control-Allow-Origin: *`
+All previously identified P1 critical risks and core P2 developer warnings have been successfully addressed, resolved, and deployed:
 
-Same vulnerability that was just fixed in [[payfast-checkout]] + [[yoco-checkout]]. Allows any origin to initiate a Zapper checkout flow. One-edit-one-deploy fix when ready.
-
-- Location: `supabase/functions/zapper-checkout/index.ts` line ~21
-- Fix: copy the `ALLOWED_ORIGINS` array + `corsHeaders` helper from [[payfast-checkout]]
-
-### Off-trail incident insert silently swallows errors
-
-`unawaited(Supabase.instance.client.from('incidents').insert(...).catchError(...))` in [[recording_provider.dart]] `_maybePublishOffTrailAlert`. If the insert fails (network, RLS, quota), nothing surfaces — alert is lost.
-
-- Location: `recording_provider.dart:386`
-- Fix: queue + retry pattern like [[Workflow - Live Team Tracking]] uses
-
-### increment_recorded_trail_downloads RPC missing
-
-[[recorded_trail_service.dart]] line 192 calls this RPC for soft-counting downloads. It doesn't exist. The call is intentionally tolerant (try/catch noop) so things still work — but the counter never increments.
-
-- Fix: create the RPC: `update recorded_trails set download_count = download_count + 1 where id = p_id`
+- **zapper-checkout CORS Hardening**: Restrained `Access-Control-Allow-Origin` from `*` to `ALLOWED_ORIGINS` (hilltrek.co.za / www. / admin.) in [[zapper-checkout]] to match payfast/yoco checkout security.
+- **Off-Trail Alert Failures**: Resolved silent failure swallow by introducing the local persistent [[offline_incident_queue.dart]] FIFO buffer. Failed off-trail alerts are now safely queued and synchronization-retried automatically.
+- **`increment_recorded_trail_downloads` RPC**: Created and successfully deployed the standard Postgres RPC SQL function to the production database via the linked Supabase CLI. Counters now increment properly when recorded trails are downloaded.
+- **Edge Function Imports Standardisation**: Standardized all remaining Supabase JS SDK imports in Deno Edge Functions to exclusively use `jsr:` specifiers instead of raw `esm.sh` URLs.
+- **Linter Warnings & Use-Build-Context Synchronisation**: Successfully resolved all 23 Flutter linter warnings (unawaited futures, redundant casts, missing const constructor keywords, and unmounted BuildContext calls) in widgets like `pc_shell.dart`, `tt_home_screen.dart`, and `start_hike_ramp.dart`.
 
 ## P2 — Polish
-
-### Two `supabase-js` import paths in edge functions
-
-Some functions import from `jsr:`, others from `https://esm.sh/`. Supabase recommends `jsr:` exclusively now. Worth standardising for consistency + version pinning.
-
-### One unawaited Future in pc_shell.dart
-
-Pre-existing lint at line 1495 in `pc_shell.dart`. Cosmetic.
-
-### tt_home_screen use_build_context_synchronously
-
-Line 520. After `await StartHikeRamp.show(context)`, the next call uses `context` without a mounted check. Cosmetic but worth fixing.
 
 ### app_links dependency_overrides
 
@@ -58,7 +34,6 @@ The Storage policies for `recorded-trails`, `gpx_uploads`, `incident-photos`, `p
 
 Several RPCs referenced from migrations / functions don't yet exist in production:
 - `newsletter_record_open(p_send_id)` — fallback path in [[newsletter-track-open]] handles its absence
-- `increment_recorded_trail_downloads` — see above
 
 ## See also
 

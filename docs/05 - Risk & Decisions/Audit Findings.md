@@ -16,11 +16,23 @@ PC nav now filters admin-only tabs (Trails, Settings) by `AuthProvider.isAdmin`.
 
 ### A2 — Restrict CORS on payment edge functions ✅
 
-[[payfast-checkout]] + [[yoco-checkout]] no longer use `*`. Tightened to hilltrek.co.za / www. / admin. allowlist, matching [[apk-download-gate]]'s pattern. Deployed v22 each.
+[[payfast-checkout]] + [[yoco-checkout]] no longer use `*`. Tightened to hilltrek.co.za / www. / admin. allowlist, matching [[apk-download-gate]]'s pattern. Deployed v22 each. Also applied identical CORS restriction to [[zapper-checkout]].
 
 ### A4 — 5s timeout on Turnstile verify ✅
 
 [[apk-download-gate]] now uses `AbortController` with 5s deadline when calling Cloudflare. Avoids hangs on slow CDN. Deployed v16.
+
+### A7 — Off-trail incident insert silent failure swallow resolved ✅
+
+Silent failure swallow has been fixed by creating and implementing [[offline_incident_queue.dart]] persistent FIFO queue. Failed inserts now queue and retry automatically.
+
+### A8 — `increment_recorded_trail_downloads` RPC created ✅
+
+Successfully created and deployed the database RPC function `increment_recorded_trail_downloads(p_id)` so the trail download soft-counter increments correctly.
+
+### A9 — Deno Edge Function Import Standardisation ✅
+
+Standardized all remaining Edge Functions to exclusively import the Supabase JS SDK via `jsr:` specifiers.
 
 ## False positives caught during verification
 
@@ -38,10 +50,7 @@ Audit alleged [[yoco-checkout]] doesn't reject `processing` orders. Re-reading: 
 
 ## Carried into [[Known Issues]]
 
-- zapper-checkout CORS `*` (same issue, separate function)
-- Off-trail incident insert silently swallows errors
-- increment_recorded_trail_downloads RPC missing
-- Two supabase-js import paths
+*None!* All findings successfully resolved and deployed.
 
 ## Diagnosis findings (not bugs, design questions)
 
