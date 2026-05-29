@@ -40,6 +40,7 @@ class WeatherWarning {
   final WarningSeverity severity;
   final String headline;
   final String body;
+
   /// Date this warning applies to. `null` means it's happening right
   /// now (derived from current conditions, not the daily forecast).
   final DateTime? day;
@@ -188,8 +189,9 @@ List<WeatherWarning> deriveWarnings(WeatherData data) {
     } else if (d.weatherCode == 85 || d.weatherCode == 86) {
       out.add(WeatherWarning(
         kind: WarningKind.snow,
-        severity:
-            d.weatherCode == 86 ? WarningSeverity.warning : WarningSeverity.watch,
+        severity: d.weatherCode == 86
+            ? WarningSeverity.warning
+            : WarningSeverity.watch,
         headline: d.weatherCode == 86 ? 'Heavy snow showers' : 'Snow showers',
         body: 'Slippery sections and reduced visibility likely.',
         day: d.date,
@@ -249,7 +251,8 @@ List<WeatherWarning> deriveWarnings(WeatherData data) {
         kind: WarningKind.extremeUv,
         severity: WarningSeverity.watch,
         headline: 'Extreme UV',
-        body: 'UV index ${d.uvIndexMax.toStringAsFixed(0)}. SPF 50+ and cover up.',
+        body:
+            'UV index ${d.uvIndexMax.toStringAsFixed(0)}. SPF 50+ and cover up.',
         day: d.date,
         icon: Icons.wb_sunny_rounded,
       ));

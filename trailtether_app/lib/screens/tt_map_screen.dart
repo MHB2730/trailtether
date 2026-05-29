@@ -36,10 +36,10 @@ import '../widgets/map/accommodation_marker_layer.dart';
 import '../widgets/map/cave_marker_layer.dart';
 import '../widgets/map/incident_marker_layer.dart';
 import '../widgets/map/trail_map_3d_selector.dart';
-import 'accommodation_detail_sheet.dart';
-import 'cave_detail_sheet.dart';
-import 'field_intel_sheet.dart';
-import 'incident_detail_sheet.dart';
+import '../widgets/accommodation_detail_sheet.dart';
+import '../widgets/cave_detail_sheet.dart';
+import '../widgets/field_intel_sheet.dart';
+import '../widgets/incident_detail_sheet.dart';
 import 'recorded_trails_screen.dart';
 import 'trail_detail_screen.dart';
 
@@ -70,8 +70,8 @@ class _TTMapScreenState extends State<TTMapScreen>
   RecordingProvider? _recRef;
 
   // Drives the route draw + panel entry anim.
-  late final AnimationController _entryCtl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+  late final AnimationController _entryCtl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1100));
 
   // Drives the DraggableScrollableSheet from the grab-handle tap so users on
   // smaller screens can pop the panel open without dragging.
@@ -144,8 +144,8 @@ class _TTMapScreenState extends State<TTMapScreen>
     if (p != null) {
       _mapCtrl.move(p, math.max(_mapCtrl.camera.zoom, 14.0));
     } else {
-      _mapCtrl.move(LatLng(kWorldMapCenter.lat, kWorldMapCenter.lon),
-          kWorldMapZoomInit);
+      _mapCtrl.move(
+          LatLng(kWorldMapCenter.lat, kWorldMapCenter.lon), kWorldMapZoomInit);
     }
   }
 
@@ -166,7 +166,8 @@ class _TTMapScreenState extends State<TTMapScreen>
             children: [
               const _SheetHandle(),
               Text('MAP STYLE',
-                  style: TT.label(size: 11, color: TT.text2, letterSpacing: 1.6)),
+                  style:
+                      TT.label(size: 11, color: TT.text2, letterSpacing: 1.6)),
               const SizedBox(height: 10),
               for (var i = 0; i < kMapTileStyles.length; i++)
                 _LayerOption(
@@ -259,7 +260,8 @@ class _TTMapScreenState extends State<TTMapScreen>
             children: [
               const _SheetHandle(),
               Text('MAP ACTIONS',
-                  style: TT.label(size: 11, color: TT.text2, letterSpacing: 1.6)),
+                  style:
+                      TT.label(size: 11, color: TT.text2, letterSpacing: 1.6)),
               const SizedBox(height: 10),
               _MenuRow(
                 icon: Icons.gps_fixed,
@@ -270,7 +272,9 @@ class _TTMapScreenState extends State<TTMapScreen>
                 },
               ),
               _MenuRow(
-                icon: _nightMap ? Icons.nightlight_round : Icons.nightlight_outlined,
+                icon: _nightMap
+                    ? Icons.nightlight_round
+                    : Icons.nightlight_outlined,
                 label: _nightMap ? 'Disable night map' : 'Enable night map',
                 ember: _nightMap,
                 onTap: () {
@@ -288,7 +292,8 @@ class _TTMapScreenState extends State<TTMapScreen>
               ),
               _MenuRow(
                 icon: Icons.straighten,
-                label: _useMiles ? 'Show distance in km' : 'Show distance in mi',
+                label:
+                    _useMiles ? 'Show distance in km' : 'Show distance in mi',
                 onTap: () {
                   Navigator.of(sheetCtx).pop();
                   context.read<UnitsProvider>().toggle();
@@ -318,9 +323,7 @@ class _TTMapScreenState extends State<TTMapScreen>
                 },
               ),
               _MenuRow(
-                icon: _show3D
-                    ? Icons.map_outlined
-                    : Icons.public_outlined,
+                icon: _show3D ? Icons.map_outlined : Icons.public_outlined,
                 label: _show3D ? 'Switch to 2D map' : 'Switch to 3D map',
                 ember: _show3D,
                 onTap: () {
@@ -350,8 +353,8 @@ class _TTMapScreenState extends State<TTMapScreen>
       context: context,
       builder: (dCtx) => AlertDialog(
         backgroundColor: TT.bg2,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(TT.rLg)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(TT.rLg)),
         title: Text('Offline tile cache', style: TT.title(16)),
         content: Text(
           'Trailtether caches map tiles for the regions you have viewed so you '
@@ -537,8 +540,7 @@ class _TTMapScreenState extends State<TTMapScreen>
             label: 'Moving distance',
             value: _formatDist(hike?.movingDistanceKm ?? rec.distanceKm)),
         _BreakRow(label: 'Max speed', value: _formatSpeed(hike?.maxSpeedKmh)),
-        _BreakRow(
-            label: 'Avg speed', value: _formatSpeed(rec.averageSpeedKmh)),
+        _BreakRow(label: 'Avg speed', value: _formatSpeed(rec.averageSpeedKmh)),
         _BreakRow(
             label: 'Elevation gain', value: '${rec.totalGainM.toString()} m'),
       ],
@@ -548,24 +550,22 @@ class _TTMapScreenState extends State<TTMapScreen>
   void _showTimeBreakdown() {
     final rec = context.read<RecordingProvider>();
     final hike = _safeHikeSnapshot(rec);
-    final paceMinPerKm = rec.averageSpeedKmh > 0.1
-        ? (60.0 / rec.averageSpeedKmh)
-        : null;
+    final paceMinPerKm =
+        rec.averageSpeedKmh > 0.1 ? (60.0 / rec.averageSpeedKmh) : null;
     _presentBreakdown(
       title: 'Time breakdown',
       rows: [
         _BreakRow(label: 'Elapsed', value: _formatDurationLong(rec.duration)),
         _BreakRow(
             label: 'Moving time',
-            value: _formatDurationLong(
-                Duration(seconds: hike?.movingSeconds ?? rec.duration.inSeconds))),
+            value: _formatDurationLong(Duration(
+                seconds: hike?.movingSeconds ?? rec.duration.inSeconds))),
         _BreakRow(
             label: 'Avg pace',
             value: paceMinPerKm == null
                 ? '—'
                 : '${paceMinPerKm.toStringAsFixed(1)} min/km'),
-        _BreakRow(
-            label: 'Avg speed', value: _formatSpeed(rec.averageSpeedKmh)),
+        _BreakRow(label: 'Avg speed', value: _formatSpeed(rec.averageSpeedKmh)),
       ],
     );
   }
@@ -605,7 +605,8 @@ class _TTMapScreenState extends State<TTMapScreen>
     );
   }
 
-  void _presentBreakdown({required String title, required List<_BreakRow> rows}) {
+  void _presentBreakdown(
+      {required String title, required List<_BreakRow> rows}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: TT.bg2,
@@ -622,8 +623,8 @@ class _TTMapScreenState extends State<TTMapScreen>
             children: [
               const _SheetHandle(),
               Text(title.toUpperCase(),
-                  style: TT.label(
-                      size: 11, color: TT.text2, letterSpacing: 1.6)),
+                  style:
+                      TT.label(size: 11, color: TT.text2, letterSpacing: 1.6)),
               const SizedBox(height: 12),
               TTCard(
                 padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
@@ -720,7 +721,8 @@ class _TTMapScreenState extends State<TTMapScreen>
               fit: StackFit.expand,
               children: [
                 if (_show3D)
-                  Consumer3<StaticDataProvider, RecordingProvider, SafetyProvider>(
+                  Consumer3<StaticDataProvider, RecordingProvider,
+                      SafetyProvider>(
                     builder: (_, statics, recording, safety, __) {
                       return TrailMap3DWidget(
                         trails: statics.allTrails,
@@ -735,10 +737,10 @@ class _TTMapScreenState extends State<TTMapScreen>
                         bearing: _currentHeading,
                         useTopoStyle: false,
                         recordingPoints: recording.points,
-                        initialLat: _currentLatLng?.latitude ??
-                            kWorldMapCenter.lat,
-                        initialLon: _currentLatLng?.longitude ??
-                            kWorldMapCenter.lon,
+                        initialLat:
+                            _currentLatLng?.latitude ?? kWorldMapCenter.lat,
+                        initialLon:
+                            _currentLatLng?.longitude ?? kWorldMapCenter.lon,
                         initialZoom: 13,
                       );
                     },
@@ -867,7 +869,8 @@ class _MapView extends StatelessWidget {
     final recording = context.watch<RecordingProvider>();
     final selectedId = data.selectedTrail?.id;
 
-    final style = kMapTileStyles[tileStyleIndex.clamp(0, kMapTileStyles.length - 1)];
+    final style =
+        kMapTileStyles[tileStyleIndex.clamp(0, kMapTileStyles.length - 1)];
     final tileUrl = nightMap ? kNightTileUrl : style.url;
     final tileMaxZoom = nightMap ? 20.0 : style.maxZoom;
 
@@ -919,15 +922,32 @@ class _MapView extends StatelessWidget {
     // ── Markers ──
     final markers = <Marker>[];
 
-    // Recording start dot.
-    if (recording.points.isNotEmpty) {
+    // Recording start dot — only worth showing once the track has moved away
+    // from the start so it doesn't sit directly under the "you" marker.
+    if (recording.points.length >= 2) {
       final start = recording.points.first.toLatLng;
       markers.add(Marker(
         point: start,
-        width: 18,
-        height: 18,
+        width: 16,
+        height: 16,
         child: const _StartDot(),
       ));
+    }
+
+    // Direction of travel for the "you" marker. Prefer the GPS course heading
+    // when the OS reports a valid one; otherwise fall back to the bearing
+    // between the last two recorded points so the arrow still points the way
+    // the user is moving even when the compass course is unavailable.
+    double? travelHeading = (currentHeading != null && currentHeading! >= 0)
+        ? currentHeading
+        : null;
+    if (travelHeading == null && recording.points.length >= 2) {
+      final a = recording.points[recording.points.length - 2];
+      final b = recording.points.last;
+      var brng = Geolocator.bearingBetween(
+          a.latitude, a.longitude, b.latitude, b.longitude);
+      if (brng < 0) brng += 360;
+      travelHeading = brng;
     }
 
     // User position pulse.
@@ -936,7 +956,7 @@ class _MapView extends StatelessWidget {
         point: currentLatLng!,
         width: 56,
         height: 56,
-        child: _YouMarker(heading: currentHeading),
+        child: _YouMarker(heading: travelHeading),
       ));
     }
 
@@ -1071,10 +1091,26 @@ class _MapView extends StatelessWidget {
     // the basemap rendering for a true preserve-night-vision look.
     return ColorFiltered(
       colorFilter: const ColorFilter.matrix(<double>[
-        1, 0, 0, 0, 0,
-        0, 0.35, 0, 0, 0,
-        0, 0, 0.25, 0, 0,
-        0, 0, 0, 1, 0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0.35,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0.25,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
       ]),
       child: clipped,
     );
@@ -1138,10 +1174,7 @@ class _MapView extends StatelessWidget {
     final sLat = math.sin(dLat / 2);
     final sLon = math.sin(dLon / 2);
     final h = sLat * sLat +
-        math.cos(_rad(a.latitude)) *
-            math.cos(_rad(b.latitude)) *
-            sLon *
-            sLon;
+        math.cos(_rad(a.latitude)) * math.cos(_rad(b.latitude)) * sLon * sLon;
     return 2 * r * math.asin(math.min(1.0, math.sqrt(h)));
   }
 
@@ -1170,7 +1203,8 @@ class _ModePill extends StatelessWidget {
             color: TT.ember,
             borderRadius: BorderRadius.circular(999),
             boxShadow: const [
-              BoxShadow(color: Color(0xCCFF6A2C), blurRadius: 14, spreadRadius: -4),
+              BoxShadow(
+                  color: Color(0xCCFF6A2C), blurRadius: 14, spreadRadius: -4),
             ],
           ),
           child: Row(
@@ -1209,7 +1243,8 @@ class _DropPinBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(TT.rMd),
           border: Border.all(color: TT.ember, width: 1),
           boxShadow: const [
-            BoxShadow(color: Color(0x5CFF6A2C), blurRadius: 18, spreadRadius: -4),
+            BoxShadow(
+                color: Color(0x5CFF6A2C), blurRadius: 18, spreadRadius: -4),
           ],
         ),
         child: Row(
@@ -1219,8 +1254,7 @@ class _DropPinBanner extends StatelessWidget {
             Expanded(
               child: Text(
                 'Tap the map to drop a pin',
-                style: TT.body(
-                    size: 13, w: FontWeight.w800, color: TT.text),
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.text),
               ),
             ),
             InkResponse(
@@ -1358,13 +1392,17 @@ class _StartDot extends StatelessWidget {
   const _StartDot();
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: math.pi / 4,
-      child: Container(
-        decoration: BoxDecoration(
-          color: TT.ember,
-          border: Border.all(color: const Color(0xFF1A0D04), width: 2),
-        ),
+    // Green = "start of track", a common map convention and visually distinct
+    // from the ember "you" marker so the two never read as the same thing.
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF4CC38A),
+        border: Border.all(color: const Color(0xFF0A0C0F), width: 2),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x80000000), blurRadius: 4, offset: Offset(0, 1)),
+        ],
       ),
     );
   }
@@ -1415,7 +1453,8 @@ class _FloatingStat extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TT.body(size: 10, w: FontWeight.w600, color: TT.text3)
+                  style: TT
+                      .body(size: 10, w: FontWeight.w600, color: TT.text3)
                       .copyWith(letterSpacing: 0.4),
                 ),
                 const SizedBox(height: 1),
@@ -1440,7 +1479,8 @@ class _FloatingStat extends StatelessWidget {
                   const SizedBox(height: 1),
                   Text(
                     sublabel!,
-                    style: TT.mono(size: 9.5, color: TT.text3, w: FontWeight.w500)
+                    style: TT
+                        .mono(size: 9.5, color: TT.text3, w: FontWeight.w500)
                         .copyWith(letterSpacing: 0.2),
                   ),
                 ],
@@ -1709,8 +1749,7 @@ class _MenuRow extends StatelessWidget {
             Icon(icon, size: 18, color: ember ? TT.ember : TT.text2),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(label,
-                  style: TT.body(size: 14, w: FontWeight.w700)),
+              child: Text(label, style: TT.body(size: 14, w: FontWeight.w700)),
             ),
             if (trailing != null)
               Text(trailing!,
@@ -1805,13 +1844,11 @@ class _RecordingPanel extends StatelessWidget {
                           style: TT.title(16, letterSpacing: -0.01 * 16),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (recording.isRecording ||
-                            recording.isPaused) ...[
+                        if (recording.isRecording || recording.isPaused) ...[
                           const SizedBox(height: 6),
                           TTPill(
-                            label: recording.isPaused
-                                ? 'PAUSED'
-                                : 'IN PROGRESS',
+                            label:
+                                recording.isPaused ? 'PAUSED' : 'IN PROGRESS',
                             variant: recording.isPaused
                                 ? TTPillVariant.neutral
                                 : TTPillVariant.live,
@@ -1835,8 +1872,7 @@ class _RecordingPanel extends StatelessWidget {
                       // LiveTrackingScreen route. The sheet pauses GPS,
                       // forces a decision, and on Save promotes the hike
                       // to recorded_trails + hike_history.
-                      onTap: () =>
-                          FinishHikeSheet.show(context, recording),
+                      onTap: () => FinishHikeSheet.show(context, recording),
                     ),
                   ],
                 ],
@@ -1874,9 +1910,7 @@ class _RecordingPanel extends StatelessWidget {
 
   String _titleFor(RecordingProvider rec) {
     if (rec.isRecording || rec.isPaused) {
-      return rec.targetTrail?.name ??
-          rec.customName ??
-          'Free-form recording';
+      return rec.targetTrail?.name ?? rec.customName ?? 'Free-form recording';
     }
     return 'Tap PLAY to start recording';
   }
@@ -1918,9 +1952,7 @@ class _ExpandedDetails extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _DetailRow(
-              label: 'Activity',
-              value: activity,
-              icon: Icons.directions_walk),
+              label: 'Activity', value: activity, icon: Icons.directions_walk),
           _DetailRow(
               label: 'Points captured',
               value: pts.length.toString(),
@@ -1935,9 +1967,8 @@ class _ExpandedDetails extends StatelessWidget {
               icon: Icons.do_disturb_alt_outlined),
           _DetailRow(
               label: 'Last accuracy',
-              value: accuracy == null
-                  ? '—'
-                  : '${accuracy.toStringAsFixed(1)} m',
+              value:
+                  accuracy == null ? '—' : '${accuracy.toStringAsFixed(1)} m',
               icon: Icons.center_focus_strong),
           _DetailRow(
               label: 'Avg speed',
@@ -2016,7 +2047,8 @@ class _PauseButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'PAUSE',
-              style: TT.body(size: 12, w: FontWeight.w800, color: TT.emberInk)
+              style: TT
+                  .body(size: 12, w: FontWeight.w800, color: TT.emberInk)
                   .copyWith(letterSpacing: 0.12 * 12),
             ),
           ],
@@ -2049,7 +2081,8 @@ class _ResumeButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'RESUME',
-              style: TT.body(size: 12, w: FontWeight.w800, color: TT.emberInk)
+              style: TT
+                  .body(size: 12, w: FontWeight.w800, color: TT.emberInk)
                   .copyWith(letterSpacing: 0.12 * 12),
             ),
           ],
@@ -2082,7 +2115,8 @@ class _StartButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'START RECORDING',
-              style: TT.body(size: 12, w: FontWeight.w800, color: TT.emberInk)
+              style: TT
+                  .body(size: 12, w: FontWeight.w800, color: TT.emberInk)
                   .copyWith(letterSpacing: 0.12 * 12),
             ),
           ],
@@ -2110,7 +2144,8 @@ class _StopButton extends StatelessWidget {
         ),
         child: Text(
           'STOP',
-          style: TT.body(size: 12, w: FontWeight.w800, color: TT.text2)
+          style: TT
+              .body(size: 12, w: FontWeight.w800, color: TT.text2)
               .copyWith(letterSpacing: 0.12 * 12),
         ),
       ),
@@ -2135,8 +2170,7 @@ class _StatRow extends StatelessWidget {
     final speedValue = units.speedFromKmh(speedKmh).toStringAsFixed(1);
     final speedUnit = units.speedUnit;
     final elevUnit = units.elevationUnit;
-    final gain =
-        units.elevationFromM(recording.totalGainM.toDouble()).round();
+    final gain = units.elevationFromM(recording.totalGainM.toDouble()).round();
     // Show CURRENT altitude as the primary number (so the user can see at a
     // glance whether the GPS is even returning vertical data) and gain as a
     // small subtitle. Falls back to "—" when no fix yet OR the device is
@@ -2224,7 +2258,8 @@ class _MiniStat extends StatelessWidget {
         children: [
           Text(
             label.toUpperCase(),
-            style: TT.label(size: 9.5, color: TT.text3, letterSpacing: 0.14 * 9.5),
+            style:
+                TT.label(size: 9.5, color: TT.text3, letterSpacing: 0.14 * 9.5),
           ),
           const SizedBox(height: 5),
           Row(
@@ -2307,7 +2342,8 @@ class _MiniElevCard extends StatelessWidget {
             children: [
               Text(
                 'ELEVATION PROFILE',
-                style: TT.label(size: 10.5, color: TT.text2, letterSpacing: 0.14 * 10.5),
+                style: TT.label(
+                    size: 10.5, color: TT.text2, letterSpacing: 0.14 * 10.5),
               ),
               Text(
                 distLabel,
@@ -2495,9 +2531,8 @@ class _TrailSearchDelegate extends SearchDelegate<Trail?> {
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       return sorted;
     }
-    final filtered = trails
-        .where((t) => t.name.toLowerCase().contains(query))
-        .toList();
+    final filtered =
+        trails.where((t) => t.name.toLowerCase().contains(query)).toList();
     filtered.sort((a, b) {
       final ai = a.name.toLowerCase().indexOf(query);
       final bi = b.name.toLowerCase().indexOf(query);
@@ -2644,8 +2679,7 @@ class _BreakRowView extends StatelessWidget {
             child: Text(row.label,
                 style: TT.body(size: 13, color: TT.text2, w: FontWeight.w600)),
           ),
-          Text(row.value,
-              style: TT.numStyle(size: 14, color: TT.text)),
+          Text(row.value, style: TT.numStyle(size: 14, color: TT.text)),
         ],
       ),
     );
@@ -2670,7 +2704,9 @@ class _AnimUpState extends State<_AnimUp> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    Future.delayed(widget.delay, () { if (mounted) _ctl.forward(); });
+    Future.delayed(widget.delay, () {
+      if (mounted) _ctl.forward();
+    });
   }
 
   @override
@@ -2706,13 +2742,15 @@ class _AnimPop extends StatefulWidget {
 
 class _AnimPopState extends State<_AnimPop>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 480));
+  late final AnimationController _ctl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 480));
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(widget.delay, () { if (mounted) _ctl.forward(); });
+    Future.delayed(widget.delay, () {
+      if (mounted) _ctl.forward();
+    });
   }
 
   @override

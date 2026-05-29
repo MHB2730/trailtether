@@ -74,8 +74,7 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
       final target = _scroll.position.maxScrollExtent;
       if (animate) {
         _scroll.animateTo(target,
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOut);
+            duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
       } else {
         _scroll.jumpTo(target);
       }
@@ -104,8 +103,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Send failed: $e',
-              style: TT.body(size: 13, color: TT.text)),
+          content:
+              Text('Send failed: $e', style: TT.body(size: 13, color: TT.text)),
           backgroundColor: TT.surf2,
           behavior: SnackBarBehavior.floating,
         ));
@@ -205,9 +204,7 @@ String _initialsFor(String name) {
   final parts = trimmed.split(RegExp(r'\s+'));
   if (parts.length == 1) {
     final p = parts.first;
-    return p.length >= 2
-        ? p.substring(0, 2).toUpperCase()
-        : p[0].toUpperCase();
+    return p.length >= 2 ? p.substring(0, 2).toUpperCase() : p[0].toUpperCase();
   }
   return (parts.first[0] + parts.last[0]).toUpperCase();
 }
@@ -253,7 +250,8 @@ class _EmptyChat extends StatelessWidget {
             Text(
               'Messages stay private to this team.',
               textAlign: TextAlign.center,
-              style: TT.body(size: 12.5, color: TT.text3, w: FontWeight.w500)
+              style: TT
+                  .body(size: 12.5, color: TT.text3, w: FontWeight.w500)
                   .copyWith(height: 1.45),
             ),
           ],
@@ -333,15 +331,15 @@ class _ChatBubble extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 3),
               child: Text(
                 '${msg.senderName} · $timeLabel',
-                style: TT.mono(size: 10, color: TT.text3)
+                style: TT
+                    .mono(size: 10, color: TT.text3)
                     .copyWith(letterSpacing: 0.04 * 10),
               ),
             ),
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxBubbleW),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               decoration: BoxDecoration(
                 color: bubbleBg,
                 border: Border.all(color: bubbleBorder, width: 1),
@@ -349,8 +347,8 @@ class _ChatBubble extends StatelessWidget {
               ),
               child: Text(
                 msg.text,
-                style: TT.body(
-                        size: 12.5, w: FontWeight.w500, color: bubbleColor)
+                style: TT
+                    .body(size: 12.5, w: FontWeight.w500, color: bubbleColor)
                     .copyWith(height: 1.4),
               ),
             ),
@@ -364,8 +362,7 @@ class _ChatBubble extends StatelessWidget {
                   Text(
                     timeLabel,
                     style: TT.mono(size: 9.5, color: TT.text3).copyWith(
-                        letterSpacing: 0.04 * 9.5,
-                        fontWeight: FontWeight.w600),
+                        letterSpacing: 0.04 * 9.5, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 4),
                   const Icon(Icons.done_all, size: 12, color: TT.green),
@@ -437,11 +434,10 @@ class _Composer extends StatelessWidget {
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     hintText: 'Message your team…',
-                    hintStyle: TT.body(
-                        size: 13, w: FontWeight.w500, color: TT.text3),
+                    hintStyle:
+                        TT.body(size: 13, w: FontWeight.w500, color: TT.text3),
                   ),
                 ),
               ),

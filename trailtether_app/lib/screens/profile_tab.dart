@@ -147,8 +147,8 @@ class _ProfileTabState extends State<ProfileTab> {
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Profile saved',
-              style: TT.body(size: 13, color: TT.text)),
+          content:
+              Text('Profile saved', style: TT.body(size: 13, color: TT.text)),
           backgroundColor: TT.surf,
           behavior: SnackBarBehavior.floating,
         ),
@@ -227,8 +227,8 @@ class _ProfileTabState extends State<ProfileTab> {
                                     const SizedBox(height: TT.s3),
                                     _ExperienceSelector(
                                       value: _experienceLevel,
-                                      onChanged: (v) => setState(
-                                          () => _experienceLevel = v),
+                                      onChanged: (v) =>
+                                          setState(() => _experienceLevel = v),
                                     ),
                                   ],
                                 ),
@@ -245,8 +245,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                         controllers: _contactCtrls[i],
                                         showRemove: _contactCtrls.length > 1,
                                         onRemove: () => _removeContact(i),
-                                        isLast:
-                                            i == _contactCtrls.length - 1,
+                                        isLast: i == _contactCtrls.length - 1,
                                       ),
                                     const SizedBox(height: TT.s2),
                                     _AddContactButton(onTap: _addContact),
@@ -259,14 +258,14 @@ class _ProfileTabState extends State<ProfileTab> {
                                   children: [
                                     _BloodTypeSelector(
                                       value: _bloodType.text,
-                                      onChanged: (v) => setState(
-                                          () => _bloodType.text = v),
+                                      onChanged: (v) =>
+                                          setState(() => _bloodType.text = v),
                                     ),
                                     const SizedBox(height: TT.s3),
                                     _AllergyChips(
                                       allergies: _allergies,
-                                      onRemove: (a) => setState(
-                                          () => _allergies.remove(a)),
+                                      onRemove: (a) =>
+                                          setState(() => _allergies.remove(a)),
                                       onAdd: _showAllergyDialog,
                                     ),
                                     const SizedBox(height: TT.s3),
@@ -310,8 +309,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                 const SizedBox(height: TT.s2),
                                 _CancelButton(
                                   enabled: !pp.saving,
-                                  onTap: () =>
-                                      Navigator.of(context).maybePop(),
+                                  onTap: () => Navigator.of(context).maybePop(),
                                 ),
                                 const SizedBox(height: TT.s5),
                               ],
@@ -365,8 +363,7 @@ class _ProfileTabState extends State<ProfileTab> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: TT.body(size: 13, color: TT.text2)),
+            child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
           ),
           TextButton(
             onPressed: () {
@@ -375,8 +372,7 @@ class _ProfileTabState extends State<ProfileTab> {
               Navigator.pop(ctx);
             },
             child: Text('Add',
-                style:
-                    TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
           ),
         ],
       ),
@@ -497,8 +493,8 @@ class _AvatarEditorCard extends StatelessWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Photo removed',
-              style: TT.body(size: 13, color: TT.text)),
+          content:
+              Text('Photo removed', style: TT.body(size: 13, color: TT.text)),
           backgroundColor: TT.surf,
           behavior: SnackBarBehavior.floating,
         ),
@@ -512,8 +508,8 @@ class _AvatarEditorCard extends StatelessWidget {
     if (result == 'ok') {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Photo updated',
-              style: TT.body(size: 13, color: TT.text)),
+          content:
+              Text('Photo updated', style: TT.body(size: 13, color: TT.text)),
           backgroundColor: TT.surf,
           behavior: SnackBarBehavior.floating,
         ),
@@ -571,14 +567,13 @@ class _AvatarEditorCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   hasRemote ? 'Profile photo synced' : 'No photo yet',
-                  style:
-                      TT.body(size: 13, w: FontWeight.w700, color: TT.text),
+                  style: TT.body(size: 13, w: FontWeight.w700, color: TT.text),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'JPG/PNG · up to 1024px',
-                  style:
-                      TT.mono(size: 10, color: TT.text3, letterSpacing: 0.02 * 10),
+                  style: TT.mono(
+                      size: 10, color: TT.text3, letterSpacing: 0.02 * 10),
                 ),
                 const SizedBox(height: TT.s3),
                 _ChangePhotoButton(
@@ -709,7 +704,8 @@ class _ChangePhotoButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               busy ? 'UPLOADING…' : 'CHANGE PHOTO',
-              style: TT.body(size: 11, w: FontWeight.w800, color: TT.ember)
+              style: TT
+                  .body(size: 11, w: FontWeight.w800, color: TT.ember)
                   .copyWith(letterSpacing: 0.12 * 11),
             ),
           ],
@@ -901,9 +897,7 @@ class _ExperienceSelector extends StatelessWidget {
                   color: selected ? TT.emberDim : TT.surf2,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: selected
-                        ? const Color(0x59FF6A2C)
-                        : TT.line2,
+                    color: selected ? const Color(0x59FF6A2C) : TT.line2,
                     width: 1,
                   ),
                 ),
@@ -967,8 +961,7 @@ class _ContactBlock extends StatelessWidget {
                 onTap: onRemove,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: Icon(Icons.delete_outline,
-                      size: 16, color: TT.red),
+                  child: Icon(Icons.delete_outline, size: 16, color: TT.red),
                 ),
               ),
           ],
@@ -1039,7 +1032,8 @@ class _AddContactButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'ADD ANOTHER CONTACT',
-              style: TT.body(size: 11, w: FontWeight.w800, color: TT.red)
+              style: TT
+                  .body(size: 11, w: FontWeight.w800, color: TT.red)
                   .copyWith(letterSpacing: 0.12 * 11),
             ),
           ],
@@ -1129,14 +1123,10 @@ class _BloodTypeSelector extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: selected
-                      ? const Color(0x1A5AA1D6)
-                      : TT.surf2,
+                  color: selected ? const Color(0x1A5AA1D6) : TT.surf2,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: selected
-                        ? const Color(0x595AA1D6)
-                        : TT.line2,
+                    color: selected ? const Color(0x595AA1D6) : TT.line2,
                     width: 1,
                   ),
                 ),
@@ -1177,8 +1167,7 @@ class _AllergyChips extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.warning_amber_outlined,
-                size: 13, color: TT.text3),
+            const Icon(Icons.warning_amber_outlined, size: 13, color: TT.text3),
             const SizedBox(width: 6),
             Text(
               'ALLERGIES',
@@ -1200,8 +1189,8 @@ class _AllergyChips extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: () => onRemove(a),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: const Color(0x1AF2A93B),
                     borderRadius: BorderRadius.circular(999),
@@ -1214,9 +1203,7 @@ class _AllergyChips extends StatelessWidget {
                       Text(
                         a,
                         style: TT.body(
-                            size: 11,
-                            w: FontWeight.w700,
-                            color: TT.amber),
+                            size: 11, w: FontWeight.w700, color: TT.amber),
                       ),
                       const SizedBox(width: 5),
                       const Icon(Icons.close, size: 11, color: TT.amber),
@@ -1242,10 +1229,8 @@ class _AllergyChips extends StatelessWidget {
                     const SizedBox(width: 5),
                     Text(
                       'ADD',
-                      style: TT.body(
-                              size: 11,
-                              w: FontWeight.w800,
-                              color: TT.text2)
+                      style: TT
+                          .body(size: 11, w: FontWeight.w800, color: TT.text2)
                           .copyWith(letterSpacing: 0.12 * 11),
                     ),
                   ],
@@ -1302,9 +1287,7 @@ class _SaveButton extends StatelessWidget {
                       'SAVE CHANGES',
                       style: TT
                           .body(
-                              size: 13,
-                              w: FontWeight.w900,
-                              color: TT.emberInk)
+                              size: 13, w: FontWeight.w900, color: TT.emberInk)
                           .copyWith(letterSpacing: 0.16 * 13),
                     ),
                   ],

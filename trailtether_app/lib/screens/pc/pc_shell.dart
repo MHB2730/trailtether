@@ -25,7 +25,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -77,6 +78,7 @@ class _NavSpec {
   final IconData icon;
   final String label;
   final bool live;
+
   /// Whether this nav entry should be hidden from non-admin users. RLS
   /// already gates server-side writes, but showing tabs that error on use
   /// is a poor experience — better to hide them entirely.
@@ -91,14 +93,31 @@ class _NavSpec {
 }
 
 const _kNav = [
-  _NavSpec(id: _PcSection.dashboard, icon: Icons.public, label: 'Mission Control'),
-  _NavSpec(id: _PcSection.watch,     icon: Icons.visibility_outlined, label: 'Hike Watch', live: true),
-  _NavSpec(id: _PcSection.hikers,    icon: Icons.people_outline, label: 'Hikers'),
-  _NavSpec(id: _PcSection.history,   icon: Icons.history, label: 'History'),
-  _NavSpec(id: _PcSection.trails,    icon: Icons.alt_route_outlined, label: 'Trails', adminOnly: true),
-  _NavSpec(id: _PcSection.alerts,    icon: Icons.notifications_none_rounded, label: 'Alerts'),
-  _NavSpec(id: _PcSection.pair,      icon: Icons.qr_code_2_rounded, label: 'Pair Device'),
-  _NavSpec(id: _PcSection.settings,  icon: Icons.settings_outlined, label: 'Settings', adminOnly: true),
+  _NavSpec(
+      id: _PcSection.dashboard, icon: Icons.public, label: 'Mission Control'),
+  _NavSpec(
+      id: _PcSection.watch,
+      icon: Icons.visibility_outlined,
+      label: 'Hike Watch',
+      live: true),
+  _NavSpec(id: _PcSection.hikers, icon: Icons.people_outline, label: 'Hikers'),
+  _NavSpec(id: _PcSection.history, icon: Icons.history, label: 'History'),
+  _NavSpec(
+      id: _PcSection.trails,
+      icon: Icons.alt_route_outlined,
+      label: 'Trails',
+      adminOnly: true),
+  _NavSpec(
+      id: _PcSection.alerts,
+      icon: Icons.notifications_none_rounded,
+      label: 'Alerts'),
+  _NavSpec(
+      id: _PcSection.pair, icon: Icons.qr_code_2_rounded, label: 'Pair Device'),
+  _NavSpec(
+      id: _PcSection.settings,
+      icon: Icons.settings_outlined,
+      label: 'Settings',
+      adminOnly: true),
 ];
 
 // ───────────────────────────── main shell ───────────────────────────────────
@@ -197,8 +216,22 @@ class _PCTitleBar extends StatelessWidget {
       defaultTargetPlatform == TargetPlatform.linux ||
       defaultTargetPlatform == TargetPlatform.macOS;
 
-  Future<void> _close()    async { if (_supportsWindowControls) { try { await windowManager.close(); }    catch (_) {} } }
-  Future<void> _minimize() async { if (_supportsWindowControls) { try { await windowManager.minimize(); } catch (_) {} } }
+  Future<void> _close() async {
+    if (_supportsWindowControls) {
+      try {
+        await windowManager.close();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _minimize() async {
+    if (_supportsWindowControls) {
+      try {
+        await windowManager.minimize();
+      } catch (_) {}
+    }
+  }
+
   Future<void> _toggleMax() async {
     if (!_supportsWindowControls) return;
     try {
@@ -231,18 +264,21 @@ class _PCTitleBar extends StatelessWidget {
           // the click area is comfortable even though the dot is 12x12.
           Row(
             children: [
-              _TrafficLight(color: PC.tlRed,    tooltip: 'Close',          onTap: _close),
+              _TrafficLight(color: PC.tlRed, tooltip: 'Close', onTap: _close),
               const SizedBox(width: 8),
-              _TrafficLight(color: PC.tlYellow, tooltip: 'Minimize',       onTap: _minimize),
+              _TrafficLight(
+                  color: PC.tlYellow, tooltip: 'Minimize', onTap: _minimize),
               const SizedBox(width: 8),
-              _TrafficLight(color: PC.tlGreen,  tooltip: 'Maximize',       onTap: _toggleMax),
+              _TrafficLight(
+                  color: PC.tlGreen, tooltip: 'Maximize', onTap: _toggleMax),
             ],
           ),
           Expanded(
             child: Center(
               child: Text(
                 'Trailtether · Base Camp',
-                style: TT.body(size: 12.5, w: FontWeight.w600, color: TT.text2)
+                style: TT
+                    .body(size: 12.5, w: FontWeight.w600, color: TT.text2)
                     .copyWith(letterSpacing: 0.04 * 12.5),
               ),
             ),
@@ -364,7 +400,8 @@ class _PCSidebar extends StatelessWidget {
                     children: [
                       RichText(
                         text: TextSpan(
-                          style: TT.body(size: 12.5, w: FontWeight.w900)
+                          style: TT
+                              .body(size: 12.5, w: FontWeight.w900)
                               .copyWith(letterSpacing: 0.16 * 12.5),
                           children: const [
                             TextSpan(text: 'TRAIL'),
@@ -425,7 +462,9 @@ class _PCSidebar extends StatelessWidget {
     if (parts.isEmpty || parts.first.isEmpty) return '?';
     if (parts.length == 1) {
       final p = parts.first;
-      return p.length >= 2 ? p.substring(0, 2).toUpperCase() : p[0].toUpperCase();
+      return p.length >= 2
+          ? p.substring(0, 2).toUpperCase()
+          : p[0].toUpperCase();
     }
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
@@ -507,8 +546,7 @@ class _AccountFooter extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Cancel',
-                style: TT.body(size: 13, color: TT.text2)),
+            child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -557,8 +595,7 @@ class _AccountFooter extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(watcherName,
-                    style: TT.body(size: 12, w: FontWeight.w800)),
+                Text(watcherName, style: TT.body(size: 12, w: FontWeight.w800)),
                 const SizedBox(height: 2),
                 Row(
                   children: [
@@ -567,9 +604,7 @@ class _AccountFooter extends StatelessWidget {
                     Text(
                       'WATCHING · ${hikerCount > 0 ? hikerCount : 0} HIKERS',
                       style: TT.mono(
-                          size: 9,
-                          color: TT.green,
-                          letterSpacing: 0.1 * 9),
+                          size: 9, color: TT.green, letterSpacing: 0.1 * 9),
                     ),
                   ],
                 ),
@@ -703,23 +738,20 @@ class PCPageHeader extends StatelessWidget {
                 Text(
                   eyebrow.toUpperCase(),
                   style: TT.mono(
-                      size: 10.5,
-                      color: TT.text3,
-                      letterSpacing: 0.2 * 10.5),
+                      size: 10.5, color: TT.text3, letterSpacing: 0.2 * 10.5),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   title,
-                  style: TT.body(size: 26, w: FontWeight.w900)
+                  style: TT
+                      .body(size: 26, w: FontWeight.w900)
                       .copyWith(letterSpacing: -0.018 * 26),
                 ),
                 if (sub != null) ...[
                   const SizedBox(height: 5),
                   DefaultTextStyle(
                     style: TT.mono(
-                        size: 12,
-                        color: TT.text2,
-                        letterSpacing: 0.04 * 12),
+                        size: 12, color: TT.text2, letterSpacing: 0.04 * 12),
                     child: sub!,
                   ),
                 ],
@@ -818,7 +850,8 @@ class PCBtn extends StatelessWidget {
               ],
               Text(
                 label,
-                style: TT.body(size: 11.5, w: FontWeight.w800, color: color)
+                style: TT
+                    .body(size: 11.5, w: FontWeight.w800, color: color)
                     .copyWith(letterSpacing: 0.08 * 11.5),
               ),
             ],
@@ -875,8 +908,16 @@ class PCStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = danger ? TT.red : ember ? TT.ember : TT.text;
-    final iconTint = danger ? TT.red : ember ? TT.ember : TT.text3;
+    final tint = danger
+        ? TT.red
+        : ember
+            ? TT.ember
+            : TT.text;
+    final iconTint = danger
+        ? TT.red
+        : ember
+            ? TT.ember
+            : TT.text3;
     return PCCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -888,7 +929,8 @@ class PCStat extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 label.toUpperCase(),
-                style: TT.body(size: 10, w: FontWeight.w700, color: TT.text3)
+                style: TT
+                    .body(size: 10, w: FontWeight.w700, color: TT.text3)
                     .copyWith(letterSpacing: 0.18 * 10),
               ),
             ],
@@ -900,14 +942,16 @@ class PCStat extends StatelessWidget {
             children: [
               Text(
                 value,
-                style: TT.mono(size: 26, color: tint, letterSpacing: -0.025 * 26)
+                style: TT
+                    .mono(size: 26, color: tint, letterSpacing: -0.025 * 26)
                     .copyWith(fontWeight: FontWeight.w900),
               ),
               if (unit != null) ...[
                 const SizedBox(width: 4),
                 Text(
                   unit!,
-                  style: TT.mono(size: 12, color: TT.text2)
+                  style: TT
+                      .mono(size: 12, color: TT.text2)
                       .copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
@@ -917,7 +961,8 @@ class PCStat extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               sub!,
-              style: TT.mono(size: 10.5, color: TT.text3, letterSpacing: 0.04 * 10.5),
+              style: TT.mono(
+                  size: 10.5, color: TT.text3, letterSpacing: 0.04 * 10.5),
             ),
           ],
         ],
@@ -979,7 +1024,8 @@ class PCPill extends StatelessWidget {
           ],
           Text(
             label.toUpperCase(),
-            style: TT.mono(size: 9.5, color: color, letterSpacing: 0.14 * 9.5)
+            style: TT
+                .mono(size: 9.5, color: color, letterSpacing: 0.14 * 9.5)
                 .copyWith(fontWeight: FontWeight.w800),
           ),
         ],
@@ -1048,7 +1094,8 @@ class _PcHikeWatch extends StatelessWidget {
         PCPageHeader(
           eyebrow: 'LIVE',
           title: 'Hike Watch',
-          sub: const Text('Per-hike deep-dive · elevation profile + alerts + timeline'),
+          sub: const Text(
+              'Per-hike deep-dive · elevation profile + alerts + timeline'),
           actions: hasPaired
               ? [
                   PCBtn(
@@ -1078,15 +1125,15 @@ class _PcHikeWatch extends StatelessWidget {
                         ? 'A hiker is paired but isn’t recording yet. Start a hike on their mobile app to see live position, elevation, pace, and incident overlay here.'
                         : 'Pair a phone first, then start a hike on the mobile app to see live position, elevation, pace, and incident overlay here.',
                     textAlign: TextAlign.center,
-                    style: TT.body(size: 12, color: TT.text2)
+                    style: TT
+                        .body(size: 12, color: TT.text2)
                         .copyWith(height: 1.5),
                   ),
                   const SizedBox(height: 20),
                   PCBtn(
                     label: hasPaired ? 'OPEN MISSION CONTROL' : 'PAIR A DEVICE',
-                    leftIcon: hasPaired
-                        ? Icons.public
-                        : Icons.qr_code_2_rounded,
+                    leftIcon:
+                        hasPaired ? Icons.public : Icons.qr_code_2_rounded,
                     primary: true,
                     onTap: () => onNavigate(
                         hasPaired ? _PcSection.dashboard : _PcSection.pair),
@@ -1154,7 +1201,8 @@ class _PcHikersList extends StatelessWidget {
                         Text(
                           'Open Pair Device, show the QR on this screen, and scan it from the mobile app to attach a phone.',
                           textAlign: TextAlign.center,
-                          style: TT.body(size: 12, color: TT.text2)
+                          style: TT
+                              .body(size: 12, color: TT.text2)
                               .copyWith(height: 1.5),
                         ),
                         const SizedBox(height: 20),
@@ -1180,26 +1228,22 @@ class _PcHikersList extends StatelessWidget {
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
                           Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) =>
-                                TeamDetailScreen(team: r.team),
+                            builder: (_) => TeamDetailScreen(team: r.team),
                           ));
                         },
                         child: PCCard(
-                          padding:
-                              const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                           child: Row(
                             children: [
                               _AvatarCircle(name: r.member.displayName),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(r.member.displayName,
                                         style: TT.body(
-                                            size: 13,
-                                            w: FontWeight.w800)),
+                                            size: 13, w: FontWeight.w800)),
                                     const SizedBox(height: 2),
                                     Text(
                                       'TEAM · ${r.team.name.toUpperCase()}',
@@ -1211,8 +1255,7 @@ class _PcHikersList extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              const PCPill(
-                                  label: 'TETHERED', success: true),
+                              const PCPill(label: 'TETHERED', success: true),
                               const SizedBox(width: 8),
                               const Icon(Icons.chevron_right,
                                   size: 18, color: TT.text3),
@@ -1240,7 +1283,8 @@ class _AvatarCircle extends StatelessWidget {
         ? (parts.first[0] + parts.last[0]).toUpperCase()
         : (parts.first.isEmpty
             ? '?'
-            : parts.first.substring(0, parts.first.length >= 2 ? 2 : 1)
+            : parts.first
+                .substring(0, parts.first.length >= 2 ? 2 : 1)
                 .toUpperCase());
     // Cycle through the design's avatar palette by hashing the name.
     const palette = [
@@ -1380,13 +1424,13 @@ class _PcAlertsState extends State<_PcAlerts> {
                             size: 48, color: TT.green),
                         const SizedBox(height: 16),
                         Text('All clear',
-                            style:
-                                TT.title(18, letterSpacing: -0.01 * 18)),
+                            style: TT.title(18, letterSpacing: -0.01 * 18)),
                         const SizedBox(height: 8),
                         Text(
                           'No open alerts. Field reports + weather warnings will land here as they fire.',
                           textAlign: TextAlign.center,
-                          style: TT.body(size: 12, color: TT.text2)
+                          style: TT
+                              .body(size: 12, color: TT.text2)
                               .copyWith(height: 1.5),
                         ),
                       ],
@@ -1420,14 +1464,13 @@ class _PcAlertsState extends State<_PcAlerts> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text((r['title'] ?? '').toString(),
-                                  style: TT.body(
-                                      size: 13, w: FontWeight.w800)),
+                                  style: TT.body(size: 13, w: FontWeight.w800)),
                               if (r['sub'] != null &&
                                   (r['sub'] as String).isNotEmpty) ...[
                                 const SizedBox(height: 3),
                                 Text(r['sub'].toString(),
-                                    style: TT.body(
-                                        size: 11.5, color: TT.text2)),
+                                    style:
+                                        TT.body(size: 11.5, color: TT.text2)),
                               ],
                             ],
                           ),
@@ -1485,7 +1528,8 @@ class _PcPairDeviceScreenState extends State<PcPairDeviceScreen> {
     });
     final rnd = math.Random.secure();
     const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1
-    final token = List.generate(8, (_) => alpha[rnd.nextInt(alpha.length)]).join();
+    final token =
+        List.generate(8, (_) => alpha[rnd.nextInt(alpha.length)]).join();
     try {
       final inserted = await Supabase.instance.client
           .from('tether_pairings')
@@ -1510,12 +1554,12 @@ class _PcPairDeviceScreenState extends State<PcPairDeviceScreen> {
           .stream(primaryKey: ['id'])
           .eq('id', pairingId)
           .listen((rows) {
-        if (rows.isEmpty) return;
-        final r = rows.first;
-        if (r['paired_at'] != null && mounted) {
-          setState(() => _pairedRow = r);
-        }
-      });
+            if (rows.isEmpty) return;
+            final r = rows.first;
+            if (r['paired_at'] != null && mounted) {
+              setState(() => _pairedRow = r);
+            }
+          });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     }
@@ -1529,7 +1573,8 @@ class _PcPairDeviceScreenState extends State<PcPairDeviceScreen> {
         PCPageHeader(
           eyebrow: 'BASE-CAMP TETHER',
           title: 'Pair Device',
-          sub: const Text('Show this QR on the PC · scan from the mobile app to pair'),
+          sub: const Text(
+              'Show this QR on the PC · scan from the mobile app to pair'),
           actions: [
             PCBtn(
               label: 'NEW CODE',
@@ -1608,8 +1653,8 @@ class _PcPairDeviceScreenState extends State<PcPairDeviceScreen> {
                               Expanded(
                                 child: Text(
                                   'Tokens expire after 10 minutes. Mint a fresh one any time with NEW CODE.',
-                                  style: TT.body(
-                                          size: 11.5, color: TT.text2)
+                                  style: TT
+                                      .body(size: 11.5, color: TT.text2)
                                       .copyWith(height: 1.45),
                                 ),
                               ),
@@ -1687,16 +1732,12 @@ class _QrPanel extends StatelessWidget {
           children: [
             Text('CODE',
                 style: TT.mono(
-                    size: 10,
-                    color: TT.text3,
-                    letterSpacing: 0.2 * 10)),
+                    size: 10, color: TT.text3, letterSpacing: 0.2 * 10)),
             const SizedBox(width: 8),
             SelectableText(
               token,
-              style: TT.mono(
-                  size: 22,
-                  color: TT.ember,
-                  letterSpacing: 0.18 * 22)
+              style: TT
+                  .mono(size: 22, color: TT.ember, letterSpacing: 0.18 * 22)
                   .copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(width: 10),
@@ -1714,7 +1755,8 @@ class _QrPanel extends StatelessWidget {
                     ),
                   );
                 },
-                child: const Icon(Icons.copy_rounded, size: 14, color: TT.text3),
+                child:
+                    const Icon(Icons.copy_rounded, size: 14, color: TT.text3),
               ),
             ),
           ],
@@ -1758,10 +1800,7 @@ class _PairSuccess extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         Text('PAIRED',
-            style: TT.mono(
-                size: 12,
-                color: TT.green,
-                letterSpacing: 0.2 * 12)),
+            style: TT.mono(size: 12, color: TT.green, letterSpacing: 0.2 * 12)),
         const SizedBox(height: 8),
         Text('Mission Control is now watching this hiker live.',
             textAlign: TextAlign.center,
@@ -1795,7 +1834,8 @@ class _PairStep extends StatelessWidget {
             ),
             child: Text(
               '$n',
-              style: TT.mono(size: 10.5, color: TT.ember)
+              style: TT
+                  .mono(size: 10.5, color: TT.ember)
                   .copyWith(fontWeight: FontWeight.w800),
             ),
           ),
@@ -1804,11 +1844,11 @@ class _PairStep extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TT.body(size: 13, w: FontWeight.w800)),
+                Text(title, style: TT.body(size: 13, w: FontWeight.w800)),
                 const SizedBox(height: 3),
                 Text(body,
-                    style: TT.body(size: 11.5, color: TT.text2)
+                    style: TT
+                        .body(size: 11.5, color: TT.text2)
                         .copyWith(height: 1.5)),
               ],
             ),

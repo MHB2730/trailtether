@@ -26,7 +26,7 @@ class NotificationService {
         requestSoundPermission: true,
       );
       const linux = LinuxInitializationSettings(defaultActionName: 'Open');
-      
+
       // Windows initialization (optional for simple usage but recommended for stability)
       // Note: In some versions of flutter_local_notifications, this is required.
       // We skip it if the desktop implementation is not available.
@@ -40,10 +40,11 @@ class NotificationService {
       await _local.initialize(
         initSettings,
         onDidReceiveNotificationResponse: (response) {
-          LoggerService.log('NOTIFICATIONS', 'Notification clicked: ${response.payload}');
+          LoggerService.log(
+              'NOTIFICATIONS', 'Notification clicked: ${response.payload}');
         },
       );
-      
+
       if (Platform.isAndroid) {
         await _local
             .resolvePlatformSpecificImplementation<

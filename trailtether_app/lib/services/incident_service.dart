@@ -78,8 +78,7 @@ class IncidentService {
       await _db.storage.from('incident-photos').uploadBinary(
             path,
             Uint8List.fromList(bytes),
-            fileOptions:
-                FileOptions(contentType: mime, upsert: false),
+            fileOptions: FileOptions(contentType: mime, upsert: false),
           );
       final url = _db.storage.from('incident-photos').getPublicUrl(path);
       LoggerService.log('INCIDENT', 'Photo uploaded: $path');
@@ -106,7 +105,8 @@ class IncidentService {
         'p_incident_id': incidentId,
       });
     } catch (e, stack) {
-      LoggerService.error('INCIDENT_VERIFY', 'verify_incident failed: $e', stack);
+      LoggerService.error(
+          'INCIDENT_VERIFY', 'verify_incident failed: $e', stack);
       rethrow;
     }
   }

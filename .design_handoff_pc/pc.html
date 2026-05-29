@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trailtether — Base Camp (PC App)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    /* Trailtether palette — graphite / ember orange (shared with mobile) */
+    --tt-bg:        #07090c;
+    --tt-bg-2:      #0b0e12;
+    --tt-bg-3:      #0f1318;
+
+    --tt-surf:      #131820;
+    --tt-surf-2:    #1a2029;
+    --tt-surf-3:    #232a35;
+
+    --tt-line:      rgba(255,255,255,0.055);
+    --tt-line-2:    rgba(255,255,255,0.10);
+    --tt-line-3:    rgba(255,255,255,0.16);
+
+    --tt-text:      #eef1f4;
+    --tt-text-2:    #98a1ac;
+    --tt-text-3:    #5a6470;
+    --tt-text-4:    #3d454d;
+
+    --tt-ember:     #ff6a2c;
+    --tt-ember-2:   #ff8a4d;
+    --tt-ember-3:   #ffb486;
+    --tt-ember-dim: rgba(255,106,44,0.14);
+    --tt-ember-soft:rgba(255,106,44,0.06);
+    --tt-ember-glow:0 0 28px rgba(255,106,44,0.45);
+
+    --tt-blue:      #5aa1d6;
+    --tt-green:     #4cc38a;
+    --tt-amber:     #f2a93b;
+    --tt-red:       #e63d2e;
+
+    --tt-font:      'Manrope', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --tt-mono:      'JetBrains Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
+
+    --tt-shadow-card: 0 8px 24px -12px rgba(0,0,0,0.6), 0 2px 6px -2px rgba(0,0,0,0.4);
+    --tt-shadow-ember: 0 10px 30px -8px rgba(255,106,44,0.45);
+  }
+
+  html, body { background: #15181d; }
+  body { margin: 0; font-family: var(--tt-font); color: var(--tt-text); -webkit-font-smoothing: antialiased; }
+
+  .pressable { transition: transform 200ms ease, background 200ms ease, border-color 200ms ease; cursor: pointer; }
+  .pressable:hover { border-color: var(--tt-line-2); }
+  .pressable:active { transform: scale(0.99); }
+
+  /* Reusable bits also used by PC (mirroring mobile) */
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--tt-line);
+    color: var(--tt-text);
+    display: grid; place-items: center;
+    cursor: pointer; flex: 0 0 auto;
+    transition: background 200ms ease, border-color 200ms ease, transform 200ms ease;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.06); border-color: var(--tt-line-2); }
+  .icon-btn:active { transform: scale(0.96); }
+
+  .num { font-family: var(--tt-mono); font-feature-settings: 'tnum'; font-variant-numeric: tabular-nums; }
+
+  /* Pulses, ripples, etc. */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .anim-in { animation: fadeIn 600ms ease both; }
+
+  /* Topographic overlay class */
+  .topo-overlay {
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600' viewBox='0 0 600 600'><g fill='none' stroke='%23ffffff' stroke-opacity='0.04' stroke-width='1'><path d='M0,300 Q150,200 300,260 T600,240'/><path d='M0,340 Q150,250 300,300 T600,290'/><path d='M0,380 Q150,300 300,340 T600,340'/><path d='M0,420 Q150,350 300,380 T600,390'/><path d='M0,260 Q150,160 300,220 T600,200'/><path d='M0,220 Q150,120 300,180 T600,160'/><path d='M0,180 Q150,80 300,140 T600,120'/></g></svg>");
+    background-size: 600px 600px;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<!-- Mobile shared.jsx — provides <Icon> which the PC chrome reuses -->
+<script type="text/babel" src="screens/shared.jsx"></script>
+<!-- PC-only chrome + screens -->
+<script type="text/babel" src="pc/shared.jsx"></script>
+<script type="text/babel" src="pc/welcome.jsx"></script>
+<script type="text/babel" src="pc/dashboard.jsx"></script>
+<script type="text/babel" src="pc/hike-watch.jsx"></script>
+<script type="text/babel" src="pc/hikers.jsx"></script>
+<script type="text/babel" src="pc/history.jsx"></script>
+<script type="text/babel" src="pc/pair-device.jsx"></script>
+<script type="text/babel" src="pc/settings.jsx"></script>
+
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+function PCApp() {
+  return (
+    <DesignCanvas>
+      <DCSection id="entry" title="Entry" subtitle="First screen — welcome + sign-in / pair-this-PC">
+        <DCArtboard id="welcome" label="00 · Welcome / Sign In" width={1440} height={900}><PCScreenWelcome/></DCArtboard>
+      </DCSection>
+
+      <DCSection id="overview" title="Overview" subtitle="The pages a watcher opens first">
+        <DCArtboard id="dashboard" label="01 · Mission Control" width={1440} height={900}><PCScreenDashboard/></DCArtboard>
+        <DCArtboard id="watch"     label="02 · Hike Watch"      width={1440} height={900}><PCScreenHikeWatch/></DCArtboard>
+      </DCSection>
+
+      <DCSection id="manage" title="Manage" subtitle="People, history, devices, preferences">
+        <DCArtboard id="hikers"   label="03 · Hikers"      width={1440} height={900}><PCScreenHikers/></DCArtboard>
+        <DCArtboard id="history"  label="04 · History"     width={1440} height={900}><PCScreenHistory/></DCArtboard>
+        <DCArtboard id="pair"     label="05 · Pair Device" width={1440} height={900}><PCScreenPair/></DCArtboard>
+        <DCArtboard id="settings" label="06 · Settings"    width={1440} height={900}><PCScreenSettings/></DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<PCApp/>);
+</script>
+</body>
+</html>

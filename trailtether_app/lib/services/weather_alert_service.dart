@@ -78,8 +78,7 @@ class WeatherAlertService {
         return;
       }
 
-      final alertKey =
-          '${threat.severity}|${threat.atHour.toIso8601String()}';
+      final alertKey = '${threat.severity}|${threat.atHour.toIso8601String()}';
       if (_lastAlertKey[uid] == alertKey) {
         // Same threat we already alerted on. Stay quiet.
         return;

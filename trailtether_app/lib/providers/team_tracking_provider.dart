@@ -67,8 +67,7 @@ class TeamTrackingProvider extends ChangeNotifier {
         final newest = fixes.last;
         await TeamService.reportLocation(
           uid: newest['uid'] as String,
-          displayName:
-              (newest['_display_name'] as String?) ?? _displayName,
+          displayName: (newest['_display_name'] as String?) ?? _displayName,
           lat: (newest['lat'] as num).toDouble(),
           lon: (newest['lon'] as num).toDouble(),
           heading: (newest['heading'] as num?)?.toDouble() ?? 0,
@@ -95,18 +94,19 @@ class TeamTrackingProvider extends ChangeNotifier {
     try {
       final incidents = await OfflineIncidentQueue.drainAll();
       if (incidents.isEmpty) return;
-      LoggerService.log(
-          'OFF_TRAIL', 'Draining ${incidents.length} offline incident alerts to Supabase');
+      LoggerService.log('OFF_TRAIL',
+          'Draining ${incidents.length} offline incident alerts to Supabase');
       try {
         await Supabase.instance.client.from('incidents').insert(incidents);
         LoggerService.log('OFF_TRAIL', 'Offline incidents drain complete');
       } catch (e, stack) {
-        LoggerService.error(
-            'OFF_TRAIL', 'Failed to insert drained incidents; re-queueing: $e', stack);
+        LoggerService.error('OFF_TRAIL',
+            'Failed to insert drained incidents; re-queueing: $e', stack);
         await OfflineIncidentQueue.reenqueue(incidents);
       }
     } catch (e, stack) {
-      LoggerService.error('OFF_TRAIL', '_drainOfflineIncidentsQueue failed: $e', stack);
+      LoggerService.error(
+          'OFF_TRAIL', '_drainOfflineIncidentsQueue failed: $e', stack);
     }
   }
 
@@ -253,8 +253,8 @@ class TeamTrackingProvider extends ChangeNotifier {
     try {
       final pos = await LocationService.currentPosition();
       if (pos == null) {
-        LoggerService.log('TRACKING',
-            'reportOnceOnLaunch: no GPS fix available, skipping');
+        LoggerService.log(
+            'TRACKING', 'reportOnceOnLaunch: no GPS fix available, skipping');
         return;
       }
       final vitals = await _readDeviceVitals();
@@ -467,12 +467,11 @@ class TeamTrackingProvider extends ChangeNotifier {
           .stream(primaryKey: ['uid'])
           .eq('team_id', teamId)
           .listen((rows) {
-        if (_disposed) return;
-        _teamLocations = rows
-            .map((m) => TeamMemberLocation.fromMap(m))
-            .toList();
-        _safeNotify();
-      });
+            if (_disposed) return;
+            _teamLocations =
+                rows.map((m) => TeamMemberLocation.fromMap(m)).toList();
+            _safeNotify();
+          });
     } catch (e, stack) {
       LoggerService.error('TRACKING',
           'team_member_locations stream subscribe failed: $e', stack);

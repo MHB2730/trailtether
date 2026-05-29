@@ -62,7 +62,8 @@ class WeatherAggregatorService {
 
     final blended = CurrentWeather(
       temperature: _median([primary.current.temperature, metNo.temperature]),
-      feelsLike: primary.current.feelsLike, // Met Norway doesn't expose this directly
+      feelsLike:
+          primary.current.feelsLike, // Met Norway doesn't expose this directly
       humidity: _medianInt([primary.current.humidity, metNo.humidity]),
       precipitation:
           _median([primary.current.precipitation, metNo.precipitation]),
@@ -102,10 +103,10 @@ class WeatherAggregatorService {
     // than wait up to 18s for a blended one. Was 8s connect + 10s read
     // (=18s worst case); now 3s + 4s (=7s) which keeps Met Norway
     // available when fast, drops it cleanly when slow.
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 3);
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
     try {
-      final request = await client.getUrl(uri).timeout(const Duration(seconds: 3));
+      final request =
+          await client.getUrl(uri).timeout(const Duration(seconds: 3));
       request.headers.set(HttpHeaders.userAgentHeader, _userAgent);
       final response =
           await request.close().timeout(const Duration(seconds: 4));
@@ -128,8 +129,7 @@ class WeatherAggregatorService {
       return _MetNoCurrent(
         temperature: _toDouble(details['air_temperature']),
         humidity: _toInt(details['relative_humidity']),
-        precipitation:
-            _toDouble(nextHour?['precipitation_amount']),
+        precipitation: _toDouble(nextHour?['precipitation_amount']),
         cloudCover: _toInt(details['cloud_area_fraction']),
         windSpeed: _toDouble(details['wind_speed']) * 3.6, // m/s → km/h
         windDirection: _toInt(details['wind_from_direction']),
@@ -163,8 +163,7 @@ class WeatherAggregatorService {
 
   static double _toDouble(dynamic v) =>
       v == null ? 0.0 : (v is num ? v.toDouble() : 0.0);
-  static int _toInt(dynamic v) =>
-      v == null ? 0 : (v is num ? v.toInt() : 0);
+  static int _toInt(dynamic v) => v == null ? 0 : (v is num ? v.toInt() : 0);
 }
 
 class _MetNoCurrent {

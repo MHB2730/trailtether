@@ -100,7 +100,9 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
     final prefs = await SharedPreferences.getInstance();
     // List of items: persisted custom list, or seed defaults on first run.
     final stored = prefs.getStringList(_kGearListKey);
-    _gearItems = stored != null ? List<String>.from(stored) : List<String>.from(_kGearSeed);
+    _gearItems = stored != null
+        ? List<String>.from(stored)
+        : List<String>.from(_kGearSeed);
     _gear.clear();
     for (final item in _gearItems) {
       _gear[item] = prefs.getBool(_gearKey(item)) ?? false;
@@ -242,8 +244,7 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text('Save',
-                style:
-                    TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
           ),
         ],
       ),
@@ -284,8 +285,8 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: TT.surf,
-        title: Text('Edit contact',
-            style: TT.body(size: 16, w: FontWeight.w800)),
+        title:
+            Text('Edit contact', style: TT.body(size: 16, w: FontWeight.w800)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -316,8 +317,7 @@ class _SafetyCenterScreenState extends State<SafetyCenterScreen> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text('Save',
-                style:
-                    TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
+                style: TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
           ),
         ],
       ),
@@ -516,12 +516,11 @@ class _ActivePlanCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: TT.emberSoft,
                 borderRadius: BorderRadius.circular(TT.rMd),
-                border:
-                    Border.all(color: const Color(0x33FF6A2C), width: 1),
+                border: Border.all(color: const Color(0x33FF6A2C), width: 1),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.shield_outlined,
-                  color: TT.ember, size: 20),
+              child:
+                  const Icon(Icons.shield_outlined, color: TT.ember, size: 20),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -555,8 +554,8 @@ class _ActivePlanCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('ACTIVE HIKE PLAN',
-                    style: TT.label(color: TT.text3)),
+                child:
+                    Text('ACTIVE HIKE PLAN', style: TT.label(color: TT.text3)),
               ),
               const TTPill(label: 'ACTIVE', variant: TTPillVariant.ember),
             ],
@@ -582,8 +581,7 @@ class _ActivePlanCard extends StatelessWidget {
                   value: [
                     if (plan.backpackColor.isNotEmpty)
                       'Pack ${plan.backpackColor}',
-                    if (plan.tentColor.isNotEmpty)
-                      'Tent ${plan.tentColor}',
+                    if (plan.tentColor.isNotEmpty) 'Tent ${plan.tentColor}',
                   ].join(' · ').ifEmpty('Not set'),
                   icon: Icons.color_lens_outlined,
                 ),
@@ -601,7 +599,8 @@ class _ActivePlanCard extends StatelessWidget {
               ),
               child: Text(
                 plan.notes,
-                style: TT.body(size: 12, color: TT.text2, w: FontWeight.w500)
+                style: TT
+                    .body(size: 12, color: TT.text2, w: FontWeight.w500)
                     .copyWith(height: 1.5),
               ),
             ),
@@ -712,8 +711,8 @@ class _TripCheckInCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child:
-                    _TTField(controller: backpackCtrl, label: 'Backpack colour'),
+                child: _TTField(
+                    controller: backpackCtrl, label: 'Backpack colour'),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -828,9 +827,9 @@ class _ContactsCard extends StatelessWidget {
               ),
               child: Text(
                 'No emergency contacts saved yet. Add one before you head out so a trusted person knows your plan.',
-                style:
-                    TT.body(size: 12, color: TT.text2, w: FontWeight.w500)
-                        .copyWith(height: 1.5),
+                style: TT
+                    .body(size: 12, color: TT.text2, w: FontWeight.w500)
+                    .copyWith(height: 1.5),
               ),
             )
           else
@@ -871,9 +870,7 @@ class _ContactRow extends StatelessWidget {
     if (n.isEmpty) return '?';
     final parts = n.split(RegExp(r'\s+'));
     final a = parts.first.characters.firstOrNull ?? '?';
-    final b = parts.length > 1
-        ? (parts.last.characters.firstOrNull ?? '')
-        : '';
+    final b = parts.length > 1 ? (parts.last.characters.firstOrNull ?? '') : '';
     return (a + b).toUpperCase();
   }
 
@@ -893,8 +890,7 @@ class _ContactRow extends StatelessWidget {
               children: [
                 Text(
                   contact.name.isEmpty ? 'Unnamed contact' : contact.name,
-                  style: TT.body(
-                      size: 14, w: FontWeight.w800, color: TT.text),
+                  style: TT.body(size: 14, w: FontWeight.w800, color: TT.text),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -916,9 +912,7 @@ class _ContactRow extends StatelessWidget {
                         Text(
                           contact.phone,
                           style: TT.body(
-                              size: 12,
-                              w: FontWeight.w700,
-                              color: TT.ember),
+                              size: 12, w: FontWeight.w700, color: TT.ember),
                         ),
                       ],
                     ),
@@ -1037,8 +1031,7 @@ class _GearChecklistCardState extends State<_GearChecklistCard> {
         children: [
           Row(
             children: [
-              const Icon(Icons.backpack_outlined,
-                  color: TT.ember, size: 18),
+              const Icon(Icons.backpack_outlined, color: TT.ember, size: 18),
               const SizedBox(width: 8),
               Expanded(child: Text('Gear checklist', style: TT.title(16))),
               Text('${widget.checked} / $total',
@@ -1117,8 +1110,8 @@ class _GearChecklistCardState extends State<_GearChecklistCard> {
                     border: Border.all(color: TT.line2, width: 1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Icon(Icons.add_rounded,
-                      size: 14, color: TT.ember),
+                  child:
+                      const Icon(Icons.add_rounded, size: 14, color: TT.ember),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1132,8 +1125,8 @@ class _GearChecklistCardState extends State<_GearChecklistCard> {
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: 'Add gear (e.g. Sleeping bag, GPS, …)',
-                      hintStyle:
-                          TT.body(size: 13, color: TT.text3, w: FontWeight.w600),
+                      hintStyle: TT.body(
+                          size: 13, color: TT.text3, w: FontWeight.w600),
                       border: InputBorder.none,
                       focusedBorder: InputBorder.none,
                       enabledBorder: InputBorder.none,
@@ -1219,8 +1212,7 @@ class _GearRow extends StatelessWidget {
                 color: checked ? TT.ember : const Color(0x07FFFFFF),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color:
-                      checked ? const Color(0x66FF6A2C) : TT.line2,
+                  color: checked ? const Color(0x66FF6A2C) : TT.line2,
                   width: 1,
                 ),
                 boxShadow: checked
@@ -1243,15 +1235,18 @@ class _GearRow extends StatelessWidget {
             Expanded(
               child: AnimatedDefaultTextStyle(
                 duration: TT.dFast,
-                style: TT.body(
-                  size: 13,
-                  w: FontWeight.w700,
-                  color: checked ? TT.text3 : TT.text,
-                ).copyWith(
-                  decoration:
-                      checked ? TextDecoration.lineThrough : TextDecoration.none,
-                  decorationColor: TT.text3,
-                ),
+                style: TT
+                    .body(
+                      size: 13,
+                      w: FontWeight.w700,
+                      color: checked ? TT.text3 : TT.text,
+                    )
+                    .copyWith(
+                      decoration: checked
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                      decorationColor: TT.text3,
+                    ),
                 child: Text(label),
               ),
             ),
@@ -1309,8 +1304,8 @@ class _BaseCampTetherLink extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'Pair your phone with the desktop watcher so a trusted person can see your live position.',
-                  style: TT.body(size: 11, color: TT.text3)
-                      .copyWith(height: 1.5),
+                  style:
+                      TT.body(size: 11, color: TT.text3).copyWith(height: 1.5),
                 ),
               ],
             ),
@@ -1354,12 +1349,12 @@ class _BaseCampTetherScreen extends StatelessWidget {
                             Text('LIVE TRACKING',
                                 style: TT.label(color: TT.ember)),
                             const SizedBox(height: 8),
-                            Text('Mobile → PC tether',
-                                style: TT.title(20)),
+                            Text('Mobile → PC tether', style: TT.title(20)),
                             const SizedBox(height: 12),
                             Text(
                               'Base-camp tether streams your phone GPS to the Trailtether desktop watcher so a partner at home can follow your hike in real time.',
-                              style: TT.body(
+                              style: TT
+                                  .body(
                                       size: 13,
                                       color: TT.text2,
                                       w: FontWeight.w500)
@@ -1410,7 +1405,8 @@ class _BaseCampTetherScreen extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 'Pair from the Tools tab on this device once the desktop watcher is running.',
-                                style: TT.body(
+                                style: TT
+                                    .body(
                                         size: 12,
                                         color: TT.ember,
                                         w: FontWeight.w700)
@@ -1457,8 +1453,7 @@ class _TetherBullet extends StatelessWidget {
               decoration: BoxDecoration(
                 color: TT.emberSoft,
                 borderRadius: BorderRadius.circular(TT.rSm),
-                border:
-                    Border.all(color: const Color(0x33FF6A2C), width: 1),
+                border: Border.all(color: const Color(0x33FF6A2C), width: 1),
               ),
               alignment: Alignment.center,
               child: Icon(icon, color: TT.ember, size: 16),
@@ -1474,7 +1469,8 @@ class _TetherBullet extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     body,
-                    style: TT.body(size: 12, color: TT.text2)
+                    style: TT
+                        .body(size: 12, color: TT.text2)
                         .copyWith(height: 1.5),
                   ),
                 ],
@@ -1600,7 +1596,8 @@ class _EmberButton extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               label,
-              style: TT.body(size: 13, w: FontWeight.w900, color: TT.emberInk)
+              style: TT
+                  .body(size: 13, w: FontWeight.w900, color: TT.emberInk)
                   .copyWith(letterSpacing: 0.6),
             ),
           ],

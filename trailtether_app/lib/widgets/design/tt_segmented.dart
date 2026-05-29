@@ -47,7 +47,12 @@ class _TTSegmentedState extends State<TTSegmented> {
                   color: TT.emberDim,
                   borderRadius: BorderRadius.circular(9),
                   border: Border.all(color: const Color(0x52FF6A2C), width: 1),
-                  boxShadow: const [BoxShadow(color: Color(0x2EFF6A2C), blurRadius: 12, spreadRadius: -4)],
+                  boxShadow: const [
+                    BoxShadow(
+                        color: Color(0x2EFF6A2C),
+                        blurRadius: 12,
+                        spreadRadius: -4)
+                  ],
                 ),
               ),
             ),
@@ -59,7 +64,8 @@ class _TTSegmentedState extends State<TTSegmented> {
                     behavior: HitTestBehavior.opaque,
                     onTap: () => widget.onChange(i),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 14),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 9, horizontal: 14),
                       child: AnimatedDefaultTextStyle(
                         duration: TT.dMed,
                         style: TT.body(
@@ -68,7 +74,8 @@ class _TTSegmentedState extends State<TTSegmented> {
                           w: FontWeight.w700,
                         ),
                         textAlign: TextAlign.center,
-                        child: Text(widget.tabs[i], textAlign: TextAlign.center),
+                        child:
+                            Text(widget.tabs[i], textAlign: TextAlign.center),
                       ),
                     ),
                   ),

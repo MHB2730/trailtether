@@ -94,8 +94,7 @@ class _UpdateBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              const Icon(Icons.system_update,
-                  color: kColorOrange, size: 18),
+              const Icon(Icons.system_update, color: kColorOrange, size: 18),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -108,8 +107,8 @@ class _UpdateBanner extends StatelessWidget {
               ),
               TextButton(
                 onPressed: onUpdate,
-                child: const Text('Update',
-                    style: TextStyle(color: kColorOrange)),
+                child:
+                    const Text('Update', style: TextStyle(color: kColorOrange)),
               ),
               IconButton(
                 icon: const Icon(Icons.close, size: 18, color: Colors.white54),
@@ -204,8 +203,7 @@ class _UpdateSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.system_update,
-                    color: kColorOrange, size: 24),
+                const Icon(Icons.system_update, color: kColorOrange, size: 24),
                 const SizedBox(width: 12),
                 Text(
                   'Update to v${status.latestVersionName}',
@@ -226,8 +224,8 @@ class _UpdateSheet extends StatelessWidget {
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Later',
-                  style: TextStyle(color: Colors.white54)),
+              child:
+                  const Text('Later', style: TextStyle(color: Colors.white54)),
             ),
           ],
         ),
@@ -253,7 +251,9 @@ class _UpdateActionButtonState extends State<_UpdateActionButton> {
   void initState() {
     super.initState();
     _sub = UpdateService.instance.stream.listen((_) {
-      if (mounted) setState(() => _progress = UpdateService.instance.downloadProgress);
+      if (mounted) {
+        setState(() => _progress = UpdateService.instance.downloadProgress);
+      }
     });
   }
 

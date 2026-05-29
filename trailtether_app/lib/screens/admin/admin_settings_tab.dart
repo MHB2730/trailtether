@@ -42,8 +42,7 @@ class _AdminSettingsTabState extends State<AdminSettingsTab> {
         }
       }
     } catch (e, stack) {
-      LoggerService.error(
-          'ADMIN_SETTINGS', 'Failed to load config: $e', stack);
+      LoggerService.error('ADMIN_SETTINGS', 'Failed to load config: $e', stack);
     }
   }
 
@@ -67,8 +66,7 @@ class _AdminSettingsTabState extends State<AdminSettingsTab> {
             content: Text('System configuration updated globally')));
       }
     } catch (e, stack) {
-      LoggerService.error(
-          'ADMIN_SETTINGS', 'Failed to save config: $e', stack);
+      LoggerService.error('ADMIN_SETTINGS', 'Failed to save config: $e', stack);
     }
   }
 

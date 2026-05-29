@@ -103,8 +103,7 @@ class _HikePlanDetailScreenState extends State<HikePlanDetailScreen> {
     final extras = _plan.extras;
     final currentUid = context.watch<AuthProvider>().uid;
 
-    final startDateStr =
-        DateFormat('EEEE, d MMMM yyyy').format(_plan.hikeDate);
+    final startDateStr = DateFormat('EEEE, d MMMM yyyy').format(_plan.hikeDate);
     final endDateStr = extras.endDate != null
         ? DateFormat('EEEE, d MMMM yyyy').format(extras.endDate!)
         : null;
@@ -329,10 +328,8 @@ class _HeroCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   '${extras.invitedMembers.length} invited',
-                  style: TT.label(
-                      size: 10.5,
-                      color: TT.text2,
-                      letterSpacing: 1.4),
+                  style:
+                      TT.label(size: 10.5, color: TT.text2, letterSpacing: 1.4),
                 ),
               ],
             ),
@@ -405,8 +402,7 @@ class _InfoTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style:
-                      TT.body(size: 14, color: TT.text, w: FontWeight.w700),
+                  style: TT.body(size: 14, color: TT.text, w: FontWeight.w700),
                 ),
               ],
             ),
@@ -446,8 +442,8 @@ class _NoteCard extends StatelessWidget {
               Icon(icon, color: TT.ember, size: 14),
               const SizedBox(width: 8),
               Text(title,
-                  style: TT.label(
-                      size: 10, color: TT.ember, letterSpacing: 1.4)),
+                  style:
+                      TT.label(size: 10, color: TT.ember, letterSpacing: 1.4)),
             ],
           ),
           const SizedBox(height: 10),
@@ -498,9 +494,8 @@ class _GearItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPackedByMe = item.memberStatuses[currentUid] ?? false;
-    final packedMembers = team.members
-        .where((m) => item.memberStatuses[m.uid] == true)
-        .toList();
+    final packedMembers =
+        team.members.where((m) => item.memberStatuses[m.uid] == true).toList();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -518,8 +513,8 @@ class _GearItemTile extends StatelessWidget {
               onTap: onToggle,
               behavior: HitTestBehavior.opaque,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Row(
                   children: [
                     _Check(checked: isPackedByMe),
@@ -532,8 +527,7 @@ class _GearItemTile extends StatelessWidget {
                         color: TT.emberSoft,
                         borderRadius: BorderRadius.circular(TT.rSm),
                       ),
-                      child:
-                          Icon(_icon, size: 14, color: TT.ember),
+                      child: Icon(_icon, size: 14, color: TT.ember),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -542,24 +536,24 @@ class _GearItemTile extends StatelessWidget {
                         children: [
                           Text(
                             item.name,
-                            style: TT.body(
-                              size: 14,
-                              w: FontWeight.w700,
-                              color: TT.text,
-                            ).copyWith(
-                              decoration: isPackedByMe
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                              decorationColor: TT.text3,
-                            ),
+                            style: TT
+                                .body(
+                                  size: 14,
+                                  w: FontWeight.w700,
+                                  color: TT.text,
+                                )
+                                .copyWith(
+                                  decoration: isPackedByMe
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  decorationColor: TT.text3,
+                                ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             item.category.toUpperCase(),
                             style: TT.label(
-                                size: 9.5,
-                                color: TT.text3,
-                                letterSpacing: 1.4),
+                                size: 9.5, color: TT.text3, letterSpacing: 1.4),
                           ),
                         ],
                       ),
@@ -577,8 +571,7 @@ class _GearItemTile extends StatelessWidget {
                 child: Row(
                   children: [
                     Text('Packed by:',
-                        style:
-                            TT.label(size: 9.5, color: TT.text3)),
+                        style: TT.label(size: 9.5, color: TT.text3)),
                     const SizedBox(width: 6),
                     ...packedMembers.map((m) => Padding(
                           padding: const EdgeInsets.only(right: 4),
@@ -615,8 +608,7 @@ class _Check extends StatelessWidget {
       decoration: BoxDecoration(
         color: checked ? TT.ember : TT.surf2,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-            color: checked ? TT.ember : TT.line2, width: 1.4),
+        border: Border.all(color: checked ? TT.ember : TT.line2, width: 1.4),
       ),
       child: checked
           ? const Icon(Icons.check, size: 14, color: TT.emberInk)
@@ -684,8 +676,7 @@ class _RsvpRow extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(member.displayName,
-                style: TT.body(
-                    size: 13.5, w: FontWeight.w700, color: TT.text)),
+                style: TT.body(size: 13.5, w: FontWeight.w700, color: TT.text)),
           ),
           _RsvpBadge(label: status.toUpperCase(), going: going),
         ],
@@ -712,8 +703,7 @@ class _RsvpBadge extends StatelessWidget {
         border: Border.all(color: border),
       ),
       child: Text(label,
-          style:
-              TT.mono(size: 9.5, color: fg, letterSpacing: 1.14)),
+          style: TT.mono(size: 9.5, color: fg, letterSpacing: 1.14)),
     );
   }
 }

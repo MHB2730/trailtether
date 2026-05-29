@@ -6,7 +6,7 @@ source_paths: [supabase/migrations]
 
 # Supabase Migrations Module
 
-13 SQL migration files in `supabase/migrations/`, applied chronologically by filename. They build incrementally onto a base schema that predates this folder (an older `master_supabase_setup.sql` was deleted in cleanup — see [[Build & Deploy]]).
+17 SQL migration files in `supabase/migrations/`, applied chronologically by filename. They build incrementally onto a base schema that predates this folder (an older `master_supabase_setup.sql` was deleted in cleanup — see [[Build & Deploy]]).
 
 ## How migrations land in production
 
@@ -15,49 +15,47 @@ Two paths:
 1. **MCP** — `mcp__supabase__apply_migration` (used during this session for [[trails]] and edge function search_path fix)
 2. **Supabase CLI** — `supabase db push` (older workflow)
 
-> [!warning] Verify
-> Some tables exist in production but **don't appear** in any migration file in `supabase/migrations/` (e.g. [[profiles]], [[teams]], [[hike_history]], [[recorded_trails]], [[team_member_locations]], [[team_member_track_points]], [[chat_messages]], [[posts]], [[notifications]], [[reviews]]). They were created by the deleted `master_supabase_setup.sql` or via direct dashboard SQL. The migrations folder is **incremental only** — not a fresh-install source. To bootstrap, dump the live schema first.
+> [!warning]
+> Some tables exist in production but **don't appear** in any migration file (e.g. `profiles`, `teams`, `hike_history`, `recorded_trails`, `team_member_locations`, `chat_messages`, `reviews`). They were created by the deleted `master_supabase_setup.sql` or via direct dashboard SQL. The migrations folder is **incremental only** — not a fresh-install source. To bootstrap a fresh project, dump the live schema first.
 
 ## Migrations (oldest → newest)
 
-| File | Creates | Purpose |
+| File | Purpose | Key objects created |
 |---|---|---|
-| `20260524_phase_b_orders.sql` | [[site_orders]], [[site_order_items]], `site_order_line_variants` tables; [[place_order]] + [[get_order_for_confirmation]] RPCs; `touch_updated_at()` trigger | Merch checkout schema |
-| `20260524_phase_c_payment_events.sql` | [[site_payment_events]] audit table | Audit log for every PayFast/Yoco/Zapper callback (valid or invalid signature) |
-| `20260526_admin_trailtether_rpcs.sql` | [[admin_trailtether_stats]], [[admin_trailtether_active_users]], [[admin_trailtether_top_hikers]] (+ recent_hikes + teams) | Admin SPA's Trailtether tab |
-| `20260526_advisor_cleanup.sql` | (function search_path locks, EXECUTE revokes) | Security advisor cleanup |
-| `20260526_apk_download_gate.sql` | [[apk_downloads]] table | Gated APK download tracking (T&Cs + Turnstile audit) |
-| `20260526_cron_secret_to_vault.sql` | Vault secret + pg_cron job rewrite | Move `cron_secret` from world-readable `site_settings` row to `vault.secrets` |
-| `20260526_finalize_orphan_hikes_cron.sql` | pg_cron job entry | Hourly call to [[finalize-orphan-hikes]] edge function |
-| `20260526_profiles_pii_lockdown.sql` | `profiles_public` view, [[profiles_public]] RPC, [[profiles]] RLS policy replacement | Tighten profiles access (owner + admin only; public-safe fields exposed via view) |
-| `20260527_berg_live_admin_kill_switch.sql` | [[admin_trailtether_teams]], `admin_set_team_public()` | Admin RPC to toggle team public visibility (POPIA §7 takedown) |
-| `20260527_berg_live_lockdown_materialized_views.sql` | (revokes SELECT on MVs from anon/authenticated) | Force MV access through SECURITY DEFINER RPCs only |
-| `20260527_berg_live_teams_consent.sql` | [[teams]] columns added (is_public, public_display_name, …); `teams_track_public_change()` trigger | Opt-in for public leaderboard + audit trail |
-| `20260527_berg_live_views_rpcs.sql` | `berg_pulse_community_totals` / `berg_pulse_team_leaderboard` / `berg_pulse_heatmap` MVs; [[berg_pulse_stats]] / [[berg_pulse_leaderboard]] / `berg_pulse_active_count` / `berg_pulse_heatmap_cells` RPCs | Hilltrek `/pulse/` leaderboard backend |
-| `20260527_curated_trails_table.sql` | [[trails]] table + RLS + `touch_trails_updated_at()` trigger | Curated catalogue editor backend |
+| `20260524_phase_b_orders.sql` | Merch checkout schema | `site_orders`, `site_order_items`; [[place_order]] + [[get_order_for_confirmation]] RPCs |
+| `20260524_phase_c_payment_events.sql` | Payment audit log | `site_payment_events` |
+| `20260526_admin_trailtether_rpcs.sql` | Admin SPA Trailtether tab | [[admin_trailtether_stats]], [[admin_trailtether_active_users]], [[admin_trailtether_top_hikers]], `admin_trailtether_recent_hikes`, [[admin_trailtether_teams]] RPCs |
+| `20260526_advisor_cleanup.sql` | Security hardening | Function search_path locks; EXECUTE revokes |
+| `20260526_apk_download_gate.sql` | APK download audit | `apk_downloads` table |
+| `20260526_cron_secret_to_vault.sql` | Secrets hygiene | Moves `cron_secret` from `site_settings` row → `vault.secrets`; rewrites pg_cron jobs to use vault |
+| `20260526_finalize_orphan_hikes_cron.sql` | Cron wiring | Hourly pg_cron job calling [[finalize-orphan-hikes]] |
+| `20260526_profiles_pii_lockdown.sql` | POPIA profiles RLS | `profiles_public` view; [[profiles_public]] RPC; tightened RLS (owner + admin only) |
+| `20260527_berg_live_admin_kill_switch.sql` | POPIA §7 takedown | `admin_set_team_public()` RPC; [[admin_trailtether_teams]] kill-switch column |
+| `20260527_berg_live_lockdown_materialized_views.sql` | MV access control | Revokes SELECT on MVs from anon/authenticated — forces access through SECURITY DEFINER RPCs |
+| `20260527_berg_live_teams_consent.sql` | Berg Live opt-in | Adds `is_public`, `public_display_name`, consent columns to `teams`; `teams_track_public_change()` trigger |
+| `20260527_berg_live_views_rpcs.sql` | `/pulse/` leaderboard | `berg_pulse_community_totals/team_leaderboard/heatmap` MVs; [[berg_pulse_stats]], [[berg_pulse_leaderboard]], `berg_pulse_active_count`, `berg_pulse_heatmap_cells` RPCs |
+| `20260527_curated_trails_table.sql` | Trail catalogue CRUD | `trails` table + RLS + `touch_trails_updated_at()` trigger |
+| `20260528_recorded_trail_downloads_rpc.sql` | Download counter | `increment_recorded_trail_downloads(trail_id)` RPC |
+| `20260528_storage_rls_policies.sql` | Storage RLS documentation | Living doc of 31 RLS policies across 6 storage buckets (app-releases, recorded-trails, gpx-uploads, incident-photos, profile-photos, website-assets) — verified in production |
+| `20260529_community_activities_team_nullable.sql` | Solo-activity fix | Makes `team_id` + `team_name` nullable in `community_activities` so solo hikes can save without a team |
+| `20260529_fix_download_rpc_search_path.sql` | RPC security | Fixes `search_path` on `increment_recorded_trail_downloads` (security advisor followup from [[Audit Findings]]) |
 
-## RPC ownership
+## RPCs not in migrations folder
 
-| RPC | Defined in migration |
-|---|---|
-| [[place_order]], [[get_order_for_confirmation]] | `20260524_phase_b_orders.sql` |
-| Admin Trailtether tab RPCs | `20260526_admin_trailtether_rpcs.sql` |
-| [[berg_pulse_stats]], [[berg_pulse_leaderboard]], `berg_pulse_active_count`, `berg_pulse_heatmap_cells` | `20260527_berg_live_views_rpcs.sql` |
-| `admin_set_team_public`, [[admin_trailtether_teams]] | `20260527_berg_live_admin_kill_switch.sql` |
-| `touch_trails_updated_at` | `20260527_curated_trails_table.sql` |
-| `is_admin`, `place_order`, [[subscriber_signup]], [[subscriber_confirm]], [[subscriber_unsubscribe]], [[handle_new_user]], [[team_add_member]], [[team_remove_member]], [[join_team_by_invite_code]], [[claim_tether_token]], [[verify_incident]], [[flag_incident]], `increment_flag_count`, [[mark_notification_read]], `find_profile_by_username`, `is_username_available`, `app_release_meta`, `sync_team_hike_stats`, `ping_safety_plan`, `on_hike_saved`, `prune_old_locations`, `prune_stale_telemetry`, `purge_old_analytics_and_health`, `audit_table_change` | **Not in `supabase/migrations/`** — predate the folder or applied via dashboard |
+These exist in production but predate the migrations folder or were applied via dashboard:
+
+`is_admin`, `place_order`, `subscriber_signup`, `subscriber_confirm`, `subscriber_unsubscribe`, `handle_new_user`, `team_add_member`, `team_remove_member`, `join_team_by_invite_code`, `claim_tether_token`, `verify_incident`, `flag_incident`, `mark_notification_read`, `app_release_meta`, `ping_safety_plan`, `on_hike_saved`, `prune_old_locations`.
 
 ## Conventions
 
-- All migrations use `if not exists` / `or replace` for idempotency
-- Trigger functions are locked with `set search_path = public, pg_temp` (per [[Audit Findings]] cleanup)
-- RLS-enabled tables get explicit policy creation per role; the `is_admin()` pattern handles admin gating
+- All migrations use `if not exists` / `or replace` for idempotency.
+- Trigger functions locked with `set search_path = public, pg_temp`.
+- RLS-enabled tables get explicit policy creation per role; `is_admin()` pattern handles admin gating.
 
 ## Depends on
 
-- `public.is_admin()` (defined elsewhere, predates migration folder)
-- `public.set_updated_at()` / `touch_updated_at()` triggers
-- Vault for the `cron_secret`
+- `public.is_admin()` — predates migration folder
+- `vault.secrets` for `cron_secret`
 
 ## Used by
 

@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../models/cave_waypoint.dart';
 import '../../providers/static_data_provider.dart';
-import '../../screens/cave_detail_sheet.dart';
+import '../cave_detail_sheet.dart';
 
 /// Renders a cave pin at the exact GPS location of every surveyed cave
 /// from assets/data/caves.gpx (125 waypoints from two Garmin surveys).

@@ -56,7 +56,8 @@ class TTPill extends StatelessWidget {
             Icon(leadingIcon, size: 11, color: fg),
             const SizedBox(width: 5),
           ],
-          Text(label, style: TT.mono(size: 9.5, color: fg, letterSpacing: 1.14)),
+          Text(label,
+              style: TT.mono(size: 9.5, color: fg, letterSpacing: 1.14)),
         ],
       ),
     );
@@ -71,9 +72,11 @@ class _PulseDot extends StatefulWidget {
   State<_PulseDot> createState() => _PulseDotState();
 }
 
-class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat(reverse: true);
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1600))
+    ..repeat(reverse: true);
 
   @override
   void dispose() {
@@ -91,7 +94,9 @@ class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixi
         decoration: BoxDecoration(
           color: widget.color,
           shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: widget.color, blurRadius: 8, spreadRadius: 0)],
+          boxShadow: [
+            BoxShadow(color: widget.color, blurRadius: 8, spreadRadius: 0)
+          ],
         ),
       ),
     );

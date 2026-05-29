@@ -64,10 +64,8 @@ class ProfileProvider extends ChangeNotifier {
               }
             }
           } catch (e, stack) {
-            LoggerService.error(
-                'PROFILE_PROVIDER',
-                'Failed to fetch profile photo/name from cloud: $e',
-                stack);
+            LoggerService.error('PROFILE_PROVIDER',
+                'Failed to fetch profile photo/name from cloud: $e', stack);
           }
 
           final remoteProfile = HikerProfile.fromMap(meta);
@@ -159,7 +157,8 @@ class ProfileProvider extends ChangeNotifier {
       if (id == 'team_mvp' && teamDist >= 50) shouldUnlock = true;
 
       // 7. Exploration & Safety
-      if (id == 'safety_first' && tracks.any((t) => t.durationSeconds > 86400)) {
+      if (id == 'safety_first' &&
+          tracks.any((t) => t.durationSeconds > 86400)) {
         shouldUnlock = true; // Multi-day
       }
 

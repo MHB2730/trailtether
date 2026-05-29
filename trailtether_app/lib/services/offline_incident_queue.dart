@@ -10,7 +10,8 @@ import 'logger_service.dart';
 
 class OfflineIncidentQueue {
   static const _key = 'offline_incident_queue_v1';
-  static const _maxItems = 100; // Cap to prevent excessive SharedPreferences usage for alerts
+  static const _maxItems =
+      100; // Cap to prevent excessive SharedPreferences usage for alerts
 
   /// Append an incident insert map that failed to publish.
   static Future<void> enqueue(Map<String, dynamic> incident) async {
@@ -22,8 +23,8 @@ class OfflineIncidentQueue {
         raw.removeRange(0, raw.length - _maxItems);
       }
       await prefs.setStringList(_key, raw);
-      LoggerService.log(
-          'OFF_TRAIL', 'Offline-queued incident alert · queue size ${raw.length}');
+      LoggerService.log('OFF_TRAIL',
+          'Offline-queued incident alert · queue size ${raw.length}');
     } catch (e, stack) {
       LoggerService.error('OFF_TRAIL', 'Incident enqueue failed: $e', stack);
     }

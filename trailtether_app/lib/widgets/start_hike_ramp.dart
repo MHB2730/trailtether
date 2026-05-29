@@ -33,7 +33,8 @@ class StartHikeRamp extends StatefulWidget {
 
   /// Push the ramp as a full-screen route. Resolves to `true` if the user
   /// completed the countdown, `false` if they cancelled or hit back.
-  static Future<bool> show(BuildContext context, {String? title, String? subtitle}) async {
+  static Future<bool> show(BuildContext context,
+      {String? title, String? subtitle}) async {
     final res = await Navigator.of(context, rootNavigator: true).push<bool>(
       PageRouteBuilder(
         opaque: false,
@@ -177,7 +178,8 @@ class _StartHikeRampState extends State<StartHikeRamp>
                 // ── Title + subtitle ─────────────────────────────────
                 Text(
                   _counting ? 'STARTING…' : widget.title.toUpperCase(),
-                  style: TT.body(size: 12, w: FontWeight.w800, color: TT.text3)
+                  style: TT
+                      .body(size: 12, w: FontWeight.w800, color: TT.text3)
                       .copyWith(letterSpacing: 0.2 * 12),
                 ),
                 const SizedBox(height: 8),
@@ -211,9 +213,7 @@ class _StartHikeRampState extends State<StartHikeRamp>
                     child: Text(
                       'TAP SCREEN TO CANCEL',
                       style: TT.mono(
-                          size: 11,
-                          color: TT.text3,
-                          letterSpacing: 0.16 * 11),
+                          size: 11, color: TT.text3, letterSpacing: 0.16 * 11),
                     ),
                   ),
                 const SizedBox(height: 4),
@@ -367,10 +367,10 @@ class _HeroPainter extends CustomPainter {
       ..color = (counting ? TT.ember : TT.text3).withOpacity(0.45);
     for (int i = 0; i < 6; i++) {
       final angle = (math.pi / 3) * i - math.pi / 2;
-      final p1 = Offset(c.dx + math.cos(angle) * r * 0.92,
-          c.dy + math.sin(angle) * r * 0.92);
-      final p2 = Offset(c.dx + math.cos(angle) * r * 0.98,
-          c.dy + math.sin(angle) * r * 0.98);
+      final p1 = Offset(
+          c.dx + math.cos(angle) * r * 0.92, c.dy + math.sin(angle) * r * 0.92);
+      final p2 = Offset(
+          c.dx + math.cos(angle) * r * 0.98, c.dy + math.sin(angle) * r * 0.98);
       canvas.drawLine(p1, p2, tickPaint);
     }
   }
@@ -462,7 +462,8 @@ class _SlideTrack extends StatelessWidget {
               opacity: (1.0 - progress).clamp(0.0, 1.0),
               child: Text(
                 'SLIDE TO START',
-                style: TT.body(size: 13, w: FontWeight.w900, color: TT.text2)
+                style: TT
+                    .body(size: 13, w: FontWeight.w900, color: TT.text2)
                     .copyWith(letterSpacing: 0.18 * 13),
               ),
             ),

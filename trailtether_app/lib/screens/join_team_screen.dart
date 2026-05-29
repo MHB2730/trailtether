@@ -179,8 +179,8 @@ class _JoinTeamScreenState extends State<JoinTeamScreen> {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: TT.surf,
                     border: Border.all(color: TT.line, width: 1),
@@ -188,8 +188,8 @@ class _JoinTeamScreenState extends State<JoinTeamScreen> {
                   ),
                   child: Text(
                     'Center the QR code in the box',
-                    style: TT.body(
-                        size: 12, w: FontWeight.w600, color: TT.text),
+                    style:
+                        TT.body(size: 12, w: FontWeight.w600, color: TT.text),
                   ),
                 ),
               ),
@@ -302,16 +302,16 @@ class _IntroCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     TTPill(
                       label: ready ? 'READY' : 'WAITING',
-                      variant: ready
-                          ? TTPillVariant.ember
-                          : TTPillVariant.neutral,
+                      variant:
+                          ready ? TTPillVariant.ember : TTPillVariant.neutral,
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'Enter the 8-character code from your team admin, or scan their QR.',
-                  style: TT.body(size: 12.5, color: TT.text2, w: FontWeight.w500)
+                  style: TT
+                      .body(size: 12.5, color: TT.text2, w: FontWeight.w500)
                       .copyWith(height: 1.45),
                 ),
               ],
@@ -350,9 +350,7 @@ class _CodeCard extends StatelessWidget {
               color: TT.surf,
               borderRadius: BorderRadius.circular(TT.rMd),
               border: Border.all(
-                color: error != null
-                    ? const Color(0x80E63D2E)
-                    : TT.line2,
+                color: error != null ? const Color(0x80E63D2E) : TT.line2,
                 width: 1,
               ),
             ),
@@ -377,8 +375,8 @@ class _CodeCard extends StatelessWidget {
                 ),
                 border: InputBorder.none,
                 counterText: '',
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 18),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               ),
               onSubmitted: onSubmitted,
             ),
@@ -392,8 +390,8 @@ class _CodeCard extends StatelessWidget {
                 Flexible(
                   child: Text(
                     error!,
-                    style: TT.body(
-                        size: 12.5, color: TT.red, w: FontWeight.w600),
+                    style:
+                        TT.body(size: 12.5, color: TT.red, w: FontWeight.w600),
                   ),
                 ),
               ],
@@ -425,7 +423,8 @@ class _FooterNote extends StatelessWidget {
             child: Text(
               'Codes are case-insensitive and never expire unless the team admin '
               'regenerates one.',
-              style: TT.body(size: 12, color: TT.text3, w: FontWeight.w500)
+              style: TT
+                  .body(size: 12, color: TT.text3, w: FontWeight.w500)
                   .copyWith(height: 1.45),
             ),
           ),
@@ -479,16 +478,15 @@ class _PrimaryCta extends StatelessWidget {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(TT.emberInk),
+                      valueColor: AlwaysStoppedAnimation<Color>(TT.emberInk),
                     ),
                   )
                 else
                   Icon(icon, color: TT.emberInk, size: 16),
                 const SizedBox(width: 8),
                 Text(label,
-                    style: TT.body(
-                            size: 13, w: FontWeight.w900, color: TT.emberInk)
+                    style: TT
+                        .body(size: 13, w: FontWeight.w900, color: TT.emberInk)
                         .copyWith(letterSpacing: 0.14 * 13)),
               ],
             ),
@@ -531,8 +529,8 @@ class _SecondaryCta extends StatelessWidget {
                 Icon(icon, color: TT.text2, size: 15),
                 const SizedBox(width: 8),
                 Text(label,
-                    style: TT.body(
-                            size: 13, w: FontWeight.w800, color: TT.text2)
+                    style: TT
+                        .body(size: 13, w: FontWeight.w800, color: TT.text2)
                         .copyWith(letterSpacing: 0.14 * 13)),
               ],
             ),

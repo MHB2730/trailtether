@@ -1,6 +1,6 @@
 ---
 type: source-file
-status: stub
+status: current
 area: code
 source_paths:
   - trailtether_app/lib/core/theme.dart
@@ -10,12 +10,20 @@ aliases:
 
 # theme.dart
 
-Source-file reference used by one or more codebase notes.
+Exports `appDarkTheme` — the `ThemeData` passed to `MaterialApp` in [[main.dart]].
 
-## Source Files
+## Key points
 
-- `trailtether_app/lib/core/theme.dart`
+- Based on `ThemeData.dark()` seeded with the TT palette
+- Primary colour: `TT.ember` (`#FF6A2C`)
+- `NavigationBarTheme`, `ElevatedButtonTheme`, `AppBarTheme` all wired to TT tokens
+- Background: `TT.bg` (`#07090C`)
+- No Cupertino / Material 3 `useMaterial3: false` — check current file for status
 
-## Maintenance
+## Used by
 
-This stub exists to resolve Obsidian backlinks. Expand it only if this item becomes important enough to deserve its own note.
+- [[main.dart]] — `MaterialApp(theme: appDarkTheme)`
+
+## Depends on
+
+- [[TT Design Tokens]] (`design_tokens.dart`)

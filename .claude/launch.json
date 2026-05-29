@@ -2,28 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Expo Dev Server",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "C:\\Users\\bremn\\OneDrive\\Documents\\Trailtether", "run", "start"],
-      "port": 8081
+      "name": "hilltrek",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5173", "--bind", "127.0.0.1", "--directory", "C:\\Users\\bremn\\Documents\\Trailtetherv2.0\\hilltrek-site"],
+      "port": 5173
     },
     {
-      "name": "Expo Web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "C:\\Users\\bremn\\OneDrive\\Documents\\Trailtether", "run", "web"],
-      "port": 8081
-    },
-    {
-      "name": "Supabase Local Stack",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "C:\\Users\\bremn\\OneDrive\\Documents\\Trailtether", "run", "supabase:start"],
-      "port": 54321
-    },
-    {
-      "name": "Supabase Studio",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "C:\\Users\\bremn\\OneDrive\\Documents\\Trailtether", "run", "supabase:start"],
-      "port": 54323
+      "name": "hilltrek-admin",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5174", "--bind", "127.0.0.1", "--directory", "C:\\Users\\bremn\\Documents\\Trailtetherv2.0\\hilltrek-admin"],
+      "port": 5174
     }
   ]
 }

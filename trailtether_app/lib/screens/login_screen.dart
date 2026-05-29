@@ -308,7 +308,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 cursorColor: TT.ember,
                                 autocorrect: false,
                                 inputFormatters: [
-                                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                                  FilteringTextInputFormatter.deny(
+                                      RegExp(r'\s')),
                                 ],
                                 decoration: _ttDeco('you@trail.run'),
                                 validator: (v) {
@@ -342,8 +343,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                     onPressed: () =>
                                         setState(() => _obscure = !_obscure),
-                                    tooltip:
-                                        _obscure ? 'Show password' : 'Hide password',
+                                    tooltip: _obscure
+                                        ? 'Show password'
+                                        : 'Hide password',
                                   ),
                                 ),
                                 onFieldSubmitted: (_) {
@@ -618,9 +620,8 @@ class _EmberButtonState extends State<_EmberButton> {
         decoration: BoxDecoration(
           color: disabled ? TT.emberDim : TT.ember,
           borderRadius: BorderRadius.circular(999),
-          boxShadow: disabled
-              ? null
-              : (_down ? TT.shadowEmber : const <BoxShadow>[]),
+          boxShadow:
+              disabled ? null : (_down ? TT.shadowEmber : const <BoxShadow>[]),
           border: Border.all(
             color: disabled ? const Color(0x33FF6A2C) : TT.ember,
             width: 1,
@@ -638,11 +639,13 @@ class _EmberButtonState extends State<_EmberButton> {
               )
             : Text(
                 widget.label,
-                style: TT.body(
-                  size: 14,
-                  color: TT.emberInk,
-                  w: FontWeight.w800,
-                ).copyWith(letterSpacing: 0.04 * 14),
+                style: TT
+                    .body(
+                      size: 14,
+                      color: TT.emberInk,
+                      w: FontWeight.w800,
+                    )
+                    .copyWith(letterSpacing: 0.04 * 14),
               ),
       ),
     );
@@ -784,7 +787,8 @@ class _GoogleGlyphPainter extends CustomPainter {
     // Horizontal bar on the right that turns the ring into a "G".
     final bar = Paint()..color = const Color(0xFF4285F4);
     canvas.drawRect(
-      Rect.fromLTWH(cx, cy - (outer - inner) / 4, outer + 0.5, (outer - inner) / 2),
+      Rect.fromLTWH(
+          cx, cy - (outer - inner) / 4, outer + 0.5, (outer - inner) / 2),
       bar,
     );
   }
@@ -856,7 +860,8 @@ class _ForgotPasswordDialog extends StatelessWidget {
                   height: 32,
                   decoration: BoxDecoration(
                     color: TT.emberDim,
-                    border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+                    border:
+                        Border.all(color: const Color(0x52FF6A2C), width: 1),
                     borderRadius: BorderRadius.circular(TT.rSm),
                   ),
                   alignment: Alignment.center,

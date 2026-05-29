@@ -437,8 +437,7 @@ class _CreateHikePlanScreenState extends State<CreateHikePlanScreen> {
                       const SizedBox(height: 10),
                       _GearList(
                         gearItems: _gearItems,
-                        onRemove: (i) =>
-                            setState(() => _gearItems.removeAt(i)),
+                        onRemove: (i) => setState(() => _gearItems.removeAt(i)),
                       ),
 
                       const SizedBox(height: 24),
@@ -448,8 +447,7 @@ class _CreateHikePlanScreenState extends State<CreateHikePlanScreen> {
                       const SizedBox(height: 10),
                       _MemberInviteList(
                         team: widget.team,
-                        currentUid:
-                            context.read<ap.AuthProvider>().uid ?? '',
+                        currentUid: context.read<ap.AuthProvider>().uid ?? '',
                         invited: _invitedMembers,
                         onToggle: (uid, value) {
                           setState(() {
@@ -671,8 +669,7 @@ class _DateTimeField extends StatelessWidget {
         GestureDetector(
           onTap: onTap,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
               color: TT.surf,
               borderRadius: BorderRadius.circular(TT.rMd),
@@ -691,8 +688,7 @@ class _DateTimeField extends StatelessWidget {
                   )
                 : Row(
                     children: [
-                      Icon(icon,
-                          size: 14, color: filled ? TT.ember : TT.text3),
+                      Icon(icon, size: 14, color: filled ? TT.ember : TT.text3),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -756,8 +752,7 @@ class _GpxDropdown extends StatelessWidget {
               value: '',
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Text('None',
-                    style: TT.body(size: 14, color: TT.text3)),
+                child: Text('None', style: TT.body(size: 14, color: TT.text3)),
               ),
             ),
             ...tracks.map<DropdownMenuItem<String>>(
@@ -813,8 +808,8 @@ class _TTField extends StatelessWidget {
           hintText: hint,
           hintStyle: TT.body(size: 14, color: TT.text3),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14, vertical: 12),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           counterStyle: TT.mono(size: 10, color: TT.text3),
         ),
       ),
@@ -916,8 +911,7 @@ class _GearRow extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(Icons.remove_circle_outline,
-                  size: 18, color: TT.red),
+              child: Icon(Icons.remove_circle_outline, size: 18, color: TT.red),
             ),
           ),
         ],
@@ -948,7 +942,8 @@ class _MemberInviteList extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Text(
           'No other members in this team yet. You can invite people from the "Members" tab on the Team screen.',
-          style: TT.body(size: 12.5, color: TT.text2, w: FontWeight.w600)
+          style: TT
+              .body(size: 12.5, color: TT.text2, w: FontWeight.w600)
               .copyWith(height: 1.4),
         ),
       );
@@ -1035,8 +1030,7 @@ class _CheckBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: checked ? TT.ember : TT.surf2,
         borderRadius: BorderRadius.circular(TT.rSm),
-        border: Border.all(
-            color: checked ? TT.ember : TT.line2, width: 1),
+        border: Border.all(color: checked ? TT.ember : TT.line2, width: 1),
       ),
       child: checked
           ? const Icon(Icons.check, size: 14, color: TT.emberInk)
@@ -1080,10 +1074,9 @@ class _SaveButton extends StatelessWidget {
                       size: 18, color: TT.emberInk),
                   const SizedBox(width: 10),
                   Text('SAVE HIKE PLAN',
-                      style: TT.body(
-                              size: 13,
-                              w: FontWeight.w900,
-                              color: TT.emberInk)
+                      style: TT
+                          .body(
+                              size: 13, w: FontWeight.w900, color: TT.emberInk)
                           .copyWith(letterSpacing: 0.16 * 13)),
                 ],
               ),
@@ -1091,4 +1084,3 @@ class _SaveButton extends StatelessWidget {
     );
   }
 }
-

@@ -89,8 +89,20 @@ class TrailService {
   /// Words that stay lowercase when they appear in the middle of a name
   /// (e.g. "Cathedral Peak to Doreen Falls", "Cave via Bushman's Nek").
   static const _kConnectors = {
-    'via', 'to', 'and', 'or', 'of', 'the', 'from', 'in', 'on', 'at', 'a',
-    'an', 'for', 'with',
+    'via',
+    'to',
+    'and',
+    'or',
+    'of',
+    'the',
+    'from',
+    'in',
+    'on',
+    'at',
+    'a',
+    'an',
+    'for',
+    'with',
   };
 
   /// Normalize a raw trail name from the upstream JSON to a uniform format.
@@ -121,7 +133,8 @@ class TrailService {
     // Collapse "via via", "to to" etc — run repeatedly so triple-stutters
     // also collapse ("via via via" → "via").
     for (final connector in ['via', 'to', 'and']) {
-      final dupe = RegExp('\\b$connector\\s+$connector\\b', caseSensitive: false);
+      final dupe =
+          RegExp('\\b$connector\\s+$connector\\b', caseSensitive: false);
       while (dupe.hasMatch(s)) {
         s = s.replaceAll(dupe, connector);
       }
@@ -156,9 +169,7 @@ class TrailService {
     for (var i = 0; i < word.length; i++) {
       final ch = word[i];
       if (RegExp(r'[a-z]').hasMatch(ch)) {
-        return word.substring(0, i) +
-            ch.toUpperCase() +
-            word.substring(i + 1);
+        return word.substring(0, i) + ch.toUpperCase() + word.substring(i + 1);
       }
     }
     return word;

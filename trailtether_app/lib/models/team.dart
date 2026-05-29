@@ -88,8 +88,7 @@ class Team {
       for (final m in rawMembersList) {
         if (m is! Map) continue;
         try {
-          rawMembers.add(
-              TeamMember.fromMap(Map<String, dynamic>.from(m)));
+          rawMembers.add(TeamMember.fromMap(Map<String, dynamic>.from(m)));
         } catch (_) {/* skip corrupt row */}
       }
     }
@@ -115,9 +114,8 @@ class Team {
       peaksClimbed: (d['peaks_climbed'] as num? ?? 0).toInt(),
       memberCount: (d['member_count'] as num? ?? 0).toInt(),
       isPublic: (d['is_public'] as bool?) ?? false,
-      publicDisplayName: rawDisplay is String && rawDisplay.isNotEmpty
-          ? rawDisplay
-          : null,
+      publicDisplayName:
+          rawDisplay is String && rawDisplay.isNotEmpty ? rawDisplay : null,
     );
   }
 
@@ -336,6 +334,7 @@ class TeamMemberLocation {
   /// Phone battery level 0–100. `null` when the source phone couldn't read
   /// it (e.g. emulator) or when the row pre-dates the battery rollout.
   final int? batteryPct;
+
   /// Active connectivity bucket: `'wifi' | 'mobile' | 'none'`. `null` when
   /// unknown, same caveat as [batteryPct].
   final String? connectivity;
@@ -359,9 +358,8 @@ class TeamMemberLocation {
   factory TeamMemberLocation.fromMap(Map<String, dynamic> m) {
     try {
       final batteryRaw = m['battery_pct'];
-      final battery = batteryRaw is num
-          ? batteryRaw.round().clamp(0, 100).toInt()
-          : null;
+      final battery =
+          batteryRaw is num ? batteryRaw.round().clamp(0, 100).toInt() : null;
       final connRaw = m['connectivity']?.toString();
       return TeamMemberLocation(
         uid: m['uid']?.toString() ?? '',
@@ -371,8 +369,7 @@ class TeamMemberLocation {
         heading: (m['heading'] as num?)?.toDouble() ?? 0.0,
         speed: (m['speed'] as num?)?.toDouble() ?? 0.0,
         altitude: (m['altitude'] as num?)?.toDouble() ?? 0.0,
-        timestamp: DateTime.parse(
-                m['timestamp'] as String? ??
+        timestamp: DateTime.parse(m['timestamp'] as String? ??
                 m['updated_at'] as String? ??
                 DateTime.now().toIso8601String())
             .toLocal(),

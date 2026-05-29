@@ -16,7 +16,8 @@ class TTBrandMark extends StatelessWidget {
         const SizedBox(width: 9),
         RichText(
           text: TextSpan(
-            style: TT.body(size: size, w: FontWeight.w800, color: TT.text)
+            style: TT
+                .body(size: size, w: FontWeight.w800, color: TT.text)
                 .copyWith(letterSpacing: 0.16 * size),
             children: const [
               TextSpan(text: 'TRAIL'),
@@ -116,9 +117,11 @@ class TTIconBtn extends StatelessWidget {
         decoration: BoxDecoration(
           color: ember ? TT.emberDim : const Color(0x08FFFFFF),
           borderRadius: BorderRadius.circular(TT.rMd),
-          border: Border.all(color: ember ? const Color(0x52FF6A2C) : TT.line, width: 1),
+          border: Border.all(
+              color: ember ? const Color(0x52FF6A2C) : TT.line, width: 1),
         ),
-        child: Icon(icon, size: size * 0.45, color: ember ? TT.ember : TT.text2),
+        child:
+            Icon(icon, size: size * 0.45, color: ember ? TT.ember : TT.text2),
       ),
     );
   }

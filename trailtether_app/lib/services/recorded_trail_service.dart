@@ -31,8 +31,8 @@ class RecordedTrailService {
     String userId,
   ) async {
     if (hike.points.length < 2) {
-      LoggerService.log('TRAILS',
-          'saveFromHike skipped: ${hike.id} has <2 points');
+      LoggerService.log(
+          'TRAILS', 'saveFromHike skipped: ${hike.id} has <2 points');
       return null;
     }
 
@@ -189,8 +189,8 @@ class RecordedTrailService {
 
   static Future<void> _incrementDownloadCount(String trailId) async {
     try {
-      await _db.rpc('increment_recorded_trail_downloads',
-          params: {'p_id': trailId});
+      await _db
+          .rpc('increment_recorded_trail_downloads', params: {'p_id': trailId});
     } catch (_) {
       // RPC isn't critical — soft-counter. Silently ignore if the function
       // hasn't been created yet (older schemas).

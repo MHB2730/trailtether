@@ -49,8 +49,8 @@ class RecordedTrailsProvider extends ChangeNotifier {
 
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kPrefMine,
-        jsonEncode(_mine.map((t) => t.toJson()).toList()));
+    await prefs.setString(
+        _kPrefMine, jsonEncode(_mine.map((t) => t.toJson()).toList()));
     await prefs.setString(_kPrefCommunity,
         jsonEncode(_community.map((t) => t.toJson()).toList()));
   }
@@ -98,8 +98,7 @@ class RecordedTrailsProvider extends ChangeNotifier {
   /// `HikeHistoryProvider.add` so saving a hike automatically populates
   /// the Trails section.
   Future<void> promoteFromHike(SavedHike hike, String userId) async {
-    final created =
-        await RecordedTrailService.saveFromHike(hike, userId);
+    final created = await RecordedTrailService.saveFromHike(hike, userId);
     if (created == null) return;
     _mine.removeWhere((t) => t.hikeId == hike.id);
     _mine.insert(0, created);
@@ -108,8 +107,7 @@ class RecordedTrailsProvider extends ChangeNotifier {
   }
 
   Future<void> share(String trailId, TrailSharing level) async {
-    final updated =
-        await RecordedTrailService.setSharing(trailId, level);
+    final updated = await RecordedTrailService.setSharing(trailId, level);
     if (updated == null) return;
     _replace(updated);
     notifyListeners();

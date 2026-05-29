@@ -41,7 +41,8 @@ class DeepLinkService {
   }
 
   static Future<void> _handle(Uri uri) async {
-    LoggerService.log('DEEP_LINK', 'received ${uri.scheme}://${uri.host}${uri.path}');
+    LoggerService.log(
+        'DEEP_LINK', 'received ${uri.scheme}://${uri.host}${uri.path}');
     if (uri.scheme != 'trailtether') return;
 
     if (uri.host == 'login-callback') {
@@ -49,8 +50,7 @@ class DeepLinkService {
         await Supabase.instance.client.auth.getSessionFromUrl(uri);
         LoggerService.log('DEEP_LINK', 'session exchanged');
       } catch (e, stack) {
-        LoggerService.error(
-            'DEEP_LINK', 'getSessionFromUrl failed: $e', stack);
+        LoggerService.error('DEEP_LINK', 'getSessionFromUrl failed: $e', stack);
       }
     }
   }

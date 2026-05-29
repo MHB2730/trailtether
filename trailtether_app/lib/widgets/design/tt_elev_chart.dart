@@ -47,9 +47,10 @@ class TTBigElevChart extends StatefulWidget {
   State<TTBigElevChart> createState() => _TTBigElevChartState();
 }
 
-class _TTBigElevChartState extends State<TTBigElevChart> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1900));
+class _TTBigElevChartState extends State<TTBigElevChart>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1900));
   late final List<double> _pts;
   late final double _min, _max;
   bool _isSynthetic = false;
@@ -67,7 +68,9 @@ class _TTBigElevChartState extends State<TTBigElevChart> with SingleTickerProvid
     final dataMax = _pts.reduce((a, b) => a > b ? a : b);
     _min = widget.min ?? (dataMin - 200).clamp(0.0, dataMax);
     _max = widget.max ?? (dataMax + 200);
-    Future.delayed(const Duration(milliseconds: 500), () { if (mounted) _ctl.forward(); });
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _ctl.forward();
+    });
   }
 
   static List<double> _syntheticBellCurve() {
@@ -93,7 +96,10 @@ class _TTBigElevChartState extends State<TTBigElevChart> with SingleTickerProvid
   }
 
   @override
-  void dispose() { _ctl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   // Map a horizontal touch position (in chart coordinates) back to a sample
   // index. Returns null when the touch is outside the drawn region or when
@@ -174,19 +180,24 @@ class _ElevPainter extends CustomPainter {
 
     Offset ptToXY(double v, int i) {
       final x = padL + i * stepX;
-      final y = size.height - padB - ((v - min) / (max - min)) * (size.height - padT - padB);
+      final y = size.height -
+          padB -
+          ((v - min) / (max - min)) * (size.height - padT - padB);
       return Offset(x, y);
     }
 
     // Y gridlines
     final gridPaint = Paint()..color = const Color(0x0DFFFFFF);
-    const labelStyle = TextStyle(color: TT.text3, fontSize: 8.5, fontFamily: 'monospace');
+    const labelStyle =
+        TextStyle(color: TT.text3, fontSize: 8.5, fontFamily: 'monospace');
     final yTicks = [3950.0, 2950.0, 1950.0, 950.0];
     for (final v in yTicks) {
       if (v < min || v > max) continue;
       final y = ptToXY(v, 0).dy;
       canvas.drawLine(Offset(padL, y), Offset(size.width - padR, y), gridPaint);
-      _drawText(canvas, '${v.toInt()}$elevationUnit', Offset(padL - 6, y - 4), labelStyle, alignRight: true);
+      _drawText(canvas, '${v.toInt()}$elevationUnit', Offset(padL - 6, y - 4),
+          labelStyle,
+          alignRight: true);
     }
 
     // Fill under curve (animated reveal via clip)
@@ -214,16 +225,19 @@ class _ElevPainter extends CustomPainter {
       final segFrac = progress * (n - 1) - lastDrawIdx;
       final a = ptToXY(pts[lastDrawIdx], lastDrawIdx);
       final b = ptToXY(pts[lastDrawIdx + 1], lastDrawIdx + 1);
-      partial.lineTo(a.dx + (b.dx - a.dx) * segFrac, a.dy + (b.dy - a.dy) * segFrac);
+      partial.lineTo(
+          a.dx + (b.dx - a.dx) * segFrac, a.dy + (b.dy - a.dy) * segFrac);
     }
 
     final fillPath = Path.from(partial)
-      ..lineTo(padL + (n - 1) * stepX * progress.clamp(0.0, 1.0), size.height - padB)
+      ..lineTo(
+          padL + (n - 1) * stepX * progress.clamp(0.0, 1.0), size.height - padB)
       ..lineTo(padL, size.height - padB)
       ..close();
     final fillPaint = Paint()
       ..shader = const LinearGradient(
-        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
         colors: [Color(0x8CFF6A2C), Color(0x05FF6A2C)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.drawPath(fillPath, fillPaint);
@@ -244,26 +258,49 @@ class _ElevPainter extends CustomPainter {
         if (pts[i] > pts[peakIdx]) peakIdx = i;
       }
       final peak = ptToXY(pts[peakIdx], peakIdx);
-      canvas.drawLine(peak, Offset(peak.dx, size.height - padB),
-          Paint()..color = const Color(0x47FFFFFF)..strokeWidth = 1);
-      canvas.drawCircle(peak, 4.5,
-          Paint()..color = Colors.white..style = PaintingStyle.fill);
-      canvas.drawCircle(peak, 4.5,
-          Paint()..color = TT.ember..strokeWidth = 2..style = PaintingStyle.stroke);
+      canvas.drawLine(
+          peak,
+          Offset(peak.dx, size.height - padB),
+          Paint()
+            ..color = const Color(0x47FFFFFF)
+            ..strokeWidth = 1);
+      canvas.drawCircle(
+          peak,
+          4.5,
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.fill);
+      canvas.drawCircle(
+          peak,
+          4.5,
+          Paint()
+            ..color = TT.ember
+            ..strokeWidth = 2
+            ..style = PaintingStyle.stroke);
 
       // Peak label bubble
-      final rect = Rect.fromCenter(center: Offset(peak.dx, peak.dy - 14), width: 68, height: 18);
+      final rect = Rect.fromCenter(
+          center: Offset(peak.dx, peak.dy - 14), width: 68, height: 18);
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(4)),
         Paint()..color = TT.emberInk,
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-        Paint()..color = TT.ember..strokeWidth = 0.8..style = PaintingStyle.stroke,
+        Paint()
+          ..color = TT.ember
+          ..strokeWidth = 0.8
+          ..style = PaintingStyle.stroke,
       );
-      _drawText(canvas, peakLabel,
+      _drawText(
+          canvas,
+          peakLabel,
           Offset(peak.dx, peak.dy - 23),
-          const TextStyle(color: TT.ember2, fontSize: 9.5, fontWeight: FontWeight.w800, fontFamily: 'monospace'),
+          const TextStyle(
+              color: TT.ember2,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'monospace'),
           alignCenter: true);
     }
 
@@ -281,9 +318,18 @@ class _ElevPainter extends CustomPainter {
           ..strokeWidth = 1.2,
       );
       canvas.drawCircle(
-          c, 5.5, Paint()..color = Colors.white..style = PaintingStyle.fill);
-      canvas.drawCircle(c, 5.5,
-          Paint()..color = TT.ember..strokeWidth = 2..style = PaintingStyle.stroke);
+          c,
+          5.5,
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.fill);
+      canvas.drawCircle(
+          c,
+          5.5,
+          Paint()
+            ..color = TT.ember
+            ..strokeWidth = 2
+            ..style = PaintingStyle.stroke);
 
       final altLabel = '${pts[cIdx].round()}$elevationUnit';
       const labelW = 64.0;
@@ -330,13 +376,18 @@ class _ElevPainter extends CustomPainter {
     // X axis labels (mile markers 0..10)
     for (var v = 0; v <= 10; v += 2) {
       final x = padL + (v / 10) * (size.width - padL - padR);
-      _drawText(canvas, '$v', Offset(x, size.height - 5),
-          const TextStyle(color: TT.text3, fontSize: 8.5, fontFamily: 'monospace'),
+      _drawText(
+          canvas,
+          '$v',
+          Offset(x, size.height - 5),
+          const TextStyle(
+              color: TT.text3, fontSize: 8.5, fontFamily: 'monospace'),
           alignCenter: true);
     }
   }
 
-  void _drawText(Canvas canvas, String text, Offset at, TextStyle style, {bool alignCenter = false, bool alignRight = false}) {
+  void _drawText(Canvas canvas, String text, Offset at, TextStyle style,
+      {bool alignCenter = false, bool alignRight = false}) {
     final tp = TextPainter(
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,

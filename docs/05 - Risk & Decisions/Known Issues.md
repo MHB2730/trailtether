@@ -17,18 +17,13 @@ All previously identified P1 critical risks and core P2 developer warnings have 
 - **`increment_recorded_trail_downloads` RPC**: Created and successfully deployed the standard Postgres RPC SQL function to the production database via the linked Supabase CLI. Counters now increment properly when recorded trails are downloaded.
 - **Edge Function Imports Standardisation**: Standardized all remaining Supabase JS SDK imports in Deno Edge Functions to exclusively use `jsr:` specifiers instead of raw `esm.sh` URLs.
 - **Linter Warnings & Use-Build-Context Synchronisation**: Successfully resolved all 23 Flutter linter warnings (unawaited futures, redundant casts, missing const constructor keywords, and unmounted BuildContext calls) in widgets like `pc_shell.dart`, `tt_home_screen.dart`, and `start_hike_ramp.dart`.
+- **Storage Bucket RLS Documentation**: Created `20260528_storage_rls_policies.sql` migration as living documentation. Verified 31 RLS policies already active across all 6 storage buckets (app-releases, recorded-trails, gpx-uploads, incident-photos, profile-photos, website-assets) in production.
 
 ## P2 — Polish
 
 ### app_links dependency_overrides
 
 Pinned to 6.4.1. Worth checking whether newer versions have fixed the desktop OAuth regression so the override can be removed.
-
-### Storage bucket RLS not in migrations
-
-The Storage policies for `recorded-trails`, `gpx_uploads`, `incident-photos`, `profile-photos`, `app-releases` aren't captured in `supabase/migrations/`. They live only in the Supabase dashboard. Means fresh-install bootstrap is incomplete.
-
-- Fix: dump current policies into a new migration
 
 ## P2 — Open follow-up RPCs
 

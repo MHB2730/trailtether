@@ -11,6 +11,14 @@ out/
 # On-device walk-through screenshots (not part of source)
 walkthrough/
 
+# Debug/scratch screenshots + UI dumps (not part of source). Anchored to the
+# repo root + trailtether_app/ so real app assets under assets/ are unaffected.
+/screen_*.png
+/temp_*.png
+/trailtether_app/screen*.png
+/ui_dump.xml
+/trail_names.txt
+
 # Flutter / Dart
 .dart_tool/
 **/.dart_tool/

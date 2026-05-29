@@ -271,7 +271,8 @@ class _SosScreenState extends State<SosScreen> with TickerProviderStateMixin {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _TopBar(onBack: () => Navigator.of(context).maybePop()),
+                          _TopBar(
+                              onBack: () => Navigator.of(context).maybePop()),
                           const SizedBox(height: TT.s4),
                           _LocationCard(pos: _currentPos),
                           const SizedBox(height: TT.s4),
@@ -339,8 +340,7 @@ class _TopBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(TT.rMd),
                 border: Border.all(color: TT.line, width: 1),
               ),
-              child: const Icon(Icons.chevron_left,
-                  size: 22, color: TT.text2),
+              child: const Icon(Icons.chevron_left, size: 22, color: TT.text2),
             ),
           ),
           const SizedBox(width: TT.s3),
@@ -355,7 +355,8 @@ class _TopBar extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   'EMERGENCY SOS',
-                  style: TT.title(22, color: TT.text, letterSpacing: -0.02 * 22),
+                  style:
+                      TT.title(22, color: TT.text, letterSpacing: -0.02 * 22),
                 ),
               ],
             ),
@@ -416,7 +417,8 @@ class _LocationCard extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}',
-                      style: TT.mono(size: 13, color: TT.text, letterSpacing: 0.5),
+                      style:
+                          TT.mono(size: 13, color: TT.text, letterSpacing: 0.5),
                     ),
                   )
                 else
@@ -539,11 +541,13 @@ class _TypeTile extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               item.label,
-              style: TT.body(
-                size: 11,
-                w: FontWeight.w800,
-                color: selected ? TT.red : TT.text2,
-              ).copyWith(letterSpacing: 0.14 * 11),
+              style: TT
+                  .body(
+                    size: 11,
+                    w: FontWeight.w800,
+                    color: selected ? TT.red : TT.text2,
+                  )
+                  .copyWith(letterSpacing: 0.14 * 11),
             ),
           ],
         ),
@@ -636,8 +640,7 @@ class _HoldButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final secondsRemaining =
-        (5 - (progress * 5)).clamp(0.0, 5.0).ceil();
+    final secondsRemaining = (5 - (progress * 5)).clamp(0.0, 5.0).ceil();
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -718,17 +721,13 @@ class _HoldButton extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              holding
-                                  ? Icons.touch_app
-                                  : Icons.emergency_share,
+                              holding ? Icons.touch_app : Icons.emergency_share,
                               color: Colors.white,
                               size: 36,
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              holding
-                                  ? 'KEEP HOLDING'
-                                  : 'HOLD 5s FOR SOS',
+                              holding ? 'KEEP HOLDING' : 'HOLD 5s FOR SOS',
                               textAlign: TextAlign.center,
                               style: TT
                                   .title(holding ? 18 : 20, color: Colors.white)

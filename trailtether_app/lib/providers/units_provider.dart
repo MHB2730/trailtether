@@ -53,11 +53,13 @@ class UnitsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kKey, s == UnitSystem.imperial ? _kImperial : _kMetric);
+      await prefs.setString(
+          _kKey, s == UnitSystem.imperial ? _kImperial : _kMetric);
     } catch (_) {/* best effort */}
   }
 
-  Future<void> toggle() => setSystem(isMetric ? UnitSystem.imperial : UnitSystem.metric);
+  Future<void> toggle() =>
+      setSystem(isMetric ? UnitSystem.imperial : UnitSystem.metric);
 
   // ── Distance ───────────────────────────────────────────────────────────
   /// Convert km → mi if imperial, otherwise return km.

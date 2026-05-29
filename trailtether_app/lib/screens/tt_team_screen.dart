@@ -183,8 +183,7 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
       final loc = byUid[m.uid];
       final status = _statusForLocation(loc);
       final subStatus = loc != null ? _subStatusForLocation(loc) : 'Off-grid';
-      final lastSeen =
-          loc != null ? _formatLastSeen(loc.timestamp) : '--:--';
+      final lastSeen = loc != null ? _formatLastSeen(loc.timestamp) : '--:--';
       final mapX = _frac(m.uid.isNotEmpty ? m.uid : m.displayName, 11);
       final mapY = _frac(m.uid.isNotEmpty ? m.uid : m.displayName, 53);
       return _TeamMemberVM(
@@ -203,7 +202,8 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
         lastSeen: lastSeen,
         mapX: mapX,
         mapY: mapY,
-        lead: m.uid == team.createdBy || m.uid == currentUid && team.createdBy == m.uid,
+        lead: m.uid == team.createdBy ||
+            m.uid == currentUid && team.createdBy == m.uid,
       );
     }).toList();
   }
@@ -255,8 +255,8 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
     final units = context.watch<UnitsProvider>();
     final team = tp.selectedTeam;
     final currentUid = auth.uid ?? '';
-    final members =
-        _buildMembers(team: team, locations: tracking.teamLocations, currentUid: currentUid);
+    final members = _buildMembers(
+        team: team, locations: tracking.teamLocations, currentUid: currentUid);
     // Always trust team.members.length over team.memberCount. The cached
     // memberCount column on Supabase can lag behind the actual roster when
     // joins/removals happen between trigger runs, which previously caused the
@@ -264,8 +264,7 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
     final memberCount = (team == null) ? 0 : team.members.length;
     final activeCount =
         members.where((m) => m.status != _MemberStatus.offGrid).length;
-    final totalDistance =
-        units.distanceFromKm(team?.totalDistanceKm ?? 0);
+    final totalDistance = units.distanceFromKm(team?.totalDistanceKm ?? 0);
     final totalDistanceUnit = units.distanceUnit;
     final mapMembers = members.take(4).toList();
 
@@ -288,9 +287,8 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                       TTIconBtn(
                         icon: Icons.radar,
                         ember: true,
-                        onTap: team == null
-                            ? null
-                            : () => _openLiveMap(context),
+                        onTap:
+                            team == null ? null : () => _openLiveMap(context),
                       ),
                       // Scan a QR to join ANOTHER team (the user might
                       // belong to multiple). Previously you could only
@@ -321,8 +319,7 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                     child: team == null
                         ? const _NoTeamEmptyState()
                         : ListView(
-                            padding:
-                                const EdgeInsets.fromLTRB(0, 4, 0, 120),
+                            padding: const EdgeInsets.fromLTRB(0, 4, 0, 120),
                             children: [
                               Padding(
                                 padding:
@@ -336,8 +333,8 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                    18, 0, 18, 16),
+                                padding:
+                                    const EdgeInsets.fromLTRB(18, 0, 18, 16),
                                 child: _TeamMapPreview(
                                   members: mapMembers,
                                   onMapTap: () => _openLiveMap(context),
@@ -346,8 +343,8 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                    18, 0, 18, 12),
+                                padding:
+                                    const EdgeInsets.fromLTRB(18, 0, 18, 12),
                                 child: Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
@@ -367,20 +364,19 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                                       ],
                                     ),
                                     Text('UPDATED $_updatedStamp',
-                                        style: TT.mono(
-                                            size: 10, color: TT.text3)),
+                                        style:
+                                            TT.mono(size: 10, color: TT.text3)),
                                   ],
                                 ),
                               ),
                               if (members.isEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                      18, 16, 18, 24),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(18, 16, 18, 24),
                                   child: Text(
                                     'No team members live right now.',
                                     textAlign: TextAlign.center,
-                                    style: TT.body(
-                                        size: 13, color: TT.text2),
+                                    style: TT.body(size: 13, color: TT.text2),
                                   ),
                                 )
                               else
@@ -389,8 +385,8 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
                                     padding: const EdgeInsets.fromLTRB(
                                         18, 0, 18, 10),
                                     child: _FadeUpDelayed(
-                                      delay: Duration(
-                                          milliseconds: 400 + i * 90),
+                                      delay:
+                                          Duration(milliseconds: 400 + i * 90),
                                       child: _TeamRow(
                                         member: members[i],
                                         onTap: () => _showMemberSheet(
@@ -444,12 +440,11 @@ class _NoTeamEmptyState extends StatelessWidget {
               decoration: BoxDecoration(
                 color: TT.emberDim,
                 shape: BoxShape.circle,
-                border:
-                    Border.all(color: const Color(0x52FF6A2C), width: 1),
+                border: Border.all(color: const Color(0x52FF6A2C), width: 1),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.group_outlined,
-                  size: 32, color: TT.ember),
+              child:
+                  const Icon(Icons.group_outlined, size: 32, color: TT.ember),
             ),
             const SizedBox(height: 18),
             Text(
@@ -517,8 +512,7 @@ class _EmberCta extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: filled
@@ -641,8 +635,7 @@ class _StatTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon,
-                    size: 12, color: ember ? TT.ember : TT.text2),
+                child: Icon(icon, size: 12, color: ember ? TT.ember : TT.text2),
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -661,8 +654,7 @@ class _StatTile extends StatelessWidget {
             children: [
               TTCountUp(
                 text: value,
-                style: TT.numStyle(
-                    size: 22, color: ember ? TT.ember : TT.text),
+                style: TT.numStyle(size: 22, color: ember ? TT.ember : TT.text),
                 delay: const Duration(milliseconds: 250),
               ),
               if (unit != null) ...[
@@ -784,8 +776,7 @@ class _TeamMapPreviewState extends State<_TeamMapPreview>
                   height: 36,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () =>
-                        widget.onMemberTap?.call(widget.members[i]),
+                    onTap: () => widget.onMemberTap?.call(widget.members[i]),
                   ),
                 ),
               if (widget.members.isEmpty)
@@ -809,8 +800,7 @@ class _TeamMapPreviewState extends State<_TeamMapPreview>
                 child: TTGlass(
                   padding: const EdgeInsets.all(8),
                   onTap: widget.onMapTap,
-                  child:
-                      const Icon(Icons.gps_fixed, size: 16, color: TT.ember),
+                  child: const Icon(Icons.gps_fixed, size: 16, color: TT.ember),
                 ),
               ),
             ],
@@ -834,7 +824,8 @@ class _LiveTag extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             'LIVE',
-            style: TT.mono(size: 9.5, color: TT.green)
+            style: TT
+                .mono(size: 9.5, color: TT.green)
                 .copyWith(letterSpacing: 0.12 * 9.5),
           ),
           const SizedBox(width: 8),
@@ -842,7 +833,8 @@ class _LiveTag extends StatelessWidget {
           const SizedBox(width: 8),
           RichText(
             text: TextSpan(
-              style: TT.body(size: 10, w: FontWeight.w800, color: TT.text)
+              style: TT
+                  .body(size: 10, w: FontWeight.w800, color: TT.text)
                   .copyWith(letterSpacing: 0.18 * 10),
               children: const [
                 TextSpan(text: 'TREK-'),
@@ -969,21 +961,26 @@ class _TeamMapPainter extends CustomPainter {
     final trail = Path()
       ..moveTo(size.width * 0.10, size.height * 0.89)
       ..quadraticBezierTo(
-        size.width * 0.24, size.height * 0.69,
-        size.width * 0.36, size.height * 0.56,
+        size.width * 0.24,
+        size.height * 0.69,
+        size.width * 0.36,
+        size.height * 0.56,
       )
       ..quadraticBezierTo(
-        size.width * 0.49, size.height * 0.44,
-        size.width * 0.63, size.height * 0.41,
+        size.width * 0.49,
+        size.height * 0.44,
+        size.width * 0.63,
+        size.height * 0.41,
       )
       ..quadraticBezierTo(
-        size.width * 0.78, size.height * 0.41,
-        size.width * 0.88, size.height * 0.25,
+        size.width * 0.78,
+        size.height * 0.41,
+        size.width * 0.88,
+        size.height * 0.25,
       );
 
     final metrics = trail.computeMetrics().toList();
-    final totalLen =
-        metrics.fold<double>(0, (sum, m) => sum + m.length);
+    final totalLen = metrics.fold<double>(0, (sum, m) => sum + m.length);
     final drawLen = totalLen * drawT.clamp(0.0, 1.0);
 
     final drawn = Path();
@@ -1012,10 +1009,10 @@ class _TeamMapPainter extends CustomPainter {
 
     // Peaks
     _drawPeak(canvas, Offset(size.width * 0.85, size.height * 0.24));
-    _drawPeak(canvas,
-        Offset(size.width * 0.93, size.height * 0.41), small: true);
-    _drawPeak(canvas,
-        Offset(size.width * 0.54, size.height * 0.53), small: true);
+    _drawPeak(canvas, Offset(size.width * 0.93, size.height * 0.41),
+        small: true);
+    _drawPeak(canvas, Offset(size.width * 0.54, size.height * 0.53),
+        small: true);
 
     // Member pins (drawn on top of trail)
     for (var i = 0; i < members.length; i++) {
@@ -1047,8 +1044,7 @@ class _TeamMapPainter extends CustomPainter {
     );
   }
 
-  void _drawAvatarPin(
-      Canvas canvas, Offset c, _TeamMemberVM m, double t) {
+  void _drawAvatarPin(Canvas canvas, Offset c, _TeamMemberVM m, double t) {
     final color = _pinColor(m.status);
     final scale = 0.7 + 0.3 * t;
 
@@ -1229,9 +1225,7 @@ class _TeamRow extends StatelessWidget {
                         Text(
                           _statusLabel(member.status),
                           style: TT.mono(
-                              size: 10.5,
-                              color: ringColor,
-                              w: FontWeight.w800),
+                              size: 10.5, color: ringColor, w: FontWeight.w800),
                         ),
                         const SizedBox(width: 6),
                         Container(width: 1, height: 9, color: TT.line3),
@@ -1472,10 +1466,8 @@ class _StandaloneTeamChat extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(team.name,
-                style: TT.title(16, letterSpacing: -0.01 * 16)),
-            Text('Team chat',
-                style: TT.mono(size: 10, color: TT.text3)),
+            Text(team.name, style: TT.title(16, letterSpacing: -0.01 * 16)),
+            Text('Team chat', style: TT.mono(size: 10, color: TT.text3)),
           ],
         ),
       ),
@@ -1543,8 +1535,7 @@ class _MemberDetailSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(member.name,
-                            style: TT.title(18,
-                                letterSpacing: -0.01 * 18)),
+                            style: TT.title(18, letterSpacing: -0.01 * 18)),
                         const SizedBox(height: 4),
                         Row(
                           children: [
@@ -1555,8 +1546,7 @@ class _MemberDetailSheet extends StatelessWidget {
                                 color: ringColor,
                                 shape: BoxShape.circle,
                                 boxShadow: [
-                                  BoxShadow(
-                                      color: ringColor, blurRadius: 6),
+                                  BoxShadow(color: ringColor, blurRadius: 6),
                                 ],
                               ),
                             ),
@@ -1584,8 +1574,7 @@ class _MemberDetailSheet extends StatelessWidget {
                                           size: 8.5,
                                           color: TT.ember,
                                           w: FontWeight.w800)
-                                      .copyWith(
-                                          letterSpacing: 0.12 * 8.5),
+                                      .copyWith(letterSpacing: 0.12 * 8.5),
                                 ),
                               ),
                             ],
@@ -1640,8 +1629,8 @@ class _MemberDetailSheet extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: TT.emberDim,
                       borderRadius: BorderRadius.circular(TT.rMd),
-                      border: Border.all(
-                          color: const Color(0x52FF6A2C), width: 1),
+                      border:
+                          Border.all(color: const Color(0x52FF6A2C), width: 1),
                     ),
                     alignment: Alignment.center,
                     child: Text(
@@ -1666,6 +1655,7 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
   final bool mono;
+
   /// Optional accent for the icon + value when a row carries a warning
   /// (e.g. battery <=15%, signal == 'none').
   final Color? color;
@@ -1706,14 +1696,15 @@ class _DetailRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(label,
-                    style: TT.label(size: 10, color: TT.text3)),
+                Text(label, style: TT.label(size: 10, color: TT.text3)),
                 const SizedBox(height: 2),
                 Text(
                   value,
                   style: mono
-                      ? TT.mono(size: 12.5, color: valueColor, w: FontWeight.w800)
-                      : TT.body(size: 13, w: FontWeight.w700, color: valueColor),
+                      ? TT.mono(
+                          size: 12.5, color: valueColor, w: FontWeight.w800)
+                      : TT.body(
+                          size: 13, w: FontWeight.w700, color: valueColor),
                 ),
               ],
             ),

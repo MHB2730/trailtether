@@ -39,7 +39,8 @@ class TTCountUp extends StatefulWidget {
   State<TTCountUp> createState() => _TTCountUpState();
 }
 
-class _TTCountUpState extends State<TTCountUp> with SingleTickerProviderStateMixin {
+class _TTCountUpState extends State<TTCountUp>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
       AnimationController(vsync: this, duration: widget.duration);
 
@@ -49,12 +50,17 @@ class _TTCountUpState extends State<TTCountUp> with SingleTickerProviderStateMix
     if (widget.delay == Duration.zero) {
       _ctl.forward();
     } else {
-      Future.delayed(widget.delay, () { if (mounted) _ctl.forward(); });
+      Future.delayed(widget.delay, () {
+        if (mounted) _ctl.forward();
+      });
     }
   }
 
   @override
-  void dispose() { _ctl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +115,8 @@ class TTStagger extends StatelessWidget {
       // honoured. Push the _FadeUp inside instead.
       Widget entry;
       if (child is Expanded) {
-        entry = Expanded(flex: child.flex, child: _FadeUp(delay: delay, child: child.child));
+        entry = Expanded(
+            flex: child.flex, child: _FadeUp(delay: delay, child: child.child));
       } else if (child is Flexible) {
         entry = Flexible(
           flex: child.flex,
@@ -128,7 +135,8 @@ class TTStagger extends StatelessWidget {
       }
     }
     final layout = axis == Axis.vertical
-        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: wrapped)
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: wrapped)
         : Row(children: wrapped);
     return padding == null ? layout : Padding(padding: padding!, child: layout);
   }
@@ -150,11 +158,16 @@ class _FadeUpState extends State<_FadeUp> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    Future.delayed(widget.delay, () { if (mounted) _ctl.forward(); });
+    Future.delayed(widget.delay, () {
+      if (mounted) _ctl.forward();
+    });
   }
 
   @override
-  void dispose() { _ctl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

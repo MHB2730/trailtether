@@ -54,9 +54,7 @@ String _initialsFor({String? displayName, String? email}) {
   if (mail.contains('@')) {
     final local = mail.split('@').first;
     if (local.isNotEmpty) {
-      return local
-          .substring(0, local.length >= 2 ? 2 : 1)
-          .toUpperCase();
+      return local.substring(0, local.length >= 2 ? 2 : 1).toUpperCase();
     }
   }
   return 'HK';
@@ -171,8 +169,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: TT.surf,
-        title: Text('Sign out?',
-            style: TT.body(size: 16, w: FontWeight.w800)),
+        title: Text('Sign out?', style: TT.body(size: 16, w: FontWeight.w800)),
         content: Text(
           email.isNotEmpty
               ? 'You will be signed out of $email.'
@@ -182,8 +179,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel',
-                style: TT.body(size: 13, color: TT.text2)),
+            child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -234,9 +230,12 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                 Text('Choose unit system',
                     style: TT.body(size: 16, w: FontWeight.w800)),
                 const SizedBox(height: 4),
-                Text('Distance, elevation, temperature and speed throughout '
+                Text(
+                    'Distance, elevation, temperature and speed throughout '
                     'the app will use the units you pick here.',
-                    style: TT.body(size: 12, color: TT.text3).copyWith(height: 1.4)),
+                    style: TT
+                        .body(size: 12, color: TT.text3)
+                        .copyWith(height: 1.4)),
                 const SizedBox(height: 14),
                 _UnitsOptionTile(
                   selected: units.isMetric,
@@ -350,7 +349,8 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                 leading:
                     const Icon(Icons.delete_outline, color: TT.red, size: 20),
                 title: Text('Remove photo',
-                    style: TT.body(size: 14, w: FontWeight.w700, color: TT.red)),
+                    style:
+                        TT.body(size: 14, w: FontWeight.w700, color: TT.red)),
                 onTap: () => Navigator.pop(context, 'remove'),
               ),
             const SizedBox(height: 8),
@@ -388,8 +388,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: TT.surf,
-        title: Text('Edit bio',
-            style: TT.body(size: 16, w: FontWeight.w800)),
+        title: Text('Edit bio', style: TT.body(size: 16, w: FontWeight.w800)),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -422,8 +421,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
             child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
             child: Text('Save',
                 style: TT.body(size: 13, w: FontWeight.w800, color: TT.ember)),
           ),
@@ -449,9 +447,8 @@ class _TTProfileScreenState extends State<TTProfileScreen>
   Widget build(BuildContext context) {
     final units = context.watch<UnitsProvider>();
     final unitsLabel = units.isImperial ? 'Imperial' : 'Metric';
-    final unitsSub = units.isImperial
-        ? 'Imperial · ft / mi / °F'
-        : 'Metric · m / km / °C';
+    final unitsSub =
+        units.isImperial ? 'Imperial · ft / mi / °F' : 'Metric · m / km / °C';
 
     final body = Stack(
       children: [
@@ -481,8 +478,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                     ),
                     const SizedBox(height: 14),
                     _StatTilesRow(
-                      onTapTile: () =>
-                          _pushScreen(const TTActivityScreen()),
+                      onTapTile: () => _pushScreen(const TTActivityScreen()),
                     ),
                     const SizedBox(height: 22),
                     const _AchievementsSection(),
@@ -664,10 +660,9 @@ class _ProfileHeader extends StatelessWidget {
         final tier = _tierFor(hikes);
         final bio = pp.profile.bio.trim();
         final photoUrl = (pp.profile.photoUrl.trim().isNotEmpty
-                ? pp.profile.photoUrl.trim()
-                : auth.photoUrl?.trim() ?? '');
-        final initials = _initialsFor(
-            displayName: name, email: auth.email);
+            ? pp.profile.photoUrl.trim()
+            : auth.photoUrl?.trim() ?? '');
+        final initials = _initialsFor(displayName: name, email: auth.email);
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(TT.rLg + 2),
@@ -743,16 +738,13 @@ class _ProfileHeader extends StatelessWidget {
                       const SizedBox(height: 14),
                       InkWell(
                         onTap: onEditBio,
-                        borderRadius:
-                            BorderRadius.circular(TT.rSm + 2),
+                        borderRadius: BorderRadius.circular(TT.rSm + 2),
                         child: Container(
-                          padding:
-                              const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                           decoration: BoxDecoration(
                             color: const Color(0x05FFFFFF),
                             border: Border.all(color: TT.line, width: 1),
-                            borderRadius:
-                                BorderRadius.circular(TT.rSm + 2),
+                            borderRadius: BorderRadius.circular(TT.rSm + 2),
                           ),
                           child: Text(
                             bio.isNotEmpty ? bio : 'Tap to add a bio',
@@ -760,9 +752,7 @@ class _ProfileHeader extends StatelessWidget {
                                 .body(
                                     size: 12,
                                     w: FontWeight.w500,
-                                    color: bio.isNotEmpty
-                                        ? TT.text2
-                                        : TT.text3)
+                                    color: bio.isNotEmpty ? TT.text2 : TT.text3)
                                 .copyWith(
                                     height: 1.5,
                                     fontStyle: bio.isNotEmpty
@@ -841,7 +831,8 @@ class _GradientAvatar extends StatelessWidget {
                   : Text(
                       initials,
                       style: TT
-                          .body(size: 26, w: FontWeight.w900, color: Colors.white)
+                          .body(
+                              size: 26, w: FontWeight.w900, color: Colors.white)
                           .copyWith(letterSpacing: -0.02 * 26),
                     ),
             ),
@@ -901,11 +892,14 @@ class _StatTilesRow extends StatelessWidget {
       builder: (_, history, units, __) {
         final hikes = history.hikes;
         final hikeCount = hikes.length;
-        final totKm = hikes.fold<double>(0, (a, SavedHike h) => a + h.distanceKm);
-        final totAscentM = hikes.fold<int>(0, (a, SavedHike h) => a + h.ascentM).toDouble();
+        final totKm =
+            hikes.fold<double>(0, (a, SavedHike h) => a + h.distanceKm);
+        final totAscentM =
+            hikes.fold<int>(0, (a, SavedHike h) => a + h.ascentM).toDouble();
         final distVal = units.distanceFromKm(totKm).round();
         final ascentVal = units.elevationFromM(totAscentM).round();
-        final peaks = hikes.fold<int>(0, (a, SavedHike h) => a + h.peaksClimbed);
+        final peaks =
+            hikes.fold<int>(0, (a, SavedHike h) => a + h.peaksClimbed);
 
         final tiles = <_StatTile>[
           _StatTile(
@@ -1003,8 +997,7 @@ class _StatTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon,
-                  size: 12, color: ember ? TT.ember : TT.text3),
+              Icon(icon, size: 12, color: ember ? TT.ember : TT.text3),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
@@ -1020,8 +1013,7 @@ class _StatTile extends StatelessWidget {
             children: [
               TTCountUp(
                 text: value,
-                style:
-                    TT.numStyle(size: 22, color: ember ? TT.ember : TT.text),
+                style: TT.numStyle(size: 22, color: ember ? TT.ember : TT.text),
                 delay: const Duration(milliseconds: 500),
               ),
               if (unit != null) ...[
@@ -1142,8 +1134,7 @@ class _AchievementsSection extends StatelessWidget {
           // Show up to 8 tiles: unlocked first, then a few locked stragglers
           // (so the grid stays balanced when the user has fewer than 8
           // unlocks). Order matches ProfileProvider's default list.
-          final locked =
-              pp.achievements.where((a) => !a.unlocked).toList();
+          final locked = pp.achievements.where((a) => !a.unlocked).toList();
           final picked = <Achievement>[
             ...unlockedAll.take(8),
             ...locked.take((8 - unlockedAll.length).clamp(0, 8)),
@@ -1164,9 +1155,7 @@ class _AchievementsSection extends StatelessWidget {
                   Text(
                     'ACHIEVEMENTS · $unlockedCount OF $total',
                     style: TT.label(
-                        size: 11,
-                        color: TT.text2,
-                        letterSpacing: 0.16 * 11),
+                        size: 11, color: TT.text2, letterSpacing: 0.16 * 11),
                   ),
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -1254,7 +1243,8 @@ class _AchievementsSection extends StatelessWidget {
                     Text('All achievements',
                         style: TT.title(18, letterSpacing: -0.01 * 18)),
                     const Spacer(),
-                    Text('${rows.where((r) => r.unlocked).length} / ${rows.length}',
+                    Text(
+                        '${rows.where((r) => r.unlocked).length} / ${rows.length}',
                         style: TT.mono(size: 11, color: TT.text3)),
                   ],
                 ),
@@ -1288,14 +1278,12 @@ class _AchievementsSection extends StatelessWidget {
                                     style: TT.body(
                                         size: 14,
                                         w: FontWeight.w800,
-                                        color: d.unlocked ? TT.text : TT.text2)),
+                                        color:
+                                            d.unlocked ? TT.text : TT.text2)),
                                 const SizedBox(height: 2),
-                                Text(
-                                    d.unlocked
-                                        ? d.description
-                                        : d.requirement,
-                                    style: TT.body(
-                                            size: 12, color: TT.text3)
+                                Text(d.unlocked ? d.description : d.requirement,
+                                    style: TT
+                                        .body(size: 12, color: TT.text3)
                                         .copyWith(height: 1.35)),
                               ],
                             ),
@@ -1337,8 +1325,18 @@ class _AchievementsSection extends StatelessWidget {
   }
 
   static const _months = [
-    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
   ];
 
   static String _shortDate(DateTime d) =>
@@ -1402,8 +1400,7 @@ class _AchievementBadge extends StatelessWidget {
           children: [
             Text(
               unlocked ? data.description : 'How to unlock',
-              style: TT.body(size: 13, color: TT.text2)
-                  .copyWith(height: 1.4),
+              style: TT.body(size: 13, color: TT.text2).copyWith(height: 1.4),
             ),
             const SizedBox(height: 10),
             Container(
@@ -1423,9 +1420,7 @@ class _AchievementBadge extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      unlocked
-                          ? 'Unlocked · ${data.date}'
-                          : data.requirement,
+                      unlocked ? 'Unlocked · ${data.date}' : data.requirement,
                       style: TT.mono(
                         size: 11,
                         color: unlocked ? TT.green : TT.text2,
@@ -1618,9 +1613,8 @@ class _SettingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final iconColor = data.danger ? TT.red : TT.ember;
-    final iconBg = data.danger
-        ? const Color(0x1AE63D2E)
-        : const Color(0x08FFFFFF);
+    final iconBg =
+        data.danger ? const Color(0x1AE63D2E) : const Color(0x08FFFFFF);
     final iconBorder = data.danger ? const Color(0x59E63D2E) : TT.line2;
 
     return InkWell(
@@ -1697,8 +1691,8 @@ class _SettingRow extends StatelessWidget {
           activeTrackColor: TT.ember,
           inactiveThumbColor: Colors.white,
           inactiveTrackColor: TT.surf3,
-          trackOutlineColor: WidgetStateProperty.resolveWith(
-              (_) => Colors.transparent),
+          trackOutlineColor:
+              WidgetStateProperty.resolveWith((_) => Colors.transparent),
         );
       case _TrailingKind.value:
         return Text(
@@ -1816,8 +1810,7 @@ class _UnitsOptionTile extends StatelessWidget {
                           w: FontWeight.w800,
                           color: selected ? TT.text : TT.text2)),
                   const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: TT.mono(size: 11, color: TT.text3)),
+                  Text(subtitle, style: TT.mono(size: 11, color: TT.text3)),
                 ],
               ),
             ),
@@ -1852,7 +1845,8 @@ class _AppVersionLabelState extends State<_AppVersionLabel> {
     try {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
-      setState(() => _label = 'TRAILTETHER v${info.version} · ${info.buildNumber}');
+      setState(
+          () => _label = 'TRAILTETHER v${info.version} · ${info.buildNumber}');
     } catch (_) {
       // Swallow — keep the bare "TRAILTETHER" if the platform channel
       // somehow fails. Never crash the profile footer over a label.

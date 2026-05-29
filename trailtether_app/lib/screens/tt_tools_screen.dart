@@ -42,12 +42,12 @@ class _ToolSpec {
 }
 
 const List<_ToolSpec> _kTools = [
-  _ToolSpec(_Tool.compass,   'Compass',   Icons.explore_outlined),
-  _ToolSpec(_Tool.level,     'Level',     Icons.center_focus_strong_outlined),
-  _ToolSpec(_Tool.torch,     'Torch',     Icons.local_fire_department_outlined),
+  _ToolSpec(_Tool.compass, 'Compass', Icons.explore_outlined),
+  _ToolSpec(_Tool.level, 'Level', Icons.center_focus_strong_outlined),
+  _ToolSpec(_Tool.torch, 'Torch', Icons.local_fire_department_outlined),
   _ToolSpec(_Tool.altimeter, 'Altimeter', Icons.terrain_outlined),
-  _ToolSpec(_Tool.sun,       'Sun',       Icons.wb_sunny_outlined),
-  _ToolSpec(_Tool.info,      'Info',      Icons.tips_and_updates_outlined),
+  _ToolSpec(_Tool.sun, 'Sun', Icons.wb_sunny_outlined),
+  _ToolSpec(_Tool.info, 'Info', Icons.tips_and_updates_outlined),
 ];
 
 // ─────────────────────── Persistent tool preferences ───────────────────────
@@ -59,8 +59,9 @@ class _ToolPrefs extends ChangeNotifier {
   static const _kSunTime24 = 'tt_tool_sun_24h';
 
   double _declination = 0.0; // user-entered declination in degrees (east +)
-  bool _useImperial = false; // mirrored from global UnitsProvider; never written
-  bool _sunTime24 = true;    // 24h vs 12h sunrise/sunset readout
+  bool _useImperial =
+      false; // mirrored from global UnitsProvider; never written
+  bool _sunTime24 = true; // 24h vs 12h sunrise/sunset readout
 
   double get declination => _declination;
   bool get useImperial => _useImperial;
@@ -194,12 +195,18 @@ class _TTToolsScreenState extends State<TTToolsScreen>
 
   Widget _toolBody(_Tool t, _ToolPrefs prefs) {
     switch (t) {
-      case _Tool.compass:   return _CompassTool(prefs: prefs);
-      case _Tool.level:     return const _LevelTool();
-      case _Tool.torch:     return const _TorchTool();
-      case _Tool.altimeter: return _AltimeterTool(prefs: prefs);
-      case _Tool.sun:       return _SunTool(prefs: prefs);
-      case _Tool.info:      return const _InfoTool();
+      case _Tool.compass:
+        return _CompassTool(prefs: prefs);
+      case _Tool.level:
+        return const _LevelTool();
+      case _Tool.torch:
+        return const _TorchTool();
+      case _Tool.altimeter:
+        return _AltimeterTool(prefs: prefs);
+      case _Tool.sun:
+        return _SunTool(prefs: prefs);
+      case _Tool.info:
+        return const _InfoTool();
     }
   }
 }
@@ -234,7 +241,8 @@ class _ToolTab extends StatefulWidget {
   final _ToolSpec spec;
   final bool active;
   final VoidCallback onTap;
-  const _ToolTab({required this.spec, required this.active, required this.onTap});
+  const _ToolTab(
+      {required this.spec, required this.active, required this.onTap});
 
   @override
   State<_ToolTab> createState() => _ToolTabState();
@@ -268,7 +276,12 @@ class _ToolTabState extends State<_ToolTab> {
             ),
             borderRadius: BorderRadius.circular(10),
             boxShadow: a
-                ? const [BoxShadow(color: Color(0x40FF6A2C), blurRadius: 14, spreadRadius: -6)]
+                ? const [
+                    BoxShadow(
+                        color: Color(0x40FF6A2C),
+                        blurRadius: 14,
+                        spreadRadius: -6)
+                  ]
                 : null,
           ),
           child: Row(
@@ -278,7 +291,11 @@ class _ToolTabState extends State<_ToolTab> {
               const SizedBox(width: 7),
               Text(
                 widget.spec.label.toUpperCase(),
-                style: TT.body(size: 11, w: FontWeight.w800, color: a ? TT.ember : TT.text2)
+                style: TT
+                    .body(
+                        size: 11,
+                        w: FontWeight.w800,
+                        color: a ? TT.ember : TT.text2)
                     .copyWith(letterSpacing: 0.1 * 11),
               ),
             ],
@@ -465,7 +482,8 @@ class _SettingsRow extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 32, height: 32,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: TT.emberDim,
               border: Border.all(color: const Color(0x52FF6A2C), width: 1),
@@ -479,11 +497,9 @@ class _SettingsRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TT.body(size: 13, w: FontWeight.w800)),
+                Text(title, style: TT.body(size: 13, w: FontWeight.w800)),
                 const SizedBox(height: 2),
-                Text(subtitle,
-                    style: TT.body(size: 11, color: TT.text3)),
+                Text(subtitle, style: TT.body(size: 11, color: TT.text3)),
               ],
             ),
           ),
@@ -667,12 +683,14 @@ class _CompassToolState extends State<_CompassTool> {
                       const SizedBox(height: 18),
                       Text(
                         '${display.toStringAsFixed(0)}°',
-                        style: TT.numStyle(size: 38, letterSpacing: -0.025 * 38),
+                        style:
+                            TT.numStyle(size: 38, letterSpacing: -0.025 * 38),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         '$cardinalLong · $cardinal',
-                        style: TT.body(size: 12, w: FontWeight.w800, color: TT.ember)
+                        style: TT
+                            .body(size: 12, w: FontWeight.w800, color: TT.ember)
                             .copyWith(letterSpacing: 0.2 * 12),
                       ),
                       if (_lock != null) ...[
@@ -696,8 +714,8 @@ class _CompassToolState extends State<_CompassTool> {
                 value: '${display.toStringAsFixed(0)}°',
                 unit: cardinal,
                 ember: true,
-                onTap: () =>
-                    _copy('${display.toStringAsFixed(0)}° $cardinal', 'Heading'),
+                onTap: () => _copy(
+                    '${display.toStringAsFixed(0)}° $cardinal', 'Heading'),
               ),
               _MetricSpec(
                 icon: Icons.layers_outlined,
@@ -717,7 +735,8 @@ class _CompassToolState extends State<_CompassTool> {
                 label: 'Altitude',
                 value: _pos == null
                     ? '—'
-                    : _formatAltShared(_pos!.altitude, widget.prefs.useImperial),
+                    : _formatAltShared(
+                        _pos!.altitude, widget.prefs.useImperial),
                 unit: widget.prefs.useImperial ? 'ft' : 'm',
                 onTap: _pos == null
                     ? null
@@ -730,7 +749,9 @@ class _CompassToolState extends State<_CompassTool> {
               _MetricSpec(
                 icon: Icons.center_focus_strong_outlined,
                 label: 'GPS Acc',
-                value: _pos == null ? '—' : '+/- ${_pos!.accuracy.toStringAsFixed(0)}',
+                value: _pos == null
+                    ? '—'
+                    : '+/- ${_pos!.accuracy.toStringAsFixed(0)}',
                 unit: 'm',
                 onTap: _pos == null
                     ? null
@@ -777,9 +798,11 @@ class _CompassDial extends StatefulWidget {
   State<_CompassDial> createState() => _CompassDialState();
 }
 
-class _CompassDialState extends State<_CompassDial> with SingleTickerProviderStateMixin {
+class _CompassDialState extends State<_CompassDial>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: const Duration(seconds: 7))..repeat();
+      AnimationController(vsync: this, duration: const Duration(seconds: 7))
+        ..repeat();
 
   static const double _size = 240;
 
@@ -805,8 +828,8 @@ class _CompassDialState extends State<_CompassDial> with SingleTickerProviderSta
     // We want the cardinal nearest to the tap angle, but in *world* terms
     // we just need to map the angle to one of four directions.
     final ang = (screenAng * 180 / math.pi + 360 + 90) % 360; // 0 = up
-    if (ang < 22.5 || ang > 337.5) return 0;   // N
-    if (ang > 67.5 && ang < 112.5) return 90;  // E
+    if (ang < 22.5 || ang > 337.5) return 0; // N
+    if (ang > 67.5 && ang < 112.5) return 90; // E
     if (ang > 157.5 && ang < 202.5) return 180; // S
     if (ang > 247.5 && ang < 292.5) return 270; // W
     return null;
@@ -829,9 +852,8 @@ class _CompassDialState extends State<_CompassDial> with SingleTickerProviderSta
             // Sin-based wiggle: +/- 1.5 degrees around the current bearing.
             // Wiggle freezes when the dial is locked so the user gets a stable
             // sighting reference.
-            final wiggle = widget.locked
-                ? 0.0
-                : math.sin(_ctl.value * 2 * math.pi) * 1.5;
+            final wiggle =
+                widget.locked ? 0.0 : math.sin(_ctl.value * 2 * math.pi) * 1.5;
             return CustomPaint(
               painter: _CompassPainter(
                 bearing: widget.bearing + wiggle,
@@ -1017,10 +1039,8 @@ class _CompassPainter extends CustomPainter {
     canvas.drawLine(const Offset(120, 148), const Offset(120, 190), reticle);
 
     // Dashed micro-arc rings inside the face
-    _drawDashedCircle(canvas, center, 56,
-        const Color(0x0FFFFFFF), 2, 4);
-    _drawDashedCircle(canvas, center, 40,
-        const Color(0x0FFFFFFF), 1, 5);
+    _drawDashedCircle(canvas, center, 56, const Color(0x0FFFFFFF), 2, 4);
+    _drawDashedCircle(canvas, center, 40, const Color(0x0FFFFFFF), 1, 5);
 
     // ── COMPASS ROSE (rotates with bearing) ───────────────────────────
     canvas.save();
@@ -1048,9 +1068,12 @@ class _CompassPainter extends CustomPainter {
 
     // Cardinal letters
     _drawCardinal(canvas, 'N', 0, 14, FontWeight.w900, TT.ember, main: true);
-    _drawCardinal(canvas, 'E', 90, 14, FontWeight.w900, const Color(0xFFCFD5DD));
-    _drawCardinal(canvas, 'S', 180, 14, FontWeight.w900, const Color(0xFFCFD5DD));
-    _drawCardinal(canvas, 'W', 270, 14, FontWeight.w900, const Color(0xFFCFD5DD));
+    _drawCardinal(
+        canvas, 'E', 90, 14, FontWeight.w900, const Color(0xFFCFD5DD));
+    _drawCardinal(
+        canvas, 'S', 180, 14, FontWeight.w900, const Color(0xFFCFD5DD));
+    _drawCardinal(
+        canvas, 'W', 270, 14, FontWeight.w900, const Color(0xFFCFD5DD));
 
     // Intercardinal labels (smaller, dimmer)
     _drawIntercardinal(canvas, 'NE', 45);
@@ -1109,8 +1132,7 @@ class _CompassPainter extends CustomPainter {
       ).createShader(Rect.fromCenter(
           center: const Offset(120, 80), width: 156, height: 64));
     canvas.drawOval(
-      Rect.fromCenter(
-          center: const Offset(120, 80), width: 156, height: 64),
+      Rect.fromCenter(center: const Offset(120, 80), width: 156, height: 64),
       glassPaint,
     );
 
@@ -1371,7 +1393,8 @@ class _CompassPainter extends CustomPainter {
     final tp = TextPainter(
       text: TextSpan(
         text: letter,
-        style: TT.body(size: size, w: weight, color: color)
+        style: TT
+            .body(size: size, w: weight, color: color)
             .copyWith(letterSpacing: 0.04 * size),
       ),
       textDirection: TextDirection.ltr,
@@ -1395,7 +1418,8 @@ class _CompassPainter extends CustomPainter {
     final tp = TextPainter(
       text: TextSpan(
         text: label,
-        style: TT.body(size: 8, w: FontWeight.w700, color: const Color(0xFF5A6470))
+        style: TT
+            .body(size: 8, w: FontWeight.w700, color: const Color(0xFF5A6470))
             .copyWith(letterSpacing: 0.1 * 8),
       ),
       textDirection: TextDirection.ltr,
@@ -1431,9 +1455,9 @@ class _LevelToolState extends State<_LevelTool>
   double _rollOffset = 0;
 
   // Idle wobble — runs even when no sensor data so the visuals never freeze.
-  late final AnimationController _wobble =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 3400))
-        ..repeat();
+  late final AnimationController _wobble = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 3400))
+    ..repeat();
 
   @override
   void initState() {
@@ -1471,8 +1495,7 @@ class _LevelToolState extends State<_LevelTool>
   // Pitch + roll in degrees from raw accelerometer axes.
   double get _pitchRaw =>
       math.atan2(_ay, math.sqrt(_ax * _ax + _az * _az)) * 180 / math.pi;
-  double get _rollRaw =>
-      math.atan2(-_ax, _az) * 180 / math.pi;
+  double get _rollRaw => math.atan2(-_ax, _az) * 180 / math.pi;
   double get _pitch => _pitchRaw - _pitchOffset;
   double get _roll => _rollRaw - _rollOffset;
   double get _tilt {
@@ -1578,7 +1601,8 @@ class _LevelToolState extends State<_LevelTool>
                   Column(
                     children: [
                       SizedBox(
-                        width: 240, height: 240,
+                        width: 240,
+                        height: 240,
                         child: _BubbleLevel(
                           ax: _ax - _rollOffset * 0.17,
                           ay: _ay + _pitchOffset * 0.17,
@@ -1593,16 +1617,22 @@ class _LevelToolState extends State<_LevelTool>
                         children: [
                           Text(
                             '${tilt.toStringAsFixed(1)}°',
-                            style: TT.numStyle(size: 32, letterSpacing: -0.02 * 32),
+                            style: TT.numStyle(
+                                size: 32, letterSpacing: -0.02 * 32),
                           ),
                           const SizedBox(width: 8),
-                          Text('tilt', style: TT.body(size: 14, color: TT.text2)),
+                          Text('tilt',
+                              style: TT.body(size: 14, color: TT.text2)),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text(
                         statusText,
-                        style: TT.body(size: 11, w: FontWeight.w800, color: statusColor)
+                        style: TT
+                            .body(
+                                size: 11,
+                                w: FontWeight.w800,
+                                color: statusColor)
                             .copyWith(letterSpacing: 0.16 * 11),
                       ),
                     ],
@@ -1633,10 +1663,12 @@ class _LevelToolState extends State<_LevelTool>
               child: Row(
                 children: [
                   Container(
-                    width: 32, height: 32,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: TT.emberDim,
-                      border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+                      border:
+                          Border.all(color: const Color(0x52FF6A2C), width: 1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     alignment: Alignment.center,
@@ -1648,9 +1680,7 @@ class _LevelToolState extends State<_LevelTool>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          calibrated
-                              ? 'Custom zero set'
-                              : 'Calibrate level',
+                          calibrated ? 'Custom zero set' : 'Calibrate level',
                           style: TT.body(size: 13, w: FontWeight.w800),
                         ),
                         const SizedBox(height: 2),
@@ -1667,7 +1697,8 @@ class _LevelToolState extends State<_LevelTool>
                     GestureDetector(
                       onTap: _resetCalibration,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: TT.surf2,
                           borderRadius: BorderRadius.circular(999),
@@ -1675,7 +1706,8 @@ class _LevelToolState extends State<_LevelTool>
                         ),
                         child: Text(
                           'RESET',
-                          style: TT.mono(size: 9.5, color: TT.text2, letterSpacing: 1.1),
+                          style: TT.mono(
+                              size: 9.5, color: TT.text2, letterSpacing: 1.1),
                         ),
                       ),
                     )
@@ -1703,7 +1735,8 @@ class _BubbleLevel extends StatelessWidget {
   final double ax;
   final double ay;
   final AnimationController wobble;
-  const _BubbleLevel({required this.ax, required this.ay, required this.wobble});
+  const _BubbleLevel(
+      {required this.ax, required this.ay, required this.wobble});
 
   @override
   Widget build(BuildContext context) {
@@ -1715,8 +1748,8 @@ class _BubbleLevel extends StatelessWidget {
         final wobbleDx = math.sin(t) * 1.2;
         final wobbleDy = math.cos(t * 1.3) * 1.0;
         return CustomPaint(
-          painter: _BubbleLevelPainter(ax: ax, ay: ay,
-              wobble: Offset(wobbleDx, wobbleDy)),
+          painter: _BubbleLevelPainter(
+              ax: ax, ay: ay, wobble: Offset(wobbleDx, wobbleDy)),
         );
       },
     );
@@ -1727,7 +1760,8 @@ class _BubbleLevelPainter extends CustomPainter {
   final double ax; // x accel (left/right tilt)
   final double ay; // y accel (forward/back tilt)
   final Offset wobble;
-  _BubbleLevelPainter({required this.ax, required this.ay, required this.wobble});
+  _BubbleLevelPainter(
+      {required this.ax, required this.ay, required this.wobble});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1735,11 +1769,13 @@ class _BubbleLevelPainter extends CustomPainter {
     final r = size.width / 2 - 10;
 
     canvas.drawCircle(
-      c, r,
+      c,
+      r,
       Paint()..color = const Color(0xFF06080B),
     );
     canvas.drawCircle(
-      c, r,
+      c,
+      r,
       Paint()
         ..color = TT.line2
         ..style = PaintingStyle.stroke
@@ -1749,7 +1785,8 @@ class _BubbleLevelPainter extends CustomPainter {
     // Concentric rings.
     for (final rr in [90.0, 70.0, 50.0, 30.0]) {
       canvas.drawCircle(
-        c, rr,
+        c,
+        rr,
         Paint()
           ..color = const Color(0x0FFFFFFF)
           ..style = PaintingStyle.stroke
@@ -1765,7 +1802,10 @@ class _BubbleLevelPainter extends CustomPainter {
     canvas.drawLine(Offset(c.dx, c.dy - r), Offset(c.dx, c.dy + r), ch);
 
     // Ember target ring (dashed).
-    _drawDashedCircle(canvas, c, 22,
+    _drawDashedCircle(
+        canvas,
+        c,
+        22,
         Paint()
           ..color = TT.ember
           ..style = PaintingStyle.stroke
@@ -1786,17 +1826,20 @@ class _BubbleLevelPainter extends CustomPainter {
 
     // Bubble — green glass with soft glow.
     canvas.drawCircle(
-      bubble, 22,
+      bubble,
+      22,
       Paint()
         ..color = const Color(0x224CC38A)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
     );
     canvas.drawCircle(
-      bubble, 18,
+      bubble,
+      18,
       Paint()..color = const Color(0x404CC38A),
     );
     canvas.drawCircle(
-      bubble, 18,
+      bubble,
+      18,
       Paint()
         ..color = TT.green
         ..style = PaintingStyle.stroke
@@ -1804,12 +1847,14 @@ class _BubbleLevelPainter extends CustomPainter {
     );
     // Highlight pip on the bubble.
     canvas.drawCircle(
-      bubble + const Offset(-5, -5), 4,
+      bubble + const Offset(-5, -5),
+      4,
       Paint()..color = const Color(0xB3FFFFFF),
     );
   }
 
-  void _drawDashedCircle(Canvas canvas, Offset center, double radius, Paint paint) {
+  void _drawDashedCircle(
+      Canvas canvas, Offset center, double radius, Paint paint) {
     const segments = 24;
     for (var i = 0; i < segments; i++) {
       if (i.isOdd) continue;
@@ -1835,7 +1880,8 @@ class _TorchTool extends StatefulWidget {
   State<_TorchTool> createState() => _TorchToolState();
 }
 
-class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMixin {
+class _TorchToolState extends State<_TorchTool>
+    with SingleTickerProviderStateMixin {
   bool _on = false;
   bool _available = true;
 
@@ -1843,8 +1889,9 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
   bool _strobeActive = false;
   Future<void>? _strobeTask;
 
-  late final AnimationController _flicker =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat(reverse: true);
+  late final AnimationController _flicker = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 2400))
+    ..repeat(reverse: true);
 
   @override
   void initState() {
@@ -1922,9 +1969,7 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
     while (_strobeActive && mounted) {
       for (var i = 0; i < sequence.length; i++) {
         if (!_strobeActive || !mounted) break;
-        if (i == sequence.length - 1 ||
-            i == 5 ||
-            i == 11) {
+        if (i == sequence.length - 1 || i == 5 || i == 11) {
           // long off gap segments — never turn the torch on
           await _setTorch(false);
           if (mounted) setState(() => _on = false);
@@ -1970,7 +2015,8 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
                           child: AnimatedBuilder(
                             animation: _flicker,
                             builder: (_, __) {
-                              final t = Curves.easeInOut.transform(_flicker.value);
+                              final t =
+                                  Curves.easeInOut.transform(_flicker.value);
                               return Opacity(
                                 opacity: 0.9 + 0.1 * t,
                                 child: DecoratedBox(
@@ -1979,7 +2025,11 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
                                     gradient: const RadialGradient(
                                       center: Alignment.center,
                                       radius: 0.9,
-                                      colors: [Color(0x73FFEFAA), Color(0x26FF8A4D), Color(0x00FF8A4D)],
+                                      colors: [
+                                        Color(0x73FFEFAA),
+                                        Color(0x26FF8A4D),
+                                        Color(0x00FF8A4D)
+                                      ],
                                       stops: [0.0, 0.4, 0.75],
                                     ),
                                   ),
@@ -2003,7 +2053,8 @@ class _TorchToolState extends State<_TorchTool> with SingleTickerProviderStateMi
                               : _strobeActive
                                   ? 'TORCH · SOS'
                                   : 'TORCH · ${_on ? 'ON' : 'OFF'}',
-                          style: TT.body(
+                          style: TT
+                              .body(
                                   size: 13,
                                   w: FontWeight.w800,
                                   color: !_available
@@ -2088,14 +2139,19 @@ class _TorchButtonState extends State<_TorchButton> {
         curve: Curves.easeOut,
         child: AnimatedContainer(
           duration: TT.dMed,
-          width: 140, height: 140,
+          width: 140,
+          height: 140,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: on
                 ? const RadialGradient(
                     center: Alignment(-0.3, -0.4),
                     radius: 0.95,
-                    colors: [Color(0xFFFFEFAA), Color(0xFFFF8A4D), Color(0xFFD6291F)],
+                    colors: [
+                      Color(0xFFFFEFAA),
+                      Color(0xFFFF8A4D),
+                      Color(0xFFD6291F)
+                    ],
                     stops: [0.0, 0.6, 1.0],
                   )
                 : const RadialGradient(
@@ -2108,7 +2164,12 @@ class _TorchButtonState extends State<_TorchButton> {
               width: 3,
             ),
             boxShadow: on
-                ? const [BoxShadow(color: Color(0xB3FF8A4D), blurRadius: 50, spreadRadius: 0)]
+                ? const [
+                    BoxShadow(
+                        color: Color(0xB3FF8A4D),
+                        blurRadius: 50,
+                        spreadRadius: 0)
+                  ]
                 : null,
           ),
           alignment: Alignment.center,
@@ -2206,7 +2267,8 @@ class _AltimeterToolState extends State<_AltimeterTool> {
       _maxAlt = _pos?.altitude ?? double.negativeInfinity;
       _history.clear();
       if (_pos != null) {
-        _history.add(_AltSample(when: _pos!.timestamp, altitude: _pos!.altitude));
+        _history
+            .add(_AltSample(when: _pos!.timestamp, altitude: _pos!.altitude));
       }
     });
     ScaffoldMessenger.maybeOf(context)
@@ -2242,9 +2304,8 @@ class _AltimeterToolState extends State<_AltimeterTool> {
     final hasFix = _pos != null;
     final unit = widget.prefs.useImperial ? 'ft' : 'm';
     final altM = _pos?.altitude ?? 0;
-    final delta = (hasFix && _firstAltitude != null)
-        ? (altM - _firstAltitude!)
-        : 0.0;
+    final delta =
+        (hasFix && _firstAltitude != null) ? (altM - _firstAltitude!) : 0.0;
     final deltaDisp = widget.prefs.useImperial ? delta * 3.28084 : delta;
     final deltaPositive = delta >= 0;
     // Show metres and the alternate unit so the user always has a quick cross-
@@ -2306,7 +2367,10 @@ class _AltimeterToolState extends State<_AltimeterTool> {
                         Text(
                           'CURRENT ELEVATION',
                           textAlign: TextAlign.center,
-                          style: TT.label(size: 11, color: TT.text3, letterSpacing: 0.18 * 11),
+                          style: TT.label(
+                              size: 11,
+                              color: TT.text3,
+                              letterSpacing: 0.18 * 11),
                         ),
                         const SizedBox(height: 10),
                         Row(
@@ -2324,7 +2388,11 @@ class _AltimeterToolState extends State<_AltimeterTool> {
                               ),
                             ),
                             const SizedBox(width: 6),
-                            Text(unit, style: TT.body(size: 20, color: TT.text2, w: FontWeight.w600)),
+                            Text(unit,
+                                style: TT.body(
+                                    size: 20,
+                                    color: TT.text2,
+                                    w: FontWeight.w600)),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -2332,7 +2400,9 @@ class _AltimeterToolState extends State<_AltimeterTool> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              deltaPositive ? Icons.arrow_upward : Icons.arrow_downward,
+                              deltaPositive
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
                               size: 12,
                               color: deltaPositive ? TT.green : TT.amber,
                             ),
@@ -2352,11 +2422,14 @@ class _AltimeterToolState extends State<_AltimeterTool> {
                             ),
                             const SizedBox(width: 10),
                             Container(
-                              width: 3, height: 3,
-                              decoration: const BoxDecoration(color: TT.text3, shape: BoxShape.circle),
+                              width: 3,
+                              height: 3,
+                              decoration: const BoxDecoration(
+                                  color: TT.text3, shape: BoxShape.circle),
                             ),
                             const SizedBox(width: 10),
-                            Text(altSecondary, style: TT.mono(size: 11, color: TT.text3)),
+                            Text(altSecondary,
+                                style: TT.mono(size: 11, color: TT.text3)),
                           ],
                         ),
                         const SizedBox(height: 14),
@@ -2396,7 +2469,8 @@ class _AltimeterToolState extends State<_AltimeterTool> {
               _MetricSpec(
                 icon: Icons.center_focus_strong_outlined,
                 label: 'GPS Acc',
-                value: hasFix ? '+/- ${_pos!.accuracy.toStringAsFixed(0)}' : '—',
+                value:
+                    hasFix ? '+/- ${_pos!.accuracy.toStringAsFixed(0)}' : '—',
                 unit: 'm',
               ),
               _MetricSpec(
@@ -2540,15 +2614,18 @@ class _SparkPainter extends CustomPainter {
       h - 8 - ((lastValue - minV) / span) * (h - 16),
     );
     canvas.drawCircle(
-      endpoint, 5,
+      endpoint,
+      5,
       Paint()..color = const Color(0x40FF6A2C),
     );
     canvas.drawCircle(
-      endpoint, 3,
+      endpoint,
+      3,
       Paint()..color = Colors.white,
     );
     canvas.drawCircle(
-      endpoint, 3,
+      endpoint,
+      3,
       Paint()
         ..color = TT.ember
         ..style = PaintingStyle.stroke
@@ -2558,8 +2635,7 @@ class _SparkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SparkPainter old) =>
-      old.samples.length != samples.length ||
-      old.useImperial != useImperial;
+      old.samples.length != samples.length || old.useImperial != useImperial;
 }
 
 class _SparkAxisLabels extends StatelessWidget {
@@ -2620,6 +2696,7 @@ class _AltitudeHistorySheet extends StatelessWidget {
       if (d.inMinutes > 0) return '${d.inMinutes}m';
       return '${d.inSeconds}s';
     }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
       child: Column(
@@ -2628,7 +2705,8 @@ class _AltitudeHistorySheet extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                 color: TT.line2,
                 borderRadius: BorderRadius.circular(4),
@@ -2798,7 +2876,8 @@ class _SunToolState extends State<_SunTool> {
         throw Exception('Location permission required');
       }
       final p = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
       );
       if (mounted) {
         setState(() {
@@ -2941,11 +3020,15 @@ class _SunToolState extends State<_SunTool> {
                         children: [
                           Text(
                             clockNow,
-                            style: TT.numStyle(size: 38, w: FontWeight.w900, letterSpacing: -0.025 * 38),
+                            style: TT.numStyle(
+                                size: 38,
+                                w: FontWeight.w900,
+                                letterSpacing: -0.025 * 38),
                           ),
                           if (ampm.isNotEmpty) ...[
                             const SizedBox(width: 6),
-                            Text(ampm, style: TT.body(size: 16, color: TT.text2)),
+                            Text(ampm,
+                                style: TT.body(size: 16, color: TT.text2)),
                           ],
                         ],
                       ),
@@ -2953,7 +3036,8 @@ class _SunToolState extends State<_SunTool> {
                       Text(
                         status,
                         textAlign: TextAlign.center,
-                        style: TT.body(size: 11, w: FontWeight.w800, color: TT.ember)
+                        style: TT
+                            .body(size: 11, w: FontWeight.w800, color: TT.ember)
                             .copyWith(letterSpacing: 0.18 * 11),
                       ),
                       const SizedBox(height: 12),
@@ -2978,13 +3062,16 @@ class _SunToolState extends State<_SunTool> {
                 label: 'Sunrise',
                 value: sunrise != null ? _formatTime(sunrise) : '—',
                 ember: true,
-                onTap: sunrise == null ? null : () => _copyTime('Sunrise', sunrise),
+                onTap: sunrise == null
+                    ? null
+                    : () => _copyTime('Sunrise', sunrise),
               ),
               _MetricSpec(
                 icon: Icons.nights_stay_outlined,
                 label: 'Sunset',
                 value: sunset != null ? _formatTime(sunset) : '—',
-                onTap: sunset == null ? null : () => _copyTime('Sunset', sunset),
+                onTap:
+                    sunset == null ? null : () => _copyTime('Sunset', sunset),
               ),
               _MetricSpec(
                 icon: Icons.schedule,
@@ -3025,21 +3112,26 @@ class _SunToolState extends State<_SunTool> {
               child: Row(
                 children: [
                   Container(
-                    width: 32, height: 32,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: TT.emberDim,
-                      border: Border.all(color: const Color(0x52FF6A2C), width: 1),
+                      border:
+                          Border.all(color: const Color(0x52FF6A2C), width: 1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     alignment: Alignment.center,
                     child: _refreshing
                         ? const SizedBox(
-                            width: 14, height: 14,
+                            width: 14,
+                            height: 14,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2, color: TT.ember,
+                              strokeWidth: 2,
+                              color: TT.ember,
                             ),
                           )
-                        : const Icon(Icons.my_location, size: 14, color: TT.ember),
+                        : const Icon(Icons.my_location,
+                            size: 14, color: TT.ember),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -3071,7 +3163,8 @@ class _SunToolState extends State<_SunTool> {
             child: _ToolUnavailableOverlay(
               icon: Icons.wb_sunny_outlined,
               title: 'No location fix',
-              subtitle: _error ?? 'Tap refresh to enable location for live data.',
+              subtitle:
+                  _error ?? 'Tap refresh to enable location for live data.',
             ),
           ),
       ],
@@ -3119,9 +3212,7 @@ class _SunPillStrip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon,
-                  size: 12,
-                  color: disabled ? TT.text3 : color),
+              Icon(icon, size: 12, color: disabled ? TT.text3 : color),
               const SizedBox(width: 6),
               Text(
                 disabled ? '$label —' : '$label ${format(dt)}',
@@ -3176,7 +3267,8 @@ class _SunArcPainter extends CustomPainter {
 
     // Horizon line.
     canvas.drawLine(
-      const Offset(0, 130), Offset(w, 130),
+      const Offset(0, 130),
+      Offset(w, 130),
       Paint()
         ..color = const Color(0x1AFFFFFF)
         ..strokeWidth = 1,
@@ -3200,12 +3292,10 @@ class _SunArcPainter extends CustomPainter {
 
     // Sun position along the bezier at t = progress.
     final t = progress.clamp(0.0, 1.0);
-    final sunX = (1 - t) * (1 - t) * 20 +
-        2 * (1 - t) * t * (w / 2) +
-        t * t * (w - 20);
-    final sunY = (1 - t) * (1 - t) * 130 +
-        2 * (1 - t) * t * (-20) +
-        t * t * 130;
+    final sunX =
+        (1 - t) * (1 - t) * 20 + 2 * (1 - t) * t * (w / 2) + t * t * (w - 20);
+    final sunY =
+        (1 - t) * (1 - t) * 130 + 2 * (1 - t) * t * (-20) + t * t * 130;
 
     // Only show the sun when it's actually above the horizon.
     final visible = t > 0.01 && t < 0.99;
@@ -3225,13 +3315,15 @@ class _SunArcPainter extends CustomPainter {
       }
       // Sun glow + disc.
       canvas.drawCircle(
-        Offset(sunX, sunY), 22,
+        Offset(sunX, sunY),
+        22,
         Paint()
           ..color = const Color(0x66FF8A4D)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
       );
       canvas.drawCircle(
-        Offset(sunX, sunY), 14,
+        Offset(sunX, sunY),
+        14,
         Paint()..color = TT.ember2,
       );
     }
@@ -3254,16 +3346,14 @@ class _InfoTool extends StatelessWidget {
     _InfoTip(
       icon: Icons.ac_unit,
       title: 'Hypothermia warning signs',
-      body:
-          'Persistent shivering, slurred speech, clumsy hands, drowsiness — '
+      body: 'Persistent shivering, slurred speech, clumsy hands, drowsiness — '
           'tap for the full field treatment checklist.',
       detail: _hypothermiaDetail,
     ),
     _InfoTip(
       icon: Icons.healing,
       title: 'Snake bite first aid',
-      body:
-          'Stay calm, immobilise the limb, mark the swelling — never cut, '
+      body: 'Stay calm, immobilise the limb, mark the swelling — never cut, '
           'suck or apply ice. Tap for the full sequence.',
       detail: _snakeBiteDetail,
     ),
@@ -3278,8 +3368,7 @@ class _InfoTool extends StatelessWidget {
     _InfoTip(
       icon: Icons.water_drop_outlined,
       title: 'Hydration & heat',
-      body:
-          'Thirst lags 1-2 h behind real dehydration. Tap for daily intake '
+      body: 'Thirst lags 1-2 h behind real dehydration. Tap for daily intake '
           'targets and warning signs.',
       detail: _hydrationDetail,
     ),
@@ -3294,16 +3383,14 @@ class _InfoTool extends StatelessWidget {
     _InfoTip(
       icon: Icons.battery_charging_full,
       title: 'Battery and signal',
-      body:
-          'Airplane mode + offline maps multiplies battery life. Tap for the '
+      body: 'Airplane mode + offline maps multiplies battery life. Tap for the '
           'cold-weather charging trick.',
       detail: _batteryDetail,
     ),
     _InfoTip(
       icon: Icons.healing_outlined,
       title: 'Blisters and foot care',
-      body:
-          'Five minutes of taping saves a day of misery. Catch the hot spot '
+      body: 'Five minutes of taping saves a day of misery. Catch the hot spot '
           'BEFORE the blister.',
       detail: _blistersDetail,
     ),
@@ -3318,104 +3405,91 @@ class _InfoTool extends StatelessWidget {
     _InfoTip(
       icon: Icons.thermostat,
       title: 'Heatstroke vs heat exhaustion',
-      body:
-          'Cool clammy = treat. Hot dry + confused = SOS. Knowing the '
+      body: 'Cool clammy = treat. Hot dry + confused = SOS. Knowing the '
           'difference saves lives.',
       detail: _heatstrokeDetail,
     ),
     _InfoTip(
       icon: Icons.travel_explore,
       title: 'Getting lost — the STOP rule',
-      body:
-          'Stop. Think. Observe. Plan. Down beats up — but staying put beats '
+      body: 'Stop. Think. Observe. Plan. Down beats up — but staying put beats '
           'wandering.',
       detail: _gettingLostDetail,
     ),
     _InfoTip(
       icon: Icons.waves,
       title: 'River and stream crossings',
-      body:
-          'Widest point, unclip the hip belt, face upstream. When in doubt, '
+      body: 'Widest point, unclip the hip belt, face upstream. When in doubt, '
           'walk away — rivers fall fast.',
       detail: _riverCrossingDetail,
     ),
     _InfoTip(
       icon: Icons.terrain,
       title: 'Altitude sickness (AMS)',
-      body:
-          'The escarpment sits at 3,000 m+. Hangover = mild AMS. Confused or '
+      body: 'The escarpment sits at 3,000 m+. Hangover = mild AMS. Confused or '
           'breathless at rest = descend NOW.',
       detail: _altitudeDetail,
     ),
     _InfoTip(
       icon: Icons.pets_outlined,
       title: 'Wild animal encounters',
-      body:
-          'Baboons, snakes, ticks. Most flee — give them the option. Tap for '
+      body: 'Baboons, snakes, ticks. Most flee — give them the option. Tap for '
           'species-specific protocols.',
       detail: _animalsDetail,
     ),
     _InfoTip(
       icon: Icons.signpost_outlined,
       title: 'Reading maps and trail markers',
-      body:
-          'V points uphill = stream. Two compass bearings = a fix. Sun at '
+      body: 'V points uphill = stream. Two compass bearings = a fix. Sun at '
           'noon = roughly North (SH).',
       detail: _navigationDetail,
     ),
     _InfoTip(
       icon: Icons.luggage_outlined,
       title: 'Pack weight and load',
-      body:
-          '10% bodyweight for day, 20% overnight. Heavy items HIGH and CLOSE '
+      body: '10% bodyweight for day, 20% overnight. Heavy items HIGH and CLOSE '
           'to your back, not at the bottom.',
       detail: _packLoadDetail,
     ),
     _InfoTip(
       icon: Icons.hiking,
       title: 'Trekking poles',
-      body:
-          'Cut knee impact by 25% on descents. Shorten on ups, lengthen on '
+      body: 'Cut knee impact by 25% on descents. Shorten on ups, lengthen on '
           'downs. Plant opposite leg.',
       detail: _trekkingPolesDetail,
     ),
     _InfoTip(
       icon: Icons.timer_outlined,
       title: 'Naismith\'s rule — hike timing',
-      body:
-          '1 hour per 5 km, plus 1 hour per 600 m up. Add 33% for a heavy '
+      body: '1 hour per 5 km, plus 1 hour per 600 m up. Add 33% for a heavy '
           'pack. Then multiply by 1.3 for breaks.',
       detail: _timingDetail,
     ),
     _InfoTip(
       icon: Icons.alarm_outlined,
       title: 'Turnaround time discipline',
-      body:
-          'Pick the clock time before you leave. Summit fever is the #1 '
+      body: 'Pick the clock time before you leave. Summit fever is the #1 '
           'killer in mountain accident reports.',
       detail: _turnaroundDetail,
     ),
     _InfoTip(
       icon: Icons.thunderstorm_outlined,
       title: 'Drakensberg afternoon storms',
-      body:
-          'Off the escarpment by midday in summer. Towering anvil clouds = '
+      body: 'Off the escarpment by midday in summer. Towering anvil clouds = '
           'thunderstorm within 2 h.',
       detail: _bergStormsDetail,
     ),
     _InfoTip(
       icon: Icons.cottage_outlined,
       title: 'Cave and shelter etiquette',
-      body:
-          '125 surveyed caves in the bundle. No fires near rock art, no '
+      body: '125 surveyed caves in the bundle. No fires near rock art, no '
           'trace inside, share the space.',
       detail: _caveEtiquetteDetail,
     ),
     _InfoTip(
       icon: Icons.opacity_outlined,
       title: 'Water purification',
-      body:
-          'Looks pristine, carries Giardia. Boil, filter, or treat — always. '
+      body: 'Looks pristine, carries Giardia. Boil, filter, or treat — always. '
           'Tap for the three field methods.',
       detail: _waterDetail,
     ),
@@ -3473,7 +3547,8 @@ class _InfoRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36, height: 36,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: TT.emberDim,
               border: Border.all(color: const Color(0x52FF6A2C), width: 1),
@@ -3490,7 +3565,8 @@ class _InfoRow extends StatelessWidget {
                 Text(tip.title, style: TT.body(size: 13.5, w: FontWeight.w800)),
                 const SizedBox(height: 4),
                 Text(tip.body,
-                    style: TT.body(size: 11.5, color: TT.text2)
+                    style: TT
+                        .body(size: 11.5, color: TT.text2)
                         .copyWith(height: 1.45)),
               ],
             ),
@@ -3554,7 +3630,8 @@ class _InfoDetailScreen extends StatelessWidget {
                         child: Row(
                           children: [
                             Container(
-                              width: 36, height: 36,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
                                 color: TT.emberDim,
                                 border: Border.all(
@@ -3562,14 +3639,14 @@ class _InfoDetailScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               alignment: Alignment.center,
-                              child:
-                                  Icon(tip.icon, size: 16, color: TT.ember),
+                              child: Icon(tip.icon, size: 16, color: TT.ember),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Text(
                                 tip.body,
-                                style: TT.body(size: 12.5, color: TT.text2)
+                                style: TT
+                                    .body(size: 12.5, color: TT.text2)
                                     .copyWith(height: 1.5),
                               ),
                             ),
@@ -3591,15 +3668,18 @@ class _InfoDetailScreen extends StatelessWidget {
                               const SizedBox(height: 10),
                               for (var i = 0; i < section.bullets.length; i++)
                                 Padding(
-                                  padding:
-                                      EdgeInsets.only(bottom: i == section.bullets.length - 1 ? 0 : 8),
+                                  padding: EdgeInsets.only(
+                                      bottom: i == section.bullets.length - 1
+                                          ? 0
+                                          : 8),
                                   child: Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Container(
                                         margin: const EdgeInsets.only(top: 6),
-                                        width: 5, height: 5,
+                                        width: 5,
+                                        height: 5,
                                         decoration: const BoxDecoration(
                                           color: TT.ember,
                                           shape: BoxShape.circle,
@@ -3609,8 +3689,8 @@ class _InfoDetailScreen extends StatelessWidget {
                                       Expanded(
                                         child: Text(
                                           section.bullets[i],
-                                          style: TT.body(
-                                                  size: 12.5, color: TT.text)
+                                          style: TT
+                                              .body(size: 12.5, color: TT.text)
                                               .copyWith(height: 1.45),
                                         ),
                                       ),
@@ -4200,12 +4280,14 @@ class _MetricTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(spec.icon, size: 12, color: spec.ember ? TT.ember : TT.text3),
+              Icon(spec.icon,
+                  size: 12, color: spec.ember ? TT.ember : TT.text3),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   spec.label.toUpperCase(),
-                  style: TT.label(size: 9.5, color: TT.text3, letterSpacing: 0.16 * 9.5),
+                  style: TT.label(
+                      size: 9.5, color: TT.text3, letterSpacing: 0.16 * 9.5),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -4230,7 +4312,9 @@ class _MetricTile extends StatelessWidget {
               ),
               if (spec.unit != null) ...[
                 const SizedBox(width: 4),
-                Text(spec.unit!, style: TT.mono(size: 10, color: TT.text2, w: FontWeight.w600)),
+                Text(spec.unit!,
+                    style:
+                        TT.mono(size: 10, color: TT.text2, w: FontWeight.w600)),
               ],
             ],
           ),
@@ -4262,7 +4346,9 @@ class _Callout extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TT.body(size: 11, w: FontWeight.w600, color: TT.text2).copyWith(height: 1.4),
+              style: TT
+                  .body(size: 11, w: FontWeight.w600, color: TT.text2)
+                  .copyWith(height: 1.4),
             ),
           ),
           // Tiny status pill to keep the visual recipe consistent with other screens.
@@ -4283,14 +4369,17 @@ class _FadeUpDelayed extends StatefulWidget {
   State<_FadeUpDelayed> createState() => _FadeUpDelayedState();
 }
 
-class _FadeUpDelayedState extends State<_FadeUpDelayed> with SingleTickerProviderStateMixin {
+class _FadeUpDelayedState extends State<_FadeUpDelayed>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
       AnimationController(vsync: this, duration: TT.dSlow);
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(widget.delay, () { if (mounted) _ctl.forward(); });
+    Future.delayed(widget.delay, () {
+      if (mounted) _ctl.forward();
+    });
   }
 
   @override

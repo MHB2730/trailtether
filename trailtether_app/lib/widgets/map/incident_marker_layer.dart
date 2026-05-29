@@ -43,7 +43,8 @@ class _IncidentPin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = incident.type.color;
-    final hasTitle = incident.trailName != null && incident.trailName!.isNotEmpty;
+    final hasTitle =
+        incident.trailName != null && incident.trailName!.isNotEmpty;
 
     return Column(
       mainAxisSize: MainAxisSize.min,

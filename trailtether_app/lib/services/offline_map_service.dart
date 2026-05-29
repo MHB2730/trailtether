@@ -42,9 +42,8 @@ class OfflineMapService {
         ),
       );
     } catch (e, stack) {
-      LoggerService.error(
-          'OFFLINE_MAP', 'FMTC provider failed - falling back to network: $e',
-          stack);
+      LoggerService.error('OFFLINE_MAP',
+          'FMTC provider failed - falling back to network: $e', stack);
       return NetworkTileProvider(headers: headers);
     }
   }

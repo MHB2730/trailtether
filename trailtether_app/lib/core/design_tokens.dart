@@ -60,11 +60,23 @@ class TT {
 
   // ── Shadows ───────────────────────────────────────────────────────────────
   static const shadowCard = [
-    BoxShadow(color: Color(0x99000000), offset: Offset(0, 8), blurRadius: 24, spreadRadius: -12),
-    BoxShadow(color: Color(0x66000000), offset: Offset(0, 2), blurRadius: 6, spreadRadius: -2),
+    BoxShadow(
+        color: Color(0x99000000),
+        offset: Offset(0, 8),
+        blurRadius: 24,
+        spreadRadius: -12),
+    BoxShadow(
+        color: Color(0x66000000),
+        offset: Offset(0, 2),
+        blurRadius: 6,
+        spreadRadius: -2),
   ];
   static const shadowEmber = [
-    BoxShadow(color: Color(0x73FF6A2C), offset: Offset(0, 10), blurRadius: 30, spreadRadius: -8),
+    BoxShadow(
+        color: Color(0x73FF6A2C),
+        offset: Offset(0, 10),
+        blurRadius: 30,
+        spreadRadius: -8),
   ];
 
   // ── Animation curves & durations ──────────────────────────────────────────
@@ -76,14 +88,49 @@ class TT {
   static const dDraw = Duration(milliseconds: 1800);
 
   // ── Typography ────────────────────────────────────────────────────────────
-  static TextStyle title(double size, {Color? color, FontWeight w = FontWeight.w800, double letterSpacing = -0.02 * 16}) =>
-      GoogleFonts.manrope(fontSize: size, fontWeight: w, color: color ?? text, letterSpacing: letterSpacing, height: 1.1);
-  static TextStyle label({double size = 10.5, Color? color, FontWeight w = FontWeight.w700, double letterSpacing = 1.6}) =>
-      GoogleFonts.manrope(fontSize: size, fontWeight: w, color: color ?? text3, letterSpacing: letterSpacing);
-  static TextStyle body({double size = 13, Color? color, FontWeight w = FontWeight.w600}) =>
+  static TextStyle title(double size,
+          {Color? color,
+          FontWeight w = FontWeight.w800,
+          double letterSpacing = -0.02 * 16}) =>
+      GoogleFonts.manrope(
+          fontSize: size,
+          fontWeight: w,
+          color: color ?? text,
+          letterSpacing: letterSpacing,
+          height: 1.1);
+  static TextStyle label(
+          {double size = 10.5,
+          Color? color,
+          FontWeight w = FontWeight.w700,
+          double letterSpacing = 1.6}) =>
+      GoogleFonts.manrope(
+          fontSize: size,
+          fontWeight: w,
+          color: color ?? text3,
+          letterSpacing: letterSpacing);
+  static TextStyle body(
+          {double size = 13, Color? color, FontWeight w = FontWeight.w600}) =>
       GoogleFonts.manrope(fontSize: size, fontWeight: w, color: color ?? text);
-  static TextStyle mono({double size = 11, Color? color, FontWeight w = FontWeight.w700, double letterSpacing = 0.04 * 11}) =>
-      GoogleFonts.jetBrainsMono(fontSize: size, fontWeight: w, color: color ?? text2, letterSpacing: letterSpacing, fontFeatures: const [FontFeature.tabularFigures()]);
-  static TextStyle numStyle({double size = 17, Color? color, FontWeight w = FontWeight.w800, double letterSpacing = -0.02 * 17}) =>
-      GoogleFonts.jetBrainsMono(fontSize: size, fontWeight: w, color: color ?? text, letterSpacing: letterSpacing, fontFeatures: const [FontFeature.tabularFigures()]);
+  static TextStyle mono(
+          {double size = 11,
+          Color? color,
+          FontWeight w = FontWeight.w700,
+          double letterSpacing = 0.04 * 11}) =>
+      GoogleFonts.jetBrainsMono(
+          fontSize: size,
+          fontWeight: w,
+          color: color ?? text2,
+          letterSpacing: letterSpacing,
+          fontFeatures: const [FontFeature.tabularFigures()]);
+  static TextStyle numStyle(
+          {double size = 17,
+          Color? color,
+          FontWeight w = FontWeight.w800,
+          double letterSpacing = -0.02 * 17}) =>
+      GoogleFonts.jetBrainsMono(
+          fontSize: size,
+          fontWeight: w,
+          color: color ?? text,
+          letterSpacing: letterSpacing,
+          fontFeatures: const [FontFeature.tabularFigures()]);
 }

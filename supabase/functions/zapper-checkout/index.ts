@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     `${ZAPPER_API_BASE}/business/api/v1/merchants/${encodeURIComponent(ZAPPER_MERCHANT_ID)}` +
     `/sites/${encodeURIComponent(ZAPPER_SITE_ID)}/invoices`;
 
-  console.log(`[zapper-checkout] POST ${invoiceUrl} amount=${invoicePayload.amount} mid_len=${ZAPPER_MERCHANT_ID.length} sid_len=${ZAPPER_SITE_ID.length} key_len=${ZAPPER_API_KEY.length} key_head=${ZAPPER_API_KEY.slice(0,4)}`);
+  console.log(`[zapper-checkout] POST ${invoiceUrl} amount=${invoicePayload.amount} mid_len=${ZAPPER_MERCHANT_ID.length} sid_len=${ZAPPER_SITE_ID.length} key_len=${ZAPPER_API_KEY.length}`);
   const fetchStart = Date.now();
   let zapperResp: Response;
   const ctrl = new AbortController();

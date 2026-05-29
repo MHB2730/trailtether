@@ -25,8 +25,8 @@ import '../../widgets/map/trail_map_3d_widget.dart';
 import '../../providers/static_data_provider.dart';
 import '../../providers/safety_provider.dart';
 import '../trail_detail_screen.dart';
-import '../incident_detail_sheet.dart';
-import '../cave_detail_sheet.dart';
+import '../../widgets/incident_detail_sheet.dart';
+import '../../widgets/cave_detail_sheet.dart';
 
 class MissionControlTab extends StatefulWidget {
   const MissionControlTab({super.key});
@@ -212,8 +212,8 @@ class _MissionControlTabState extends State<MissionControlTab> {
       if (!mounted) return;
       setState(() => _liveTracks = grouped);
     } catch (e, stack) {
-      LoggerService.error('ADMIN_LIVE',
-          'Error loading track points: $e', stack);
+      LoggerService.error(
+          'ADMIN_LIVE', 'Error loading track points: $e', stack);
     }
   }
 
@@ -299,7 +299,6 @@ class _MissionControlTabState extends State<MissionControlTab> {
     if (lines.isEmpty) return const SizedBox.shrink();
     return PolylineLayer(polylines: lines);
   }
-
 
   void _updateLocalLocation(TeamMemberLocation loc) {
     if (!mounted) return;
@@ -739,13 +738,16 @@ class _MissionControlTabState extends State<MissionControlTab> {
                     incidents: context.watch<SafetyProvider>().incidents,
                     teamLocations: _locations.values.toList(),
                     onTrailTap: (trailId) {
-                      final trails = context.read<StaticDataProvider>().allTrails;
-                      final trail = trails.firstWhere((t) => t.id == trailId, orElse: () => trails.first);
+                      final trails =
+                          context.read<StaticDataProvider>().allTrails;
+                      final trail = trails.firstWhere((t) => t.id == trailId,
+                          orElse: () => trails.first);
                       showModalBottomSheet(
                         context: context,
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
-                        builder: (_) => TrailDetailScreen(trail: trail, onNavigateToMap: () {}),
+                        builder: (_) => TrailDetailScreen(
+                            trail: trail, onNavigateToMap: () {}),
                       );
                     },
                     onIncidentTap: (incident) {
@@ -763,7 +765,8 @@ class _MissionControlTabState extends State<MissionControlTab> {
                         context: context,
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
-                        builder: (_) => TrailDetailScreen(trail: trail, onNavigateToMap: () {}),
+                        builder: (_) => TrailDetailScreen(
+                            trail: trail, onNavigateToMap: () {}),
                       );
                     },
                     onGpxTap: (track) {
@@ -838,69 +841,74 @@ class _MissionControlTabState extends State<MissionControlTab> {
                 width: 320,
                 decoration: BoxDecoration(
                   color: kColorBg.withOpacity(0.8),
-                  border: const Border(left: BorderSide(color: kColorBorder, width: 1)),
+                  border: const Border(
+                      left: BorderSide(color: kColorBorder, width: 1)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSidebarHeader(),
-                Expanded(
-                  child: _loading
-                      ? const Center(
-                          child: CircularProgressIndicator(color: kColorOrange))
-                      : _showIncidentsList
-                          ? Consumer<SafetyProvider>(
-                              builder: (context, safety, child) {
-                                final incidents = safety.incidents;
-                                if (incidents.isEmpty) {
-                                  return _buildEmptyState('No active incidents.');
-                                }
-                                return ListView.separated(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16),
-                                  itemCount: incidents.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 8),
-                                  itemBuilder: (context, index) =>
-                                      _buildIncidentCard(incidents[index]),
-                                );
-                              },
-                            )
-                          : _locations.isEmpty
-                              ? _buildEmptyState('No active tracking data.')
-                              : Builder(builder: (_) {
-                                  // Sort roster: SOS/help first, then live, recent, lost.
-                                  // Within each band, most recent timestamp first.
-                                  final sorted = _locations.values.toList()
-                                    ..sort((a, b) {
-                                      int rank(TeamMemberLocation l) {
-                                        if (l.status == 'sos' ||
-                                            l.status == 'help') return 0;
-                                        if (l.isLive) return 1;
-                                        if (l.isRecent) return 2;
-                                        return 3;
-                                      }
-                                      final r = rank(a).compareTo(rank(b));
-                                      if (r != 0) return r;
-                                      return b.timestamp.compareTo(a.timestamp);
-                                    });
-                                  return ListView.separated(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    itemCount: sorted.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(height: 8),
-                                    itemBuilder: (context, index) =>
-                                        _buildHikerCard(sorted[index]),
-                                  );
-                                }),
-                ),
-                _buildAdminActions(),
-                    ],
-                  ),
+                    Expanded(
+                      child: _loading
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                  color: kColorOrange))
+                          : _showIncidentsList
+                              ? Consumer<SafetyProvider>(
+                                  builder: (context, safety, child) {
+                                    final incidents = safety.incidents;
+                                    if (incidents.isEmpty) {
+                                      return _buildEmptyState(
+                                          'No active incidents.');
+                                    }
+                                    return ListView.separated(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16),
+                                      itemCount: incidents.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 8),
+                                      itemBuilder: (context, index) =>
+                                          _buildIncidentCard(incidents[index]),
+                                    );
+                                  },
+                                )
+                              : _locations.isEmpty
+                                  ? _buildEmptyState('No active tracking data.')
+                                  : Builder(builder: (_) {
+                                      // Sort roster: SOS/help first, then live, recent, lost.
+                                      // Within each band, most recent timestamp first.
+                                      final sorted = _locations.values.toList()
+                                        ..sort((a, b) {
+                                          int rank(TeamMemberLocation l) {
+                                            if (l.status == 'sos' ||
+                                                l.status == 'help') return 0;
+                                            if (l.isLive) return 1;
+                                            if (l.isRecent) return 2;
+                                            return 3;
+                                          }
+
+                                          final r = rank(a).compareTo(rank(b));
+                                          if (r != 0) return r;
+                                          return b.timestamp
+                                              .compareTo(a.timestamp);
+                                        });
+                                      return ListView.separated(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16),
+                                        itemCount: sorted.length,
+                                        separatorBuilder: (_, __) =>
+                                            const SizedBox(height: 8),
+                                        itemBuilder: (context, index) =>
+                                            _buildHikerCard(sorted[index]),
+                                      );
+                                    }),
+                    ),
+                    _buildAdminActions(),
+                  ],
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -1012,13 +1020,22 @@ class _MissionControlTabState extends State<MissionControlTab> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? kColorOrange.withOpacity(0.2) : Colors.white.withOpacity(0.03),
+          color: active
+              ? kColorOrange.withOpacity(0.2)
+              : Colors.white.withOpacity(0.03),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: active ? kColorOrange.withOpacity(0.5) : Colors.white.withOpacity(0.05)),
-          boxShadow: active ? [
-            BoxShadow(color: kColorOrange.withOpacity(0.1), blurRadius: 10, spreadRadius: 1)
-          ] : null,
+              color: active
+                  ? kColorOrange.withOpacity(0.5)
+                  : Colors.white.withOpacity(0.05)),
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                      color: kColorOrange.withOpacity(0.1),
+                      blurRadius: 10,
+                      spreadRadius: 1)
+                ]
+              : null,
         ),
         child: Text(
           label,
@@ -1063,10 +1080,10 @@ class _MissionControlTabState extends State<MissionControlTab> {
             ? '${(loc.ageSeconds / 60).floor()}m'
             : '${(loc.ageSeconds / 60).floor()}m lost';
     final speedKmh = loc.speed * 3.6;
-    final hasStatusBadge =
-        loc.status != null && loc.status!.isNotEmpty && loc.status != 'Tracking';
-    final bool emergencyStatus =
-        loc.status == 'help' || loc.status == 'sos';
+    final hasStatusBadge = loc.status != null &&
+        loc.status!.isNotEmpty &&
+        loc.status != 'Tracking';
+    final bool emergencyStatus = loc.status == 'help' || loc.status == 'sos';
 
     return InkWell(
       onTap: () => _mapController.move(LatLng(loc.lat, loc.lon), 15),
@@ -1140,20 +1157,17 @@ class _MissionControlTabState extends State<MissionControlTab> {
             const SizedBox(height: 8),
             Row(
               children: [
-                _miniStat(
-                    Icons.speed, units.formatSpeed(speedKmh)),
+                _miniStat(Icons.speed, units.formatSpeed(speedKmh)),
                 const SizedBox(width: 12),
                 _miniStat(Icons.terrain, '${loc.altitude.round()}m'),
                 const SizedBox(width: 12),
-                _miniStat(
-                    Icons.explore, '${loc.heading.round()}°'),
+                _miniStat(Icons.explore, '${loc.heading.round()}°'),
               ],
             ),
             if (hasStatusBadge) ...[
               const SizedBox(height: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: emergencyStatus
                       ? Colors.redAccent.withOpacity(0.2)
@@ -1235,8 +1249,8 @@ class _MissionControlTabState extends State<MissionControlTab> {
                       fontWeight: FontWeight.w700)),
             ),
             ListTile(
-              leading: const Icon(Icons.center_focus_strong,
-                  color: kColorOrange),
+              leading:
+                  const Icon(Icons.center_focus_strong, color: kColorOrange),
               title: const Text('Focus on map',
                   style: TextStyle(color: Colors.white)),
               onTap: () {
@@ -1258,8 +1272,7 @@ class _MissionControlTabState extends State<MissionControlTab> {
               },
             ),
             ListTile(
-              leading:
-                  const Icon(Icons.campaign, color: kColorOrange),
+              leading: const Icon(Icons.campaign, color: kColorOrange),
               title: const Text('Send broadcast to all',
                   style: TextStyle(color: Colors.white)),
               onTap: () {
@@ -1547,7 +1560,8 @@ class _MissionControlTabState extends State<MissionControlTab> {
                     _zonePoints = [];
                     _routePoints = [];
                   }),
-                  icon: const Icon(Icons.close, color: Colors.redAccent, size: 18),
+                  icon: const Icon(Icons.close,
+                      color: Colors.redAccent, size: 18),
                 ),
               ],
             ],
@@ -1719,7 +1733,8 @@ class _MissionControlTabState extends State<MissionControlTab> {
           decoration: BoxDecoration(
             color: kColorBg.withOpacity(0.75),
             borderRadius: BorderRadius.circular(kRadiusPremium),
-            border: Border.all(color: kColorOrange.withOpacity(0.3), width: 1.5),
+            border:
+                Border.all(color: kColorOrange.withOpacity(0.3), width: 1.5),
             boxShadow: [
               BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 40)
             ],
@@ -1744,8 +1759,8 @@ class _MissionControlTabState extends State<MissionControlTab> {
                     ),
                   ),
                   IconButton(
-                    icon:
-                        const Icon(Icons.close, color: Colors.white54, size: 20),
+                    icon: const Icon(Icons.close,
+                        color: Colors.white54, size: 20),
                     onPressed: () => setState(() => _selectedObject = null),
                   ),
                 ],

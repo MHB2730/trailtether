@@ -10,12 +10,17 @@ class TTAmbient extends StatefulWidget {
   State<TTAmbient> createState() => _TTAmbientState();
 }
 
-class _TTAmbientState extends State<TTAmbient> with SingleTickerProviderStateMixin {
+class _TTAmbientState extends State<TTAmbient>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: const Duration(seconds: 14))..repeat(reverse: true);
+      AnimationController(vsync: this, duration: const Duration(seconds: 14))
+        ..repeat(reverse: true);
 
   @override
-  void dispose() { _ctl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,12 +76,17 @@ class TTShimmerBand extends StatefulWidget {
   State<TTShimmerBand> createState() => _TTShimmerBandState();
 }
 
-class _TTShimmerBandState extends State<TTShimmerBand> with SingleTickerProviderStateMixin {
+class _TTShimmerBandState extends State<TTShimmerBand>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+      AnimationController(vsync: this, duration: const Duration(seconds: 4))
+        ..repeat();
 
   @override
-  void dispose() { _ctl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +107,11 @@ class _TTShimmerBandState extends State<TTShimmerBand> with SingleTickerProvider
                       gradient: LinearGradient(
                         begin: Alignment(-0.5, -0.2),
                         end: Alignment(0.5, 0.2),
-                        colors: [Color(0x00FFFFFF), Color(0x2EFFFFFF), Color(0x00FFFFFF)],
+                        colors: [
+                          Color(0x00FFFFFF),
+                          Color(0x2EFFFFFF),
+                          Color(0x00FFFFFF)
+                        ],
                         stops: [0.3, 0.5, 0.7],
                       ),
                     ),

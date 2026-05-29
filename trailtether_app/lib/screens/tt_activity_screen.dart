@@ -27,6 +27,7 @@ import 'tt_profile_screen.dart';
 
 class TTActivityScreen extends StatefulWidget {
   final bool embedded;
+
   /// Optional shell callback for switching the surrounding bottom-nav tab.
   /// When provided, the avatar badge taps `5` to surface the Profile tab
   /// instead of pushing a fresh route — keeping the v3.0 AppShell flow stable.
@@ -86,7 +87,8 @@ class _TTActivityScreenState extends State<TTActivityScreen> {
                   child: AnimatedSwitcher(
                     duration: TT.dMed,
                     child: _tab == 1
-                        ? _OverallStats(key: const ValueKey('overall'), hikes: hikes)
+                        ? _OverallStats(
+                            key: const ValueKey('overall'), hikes: hikes)
                         : _MyHikes(key: const ValueKey('mine'), hikes: hikes),
                   ),
                 ),
@@ -123,7 +125,8 @@ class _AvatarBadge extends StatelessWidget {
             gradient: hasPhoto
                 ? null
                 : const LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [Color(0xFF6B3A1A), TT.ember2],
                   ),
             image: hasPhoto
@@ -132,13 +135,17 @@ class _AvatarBadge extends StatelessWidget {
                     fit: BoxFit.cover,
                   )
                 : null,
-            boxShadow: const [BoxShadow(color: Color(0x66FF6A2C), blurRadius: 12, spreadRadius: 0)],
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x66FF6A2C), blurRadius: 12, spreadRadius: 0)
+            ],
           ),
           alignment: Alignment.center,
           child: hasPhoto
               ? null
               : Text(_initials(auth),
-                  style: TT.body(size: 13, w: FontWeight.w800, color: Colors.white)),
+                  style: TT.body(
+                      size: 13, w: FontWeight.w800, color: Colors.white)),
         ),
       );
     });
@@ -147,7 +154,8 @@ class _AvatarBadge extends StatelessWidget {
   String _initials(AuthProvider auth) {
     final name = (auth.displayName ?? '').trim();
     if (name.isNotEmpty) {
-      final parts = name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      final parts =
+          name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
       if (parts.length >= 2) {
         return (parts.first[0] + parts.last[0]).toUpperCase();
       }
@@ -185,7 +193,10 @@ class _OverallStats extends StatelessWidget {
         const SizedBox(height: 14),
         _StatGrid(hikes: hikes),
         const SizedBox(height: 24),
-        _RecentActivity(hikes: hikes.length > 1 ? hikes.sublist(1, hikes.length > 4 ? 4 : hikes.length) : const []),
+        _RecentActivity(
+            hikes: hikes.length > 1
+                ? hikes.sublist(1, hikes.length > 4 ? 4 : hikes.length)
+                : const []),
       ],
     );
   }
@@ -233,7 +244,8 @@ class _FeaturedHike extends StatelessWidget {
     final ascent = NumberFormat.decimalPattern()
         .format(units.elevationFromM(h.ascentM.toDouble()).round());
     final elevUnit = units.elevationUnit;
-    final samples = h.points.length > 4 ? h.points.map((p) => p.altitude).toList() : null;
+    final samples =
+        h.points.length > 4 ? h.points.map((p) => p.altitude).toList() : null;
 
     void openDetail() => Navigator.push(
           context,
@@ -253,11 +265,13 @@ class _FeaturedHike extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const TTPill(label: 'LAST HIKE', variant: TTPillVariant.ember),
+                    const TTPill(
+                        label: 'LAST HIKE', variant: TTPillVariant.ember),
                     const SizedBox(height: 8),
                     Text(name, style: TT.title(17, letterSpacing: -0.01 * 17)),
                     const SizedBox(height: 4),
-                    Text('$date · $dist $distUnit · ↑ $ascent ${elevUnit.toUpperCase()}',
+                    Text(
+                        '$date · $dist $distUnit · ↑ $ascent ${elevUnit.toUpperCase()}',
                         style: TT.mono(size: 10.5, color: TT.text3)),
                   ],
                 ),
@@ -266,7 +280,10 @@ class _FeaturedHike extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          TTBigElevChart(samples: samples, peakLabel: '$dist $distUnit · $ascent $elevUnit', elevationUnit: elevUnit),
+          TTBigElevChart(
+              samples: samples,
+              peakLabel: '$dist $distUnit · $ascent $elevUnit',
+              elevationUnit: elevUnit),
         ],
       ),
     );
@@ -364,11 +381,18 @@ class _HealthSyncState extends State<_HealthSync> {
         child: Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              begin: Alignment(-0.85, -0.5), end: Alignment(0.85, 0.5),
+              begin: Alignment(-0.85, -0.5),
+              end: Alignment(0.85, 0.5),
               colors: [TT.ember, TT.ember2],
             ),
             borderRadius: BorderRadius.circular(14),
-            boxShadow: const [BoxShadow(color: Color(0x8CFF6A2C), offset: Offset(0, 10), blurRadius: 24, spreadRadius: -8)],
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x8CFF6A2C),
+                  offset: Offset(0, 10),
+                  blurRadius: 24,
+                  spreadRadius: -8)
+            ],
           ),
           child: Stack(
             children: [
@@ -378,13 +402,15 @@ class _HealthSyncState extends State<_HealthSync> {
                 child: Row(
                   children: [
                     Container(
-                      width: 38, height: 38,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
                         color: const Color(0x52000000),
                         borderRadius: BorderRadius.circular(11),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.favorite, size: 19, color: TT.emberInk),
+                      child: const Icon(Icons.favorite,
+                          size: 19, color: TT.emberInk),
                     ),
                     const SizedBox(width: 13),
                     Expanded(
@@ -395,17 +421,24 @@ class _HealthSyncState extends State<_HealthSync> {
                             _lastSyncedAt != null && _lastError == null
                                 ? 'Synced to Health Connect'
                                 : 'Sync to Health Connect',
-                            style: TT.body(size: 13, w: FontWeight.w900, color: TT.emberInk),
+                            style: TT.body(
+                                size: 13,
+                                w: FontWeight.w900,
+                                color: TT.emberInk),
                           ),
                           const SizedBox(height: 3),
                           Text(_statusLine(),
-                              style: TT.mono(size: 10, color: TT.emberInk).copyWith(letterSpacing: 0.08 * 10)),
+                              style: TT
+                                  .mono(size: 10, color: TT.emberInk)
+                                  .copyWith(letterSpacing: 0.08 * 10)),
                         ],
                       ),
                     ),
                     Container(
-                      width: 30, height: 30,
-                      decoration: const BoxDecoration(color: Color(0xD9000000), shape: BoxShape.circle),
+                      width: 30,
+                      height: 30,
+                      decoration: const BoxDecoration(
+                          color: Color(0xD9000000), shape: BoxShape.circle),
                       alignment: Alignment.center,
                       child: _busy
                           ? const SizedBox(
@@ -445,15 +478,43 @@ class _StatGrid extends StatelessWidget {
     final totDistKm = hikes.fold<double>(0, (a, h) => a + h.distanceKm);
     final totDur = hikes.fold<int>(0, (a, h) => a + h.durationSeconds);
     final totGain = hikes.fold<int>(0, (a, h) => a + h.ascentM);
-    final totSteps = hikes.fold<int>(0, (a, h) => a + (h.distanceKm * 1312).round()); // rough
+    final totSteps = hikes.fold<int>(
+        0, (a, h) => a + (h.distanceKm * 1312).round()); // rough
 
     final tiles = [
-      _Tile(icon: Icons.place_outlined,     label: 'Distance',  value: units.distanceFromKm(totDistKm).toStringAsFixed(1), unit: units.distanceUnit),
-      _Tile(icon: Icons.schedule,            label: 'Duration',  value: _formatDuration(totDur),                   unit: null),
-      _Tile(icon: Icons.explore_outlined,    label: 'Avg Pace',  value: units.formatPace(totDur, totDistKm),       unit: units.paceUnit),
-      _Tile(icon: Icons.arrow_upward,        label: 'Elev Gain', value: NumberFormat.decimalPattern().format(units.elevationFromM(totGain.toDouble()).round()), unit: units.elevationUnit, ember: true),
-      _Tile(icon: Icons.local_fire_department_outlined, label: 'Calories',  value: NumberFormat.decimalPattern().format((totDistKm * 116.7).round()), unit: 'kcal'),
-      _Tile(icon: Icons.directions_walk,     label: 'Steps',     value: NumberFormat.decimalPattern().format(totSteps), unit: null),
+      _Tile(
+          icon: Icons.place_outlined,
+          label: 'Distance',
+          value: units.distanceFromKm(totDistKm).toStringAsFixed(1),
+          unit: units.distanceUnit),
+      _Tile(
+          icon: Icons.schedule,
+          label: 'Duration',
+          value: _formatDuration(totDur),
+          unit: null),
+      _Tile(
+          icon: Icons.explore_outlined,
+          label: 'Avg Pace',
+          value: units.formatPace(totDur, totDistKm),
+          unit: units.paceUnit),
+      _Tile(
+          icon: Icons.arrow_upward,
+          label: 'Elev Gain',
+          value: NumberFormat.decimalPattern()
+              .format(units.elevationFromM(totGain.toDouble()).round()),
+          unit: units.elevationUnit,
+          ember: true),
+      _Tile(
+          icon: Icons.local_fire_department_outlined,
+          label: 'Calories',
+          value:
+              NumberFormat.decimalPattern().format((totDistKm * 116.7).round()),
+          unit: 'kcal'),
+      _Tile(
+          icon: Icons.directions_walk,
+          label: 'Steps',
+          value: NumberFormat.decimalPattern().format(totSteps),
+          unit: null),
     ];
 
     return GridView.builder(
@@ -489,7 +550,12 @@ class _Tile extends StatelessWidget {
   final String value;
   final String? unit;
   final bool ember;
-  const _Tile({required this.icon, required this.label, required this.value, this.unit, this.ember = false});
+  const _Tile(
+      {required this.icon,
+      required this.label,
+      required this.value,
+      this.unit,
+      this.ember = false});
 
   @override
   Widget build(BuildContext context) {
@@ -504,10 +570,13 @@ class _Tile extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 22, height: 22,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                   color: ember ? TT.emberDim : const Color(0x08FFFFFF),
-                  border: Border.all(color: ember ? const Color(0x52FF6A2C) : TT.line2, width: 1),
+                  border: Border.all(
+                      color: ember ? const Color(0x52FF6A2C) : TT.line2,
+                      width: 1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 alignment: Alignment.center,
@@ -550,18 +619,24 @@ class _FadeUpDelayed extends StatefulWidget {
   State<_FadeUpDelayed> createState() => _FadeUpDelayedState();
 }
 
-class _FadeUpDelayedState extends State<_FadeUpDelayed> with SingleTickerProviderStateMixin {
+class _FadeUpDelayedState extends State<_FadeUpDelayed>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
       AnimationController(vsync: this, duration: TT.dSlow);
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(widget.delay, () { if (mounted) _ctl.forward(); });
+    Future.delayed(widget.delay, () {
+      if (mounted) _ctl.forward();
+    });
   }
 
   @override
-  void dispose() { _ctl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -571,7 +646,8 @@ class _FadeUpDelayedState extends State<_FadeUpDelayed> with SingleTickerProvide
         final t = TT.easeOut.transform(_ctl.value);
         return Opacity(
           opacity: t,
-          child: Transform.translate(offset: Offset(0, (1 - t) * 14), child: widget.child),
+          child: Transform.translate(
+              offset: Offset(0, (1 - t) * 14), child: widget.child),
         );
       },
     );
@@ -599,7 +675,8 @@ class _RecentActivity extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('RECENT ACTIVITY',
-                  style: TT.label(size: 11, color: TT.text2, letterSpacing: 0.16 * 11)),
+                  style: TT.label(
+                      size: 11, color: TT.text2, letterSpacing: 0.16 * 11)),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => Navigator.push(
@@ -609,7 +686,8 @@ class _RecentActivity extends StatelessWidget {
                   ),
                 ),
                 child: Text('VIEW ALL →',
-                    style: TT.body(size: 10, w: FontWeight.w800, color: TT.ember)
+                    style: TT
+                        .body(size: 10, w: FontWeight.w800, color: TT.ember)
                         .copyWith(letterSpacing: 0.1 * 10)),
               ),
             ],
@@ -638,7 +716,8 @@ class _ActivityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final units = context.watch<UnitsProvider>();
     final date = DateFormat('MMM d').format(hike.startedAt);
-    final dist = '${units.distanceFromKm(hike.distanceKm).toStringAsFixed(1)} ${units.distanceUnit}';
+    final dist =
+        '${units.distanceFromKm(hike.distanceKm).toStringAsFixed(1)} ${units.distanceUnit}';
     final gain =
         '+${NumberFormat.decimalPattern().format(units.elevationFromM(hike.ascentM.toDouble()).round())}';
     final elevUnit = units.elevationUnit;
@@ -657,13 +736,19 @@ class _ActivityRow extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              left: 0, top: 10, bottom: 10,
+              left: 0,
+              top: 10,
+              bottom: 10,
               child: Container(
                 width: 3,
                 decoration: const BoxDecoration(
                   color: TT.ember,
-                  borderRadius: BorderRadius.only(topRight: Radius.circular(2), bottomRight: Radius.circular(2)),
-                  boxShadow: [BoxShadow(color: Color(0x66FF6A2C), blurRadius: 8)],
+                  borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(2),
+                      bottomRight: Radius.circular(2)),
+                  boxShadow: [
+                    BoxShadow(color: Color(0x66FF6A2C), blurRadius: 8)
+                  ],
                 ),
               ),
             ),
@@ -672,7 +757,8 @@ class _ActivityRow extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 42, height: 42,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
                       color: TT.bg3,
                       border: Border.all(color: TT.line, width: 1),
@@ -685,7 +771,8 @@ class _ActivityRow extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(hike.name, style: TT.body(size: 13.5, w: FontWeight.w800)),
+                        Text(hike.name,
+                            style: TT.body(size: 13.5, w: FontWeight.w800)),
                         const SizedBox(height: 3),
                         Text(date, style: TT.mono(size: 10.5, color: TT.text3)),
                       ],
@@ -694,10 +781,12 @@ class _ActivityRow extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(dist, style: TT.numStyle(size: 13, w: FontWeight.w800)),
+                      Text(dist,
+                          style: TT.numStyle(size: 13, w: FontWeight.w800)),
                       const SizedBox(height: 3),
                       Text('$gain $elevUnit',
-                          style: TT.mono(size: 10.5, color: TT.ember, w: FontWeight.w700)),
+                          style: TT.mono(
+                              size: 10.5, color: TT.ember, w: FontWeight.w700)),
                     ],
                   ),
                 ],
@@ -722,8 +811,14 @@ class _MiniRoutePainter extends CustomPainter {
       ..color = const Color(0xFF2A3038)
       ..strokeWidth = 0.4
       ..style = PaintingStyle.stroke;
-    final bg1 = Path()..moveTo(0, h * 0.45)..quadraticBezierTo(w * 0.3, h * 0.3, w * 0.5, h * 0.45)..quadraticBezierTo(w * 0.75, h * 0.6, w, h * 0.55);
-    final bg2 = Path()..moveTo(0, h * 0.7)..quadraticBezierTo(w * 0.3, h * 0.55, w * 0.5, h * 0.7)..quadraticBezierTo(w * 0.75, h * 0.85, w, h * 0.75);
+    final bg1 = Path()
+      ..moveTo(0, h * 0.45)
+      ..quadraticBezierTo(w * 0.3, h * 0.3, w * 0.5, h * 0.45)
+      ..quadraticBezierTo(w * 0.75, h * 0.6, w, h * 0.55);
+    final bg2 = Path()
+      ..moveTo(0, h * 0.7)
+      ..quadraticBezierTo(w * 0.3, h * 0.55, w * 0.5, h * 0.7)
+      ..quadraticBezierTo(w * 0.75, h * 0.85, w, h * 0.75);
     canvas.drawPath(bg1, bgPaint);
     canvas.drawPath(bg2, bgPaint);
 
@@ -788,7 +883,10 @@ class _MyHikes extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text('TOTAL HIKES',
-                      style: TT.label(size: 10.5, color: TT.text3, letterSpacing: 0.14 * 10.5)),
+                      style: TT.label(
+                          size: 10.5,
+                          color: TT.text3,
+                          letterSpacing: 0.14 * 10.5)),
                 ],
               ),
               Column(
@@ -800,15 +898,22 @@ class _MyHikes extends StatelessWidget {
                     children: [
                       TTCountUp(
                         text: totDistDisplay.toStringAsFixed(0),
-                        style: TT.numStyle(size: 30, color: TT.ember, letterSpacing: -0.02 * 30),
+                        style: TT.numStyle(
+                            size: 30,
+                            color: TT.ember,
+                            letterSpacing: -0.02 * 30),
                       ),
                       const SizedBox(width: 3),
-                      Text(units.distanceUnit, style: TT.body(size: 14, color: TT.text2)),
+                      Text(units.distanceUnit,
+                          style: TT.body(size: 14, color: TT.text2)),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text('LIFETIME',
-                      style: TT.label(size: 10.5, color: TT.text3, letterSpacing: 0.14 * 10.5)),
+                      style: TT.label(
+                          size: 10.5,
+                          color: TT.text3,
+                          letterSpacing: 0.14 * 10.5)),
                 ],
               ),
             ],
@@ -849,7 +954,8 @@ class _HikeRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final units = context.watch<UnitsProvider>();
     final dur = Duration(seconds: hike.durationSeconds);
-    final durText = '${dur.inHours}:${(dur.inMinutes % 60).toString().padLeft(2, '0')}:${(dur.inSeconds % 60).toString().padLeft(2, '0')}';
+    final durText =
+        '${dur.inHours}:${(dur.inMinutes % 60).toString().padLeft(2, '0')}:${(dur.inSeconds % 60).toString().padLeft(2, '0')}';
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => Navigator.push(
@@ -865,13 +971,19 @@ class _HikeRow extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              left: 0, top: 10, bottom: 10,
+              left: 0,
+              top: 10,
+              bottom: 10,
               child: Container(
                 width: 3,
                 decoration: const BoxDecoration(
                   color: TT.ember,
-                  borderRadius: BorderRadius.only(topRight: Radius.circular(2), bottomRight: Radius.circular(2)),
-                  boxShadow: [BoxShadow(color: Color(0x66FF6A2C), blurRadius: 8)],
+                  borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(2),
+                      bottomRight: Radius.circular(2)),
+                  boxShadow: [
+                    BoxShadow(color: Color(0x66FF6A2C), blurRadius: 8)
+                  ],
                 ),
               ),
             ),
@@ -880,7 +992,8 @@ class _HikeRow extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 46, height: 46,
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
                       color: TT.bg3,
                       border: Border.all(color: TT.line, width: 1),
@@ -893,9 +1006,11 @@ class _HikeRow extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(hike.name, style: TT.body(size: 14, w: FontWeight.w800)),
+                        Text(hike.name,
+                            style: TT.body(size: 14, w: FontWeight.w800)),
                         const SizedBox(height: 3),
-                        Text('${DateFormat('MMM d').format(hike.startedAt)} · $durText',
+                        Text(
+                            '${DateFormat('MMM d').format(hike.startedAt)} · $durText',
                             style: TT.mono(size: 10.5, color: TT.text3)),
                       ],
                     ),
@@ -903,11 +1018,14 @@ class _HikeRow extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('${units.distanceFromKm(hike.distanceKm).toStringAsFixed(1)} ${units.distanceUnit}',
+                      Text(
+                          '${units.distanceFromKm(hike.distanceKm).toStringAsFixed(1)} ${units.distanceUnit}',
                           style: TT.numStyle(size: 13, w: FontWeight.w800)),
                       const SizedBox(height: 3),
-                      Text('+${NumberFormat.decimalPattern().format(units.elevationFromM(hike.ascentM.toDouble()).round())} ${units.elevationUnit}',
-                          style: TT.mono(size: 10.5, color: TT.ember, w: FontWeight.w700)),
+                      Text(
+                          '+${NumberFormat.decimalPattern().format(units.elevationFromM(hike.ascentM.toDouble()).round())} ${units.elevationUnit}',
+                          style: TT.mono(
+                              size: 10.5, color: TT.ember, w: FontWeight.w700)),
                     ],
                   ),
                 ],

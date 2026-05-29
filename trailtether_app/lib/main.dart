@@ -31,6 +31,7 @@ import 'providers/weather_provider.dart';
 import 'providers/team_tracking_provider.dart';
 import 'screens/auth_gate.dart';
 import 'widgets/update_banner.dart';
+import 'services/telemetry_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,12 +40,17 @@ void main() async {
   await LoggerService.init();
   LoggerService.log('SYSTEM', 'App launching...');
 
+  // 1b. Initialize Telemetry (Sentry)
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+  await TelemetryService.init(dsn: sentryDsn);
+
   // 2. Initialize Offline Maps (FMTC)
   try {
     await OfflineMapService.init();
     LoggerService.log('SYSTEM', 'Offline Map Service initialized');
   } catch (e) {
-    LoggerService.error('SYSTEM', 'Offline Map Service initialization failed: $e');
+    LoggerService.error(
+        'SYSTEM', 'Offline Map Service initialization failed: $e');
   }
 
   // 3. Initialize Supabase
@@ -82,7 +88,8 @@ void main() async {
   // top or bottom edge surfaces them briefly then auto-hides again.
   // This gives the map / hero photo every pixel of the screen — true
   // full-screen — without the user losing access to system gestures.
-  unawaited(SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]));
+  unawaited(
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]));
   unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,

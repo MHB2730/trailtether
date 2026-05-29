@@ -185,9 +185,7 @@ String _initialsFor(String name) {
   final parts = trimmed.split(RegExp(r'\s+'));
   if (parts.length == 1) {
     final p = parts.first;
-    return p.length >= 2
-        ? p.substring(0, 2).toUpperCase()
-        : p[0].toUpperCase();
+    return p.length >= 2 ? p.substring(0, 2).toUpperCase() : p[0].toUpperCase();
   }
   return (parts.first[0] + parts.last[0]).toUpperCase();
 }
@@ -351,7 +349,8 @@ class _EmptyFeed extends StatelessWidget {
               ? 'No posts match your search.'
               : 'No activity yet. When your team starts hiking, posts appear here.',
           textAlign: TextAlign.center,
-          style: TT.body(size: 13, w: FontWeight.w500, color: TT.text3)
+          style: TT
+              .body(size: 13, w: FontWeight.w500, color: TT.text3)
               .copyWith(height: 1.5),
         ),
       ),
@@ -383,12 +382,14 @@ class _ComposePrompt extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 34, height: 34,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: TT.ember, width: 2),
                   gradient: const LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [Color(0xFF6B3A1A), TT.ember2],
                   ),
                 ),
@@ -406,14 +407,16 @@ class _ComposePrompt extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Container(
-                width: 32, height: 32,
+                width: 32,
+                height: 32,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: const Color(0x08FFFFFF),
                   border: Border.all(color: TT.line, width: 1),
                   borderRadius: BorderRadius.circular(TT.rMd),
                 ),
-                child: const Icon(Icons.edit_outlined, size: 14, color: TT.ember),
+                child:
+                    const Icon(Icons.edit_outlined, size: 14, color: TT.ember),
               ),
             ],
           ),
@@ -485,8 +488,7 @@ class _ComposeSheetState extends State<_ComposeSheet> {
     setState(() => _posting = true);
     final lines = text.split('\n');
     final title = (lines.first.trim().isEmpty ? text : lines.first.trim());
-    final subtitle =
-        lines.length > 1 ? lines.skip(1).join('\n').trim() : '';
+    final subtitle = lines.length > 1 ? lines.skip(1).join('\n').trim() : '';
 
     try {
       await Supabase.instance.client.from('community_activities').insert({
@@ -525,8 +527,7 @@ class _ComposeSheetState extends State<_ComposeSheet> {
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
           decoration: const BoxDecoration(
             color: TT.bg2,
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
             border: Border(top: BorderSide(color: TT.line)),
           ),
           child: Column(
@@ -535,7 +536,8 @@ class _ComposeSheetState extends State<_ComposeSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 42, height: 4,
+                  width: 42,
+                  height: 4,
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
                     color: TT.line3,
@@ -545,8 +547,7 @@ class _ComposeSheetState extends State<_ComposeSheet> {
               ),
               Row(
                 children: [
-                  Text('New post',
-                      style: TT.title(18, color: TT.text)),
+                  Text('New post', style: TT.title(18, color: TT.text)),
                   const Spacer(),
                   if (_hazard)
                     const TTPill(
@@ -555,7 +556,8 @@ class _ComposeSheetState extends State<_ComposeSheet> {
               ),
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: TT.surf,
                   border: Border.all(color: TT.line, width: 1),
@@ -568,15 +570,16 @@ class _ComposeSheetState extends State<_ComposeSheet> {
                   maxLines: 8,
                   maxLength: 500,
                   cursorColor: TT.ember,
-                  style: TT.body(size: 14, w: FontWeight.w500)
+                  style: TT
+                      .body(size: 14, w: FontWeight.w500)
                       .copyWith(height: 1.4),
                   decoration: InputDecoration(
                     isCollapsed: true,
                     border: InputBorder.none,
                     hintText:
                         'What did you see on the trail?\nFirst line becomes the title.',
-                    hintStyle: TT.body(
-                            size: 14, w: FontWeight.w500, color: TT.text3)
+                    hintStyle: TT
+                        .body(size: 14, w: FontWeight.w500, color: TT.text3)
                         .copyWith(height: 1.4),
                     counterStyle: TT.mono(size: 10, color: TT.text3),
                   ),
@@ -596,9 +599,7 @@ class _ComposeSheetState extends State<_ComposeSheet> {
                             ? const Color(0x2EF2A93B)
                             : const Color(0x08FFFFFF),
                         border: Border.all(
-                          color: _hazard
-                              ? const Color(0x80F2A93B)
-                              : TT.line,
+                          color: _hazard ? const Color(0x80F2A93B) : TT.line,
                           width: 1,
                         ),
                         borderRadius: BorderRadius.circular(TT.rMd),
@@ -640,9 +641,7 @@ class _ComposeSheetState extends State<_ComposeSheet> {
                       ),
                       child: Text('Cancel',
                           style: TT.body(
-                              size: 12,
-                              w: FontWeight.w700,
-                              color: TT.text2)),
+                              size: 12, w: FontWeight.w700, color: TT.text2)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -666,11 +665,12 @@ class _ComposeSheetState extends State<_ComposeSheet> {
                         children: [
                           if (_posting)
                             const SizedBox(
-                              width: 14, height: 14,
+                              width: 14,
+                              height: 14,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                    TT.emberInk),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(TT.emberInk),
                               ),
                             )
                           else
@@ -728,8 +728,8 @@ class _FeedPostState extends State<_FeedPost>
 
   String get _locationLabel {
     final meta = widget.activity.metadata;
-    final loc = (meta['location'] ?? meta['trail_name'] ?? meta['trail'])
-        as String?;
+    final loc =
+        (meta['location'] ?? meta['trail_name'] ?? meta['trail']) as String?;
     if (loc != null && loc.trim().isNotEmpty) return loc;
     return widget.activity.teamName;
   }
@@ -823,7 +823,9 @@ class _FeedPostState extends State<_FeedPost>
           children: [
             if (_isHazard)
               Positioned(
-                left: 0, top: 0, bottom: 0,
+                left: 0,
+                top: 0,
+                bottom: 0,
                 child: Container(width: 3, color: TT.amber),
               ),
             Padding(
@@ -842,7 +844,8 @@ class _FeedPostState extends State<_FeedPost>
                   const SizedBox(height: 12),
                   Text(
                     _bodyText,
-                    style: TT.body(size: 13, w: FontWeight.w500)
+                    style: TT
+                        .body(size: 13, w: FontWeight.w500)
                         .copyWith(height: 1.5),
                   ),
                   if (_isHike) ...[
@@ -863,9 +866,7 @@ class _FeedPostState extends State<_FeedPost>
                       const SizedBox(width: 18),
                       _ActionBtn(
                         icon: Icons.mode_comment_outlined,
-                        value: commentCount == 0
-                            ? 'Comment'
-                            : '$commentCount',
+                        value: commentCount == 0 ? 'Comment' : '$commentCount',
                         onTap: _onComment,
                       ),
                       const SizedBox(width: 18),
@@ -915,12 +916,14 @@ class _AuthorRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 38, height: 38,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(color: color, width: 2),
             gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
               colors: [color, color.withOpacity(0.66)],
             ),
           ),
@@ -944,7 +947,8 @@ class _AuthorRow extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     time,
-                    style: TT.mono(size: 9.5, color: TT.text3)
+                    style: TT
+                        .mono(size: 9.5, color: TT.text3)
                         .copyWith(letterSpacing: 0.06 * 9.5),
                   ),
                 ],
@@ -959,8 +963,9 @@ class _AuthorRow extends StatelessWidget {
                       location,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TT.mono(size: 10, color: TT.ember)
-                          .copyWith(letterSpacing: 0.06 * 10, fontWeight: FontWeight.w600),
+                      style: TT.mono(size: 10, color: TT.ember).copyWith(
+                          letterSpacing: 0.06 * 10,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                   if (hazard) ...[
@@ -985,9 +990,10 @@ class _MiniElevChart extends StatefulWidget {
   State<_MiniElevChart> createState() => _MiniElevChartState();
 }
 
-class _MiniElevChartState extends State<_MiniElevChart> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
+class _MiniElevChartState extends State<_MiniElevChart>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1400));
 
   @override
   void initState() {
@@ -1010,7 +1016,8 @@ class _MiniElevChartState extends State<_MiniElevChart> with SingleTickerProvide
       child: AnimatedBuilder(
         animation: _ctl,
         builder: (_, __) => CustomPaint(
-          painter: _MiniElevPainter(progress: TT.drawCurve.transform(_ctl.value)),
+          painter:
+              _MiniElevPainter(progress: TT.drawCurve.transform(_ctl.value)),
           size: Size.infinite,
         ),
       ),
@@ -1057,7 +1064,8 @@ class _MiniElevPainter extends CustomPainter {
       ..close();
     final fillPaint = Paint()
       ..shader = const LinearGradient(
-        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
         colors: [Color(0x80FF6A2C), Color(0x00FF6A2C)],
       ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.save();
@@ -1095,7 +1103,8 @@ class _ActionBtn extends StatelessWidget {
           Icon(icon, size: 14, color: TT.text2),
           const SizedBox(width: 5),
           Text(value,
-              style: TT.body(size: 11, w: FontWeight.w700, color: TT.text2)
+              style: TT
+                  .body(size: 11, w: FontWeight.w700, color: TT.text2)
                   .copyWith(letterSpacing: 0.04 * 11)),
         ],
       ),
@@ -1143,7 +1152,8 @@ class _LikeBtn extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             count == 0 ? 'Like' : '$count',
-            style: TT.body(
+            style: TT
+                .body(
                     size: 11,
                     w: FontWeight.w700,
                     color: liked ? TT.ember : TT.text2)
@@ -1186,7 +1196,8 @@ class _PostDetailSheet extends StatelessWidget {
           children: [
             Center(
               child: Container(
-                width: 42, height: 4,
+                width: 42,
+                height: 4,
                 margin: const EdgeInsets.only(bottom: 14),
                 decoration: BoxDecoration(
                   color: TT.line3,
@@ -1204,7 +1215,8 @@ class _PostDetailSheet extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(body,
-                style: TT.body(size: 14, w: FontWeight.w500)
+                style: TT
+                    .body(size: 14, w: FontWeight.w500)
                     .copyWith(height: 1.5)),
             const SizedBox(height: 18),
             Container(height: 1, color: TT.line),
@@ -1239,11 +1251,11 @@ class _DetailMetaRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label.toUpperCase(),
-                  style: TT.mono(size: 9, color: TT.text3)
+                  style: TT
+                      .mono(size: 9, color: TT.text3)
                       .copyWith(letterSpacing: 0.08 * 9)),
               const SizedBox(height: 4),
-              Text(value,
-                  style: TT.numStyle(size: 14, color: TT.text)),
+              Text(value, style: TT.numStyle(size: 14, color: TT.text)),
             ],
           ),
         ),
@@ -1329,8 +1341,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
           decoration: const BoxDecoration(
             color: TT.bg2,
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
             border: Border(top: BorderSide(color: TT.line)),
           ),
           child: Column(
@@ -1338,7 +1349,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 42, height: 4,
+                  width: 42,
+                  height: 4,
                   margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
                     color: TT.line3,
@@ -1348,8 +1360,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
               ),
               Row(
                 children: [
-                  Text('Comments',
-                      style: TT.title(18, color: TT.text)),
+                  Text('Comments', style: TT.title(18, color: TT.text)),
                   const SizedBox(width: 8),
                   Text('(${comments.length})',
                       style: TT.mono(size: 11, color: TT.text3)),
@@ -1364,9 +1375,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           'No comments yet — be the first to chime in.',
                           textAlign: TextAlign.center,
                           style: TT.body(
-                              size: 13,
-                              w: FontWeight.w500,
-                              color: TT.text3),
+                              size: 13, w: FontWeight.w500, color: TT.text3),
                         ),
                       )
                     : ListView.separated(
@@ -1380,7 +1389,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                width: 30, height: 30,
+                                width: 30,
+                                height: 30,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(color: color, width: 1.5),
@@ -1406,8 +1416,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                                       children: [
                                         Text(c.author,
                                             style: TT.body(
-                                                size: 12,
-                                                w: FontWeight.w800)),
+                                                size: 12, w: FontWeight.w800)),
                                         const SizedBox(width: 6),
                                         Text(_relativeTime(c.when),
                                             style: TT.mono(
@@ -1416,9 +1425,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(c.text,
-                                        style: TT.body(
-                                                size: 13,
-                                                w: FontWeight.w500)
+                                        style: TT
+                                            .body(size: 13, w: FontWeight.w500)
                                             .copyWith(height: 1.35)),
                                   ],
                                 ),
@@ -1435,8 +1443,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                 children: [
                   Expanded(
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 2),
                       decoration: BoxDecoration(
                         color: TT.surf,
                         border: Border.all(color: TT.line, width: 1),
@@ -1456,9 +1464,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                               const EdgeInsets.symmetric(vertical: 10),
                           hintText: 'Add a comment…',
                           hintStyle: TT.body(
-                              size: 13,
-                              w: FontWeight.w500,
-                              color: TT.text3),
+                              size: 13, w: FontWeight.w500, color: TT.text3),
                         ),
                       ),
                     ),
@@ -1468,7 +1474,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     behavior: HitTestBehavior.opaque,
                     onTap: _send,
                     child: Container(
-                      width: 40, height: 40,
+                      width: 40,
+                      height: 40,
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
@@ -1479,8 +1486,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                         boxShadow: TT.shadowEmber,
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.send,
-                          size: 16, color: TT.emberInk),
+                      child:
+                          const Icon(Icons.send, size: 16, color: TT.emberInk),
                     ),
                   ),
                 ],
@@ -1508,8 +1515,7 @@ class _NotificationSheet extends StatelessWidget {
       builder: (_, scroll) => Container(
         decoration: const BoxDecoration(
           color: TT.bg2,
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
           border: Border(top: BorderSide(color: TT.line)),
         ),
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
@@ -1517,7 +1523,8 @@ class _NotificationSheet extends StatelessWidget {
           children: [
             Center(
               child: Container(
-                width: 42, height: 4,
+                width: 42,
+                height: 4,
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
                   color: TT.line3,
@@ -1527,8 +1534,7 @@ class _NotificationSheet extends StatelessWidget {
             ),
             Row(
               children: [
-                Text('Notifications',
-                    style: TT.title(18, color: TT.text)),
+                Text('Notifications', style: TT.title(18, color: TT.text)),
                 const SizedBox(width: 8),
                 TTPill(
                     label: recent.isEmpty ? 'EMPTY' : '${recent.length} NEW',
@@ -1544,9 +1550,7 @@ class _NotificationSheet extends StatelessWidget {
                   },
                   child: Text('Mark all read',
                       style: TT.body(
-                          size: 12,
-                          w: FontWeight.w700,
-                          color: TT.ember)),
+                          size: 12, w: FontWeight.w700, color: TT.ember)),
                 ),
               ],
             ),
@@ -1560,9 +1564,7 @@ class _NotificationSheet extends StatelessWidget {
                           'Nothing new yet. New posts and check-ins will surface here.',
                           textAlign: TextAlign.center,
                           style: TT.body(
-                              size: 13,
-                              w: FontWeight.w500,
-                              color: TT.text3),
+                              size: 13, w: FontWeight.w500, color: TT.text3),
                         ),
                       ),
                     )
@@ -1584,11 +1586,11 @@ class _NotificationSheet extends StatelessWidget {
                           child: Row(
                             children: [
                               Container(
-                                width: 32, height: 32,
+                                width: 32,
+                                height: 32,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  border:
-                                      Border.all(color: color, width: 1.5),
+                                  border: Border.all(color: color, width: 1.5),
                                   gradient: LinearGradient(
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -1605,22 +1607,19 @@ class _NotificationSheet extends StatelessWidget {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       '${a.userName} · ${a.title}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TT.body(
-                                          size: 12.5,
-                                          w: FontWeight.w800),
+                                          size: 12.5, w: FontWeight.w800),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       _relativeTime(a.timestamp),
-                                      style: TT.mono(
-                                          size: 10, color: TT.text3),
+                                      style: TT.mono(size: 10, color: TT.text3),
                                     ),
                                   ],
                                 ),
@@ -1669,8 +1668,7 @@ class _ChatViewState extends State<_ChatView> {
       final target = _scroll.position.maxScrollExtent;
       if (animate) {
         _scroll.animateTo(target,
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOut);
+            duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
       } else {
         _scroll.jumpTo(target);
       }
@@ -1716,7 +1714,8 @@ class _ChatViewState extends State<_ChatView> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 42, height: 4,
+                width: 42,
+                height: 4,
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
                   color: TT.line3,
@@ -1764,10 +1763,7 @@ class _ChatViewState extends State<_ChatView> {
         return;
       }
       try {
-        await Supabase.instance.client
-            .from(kColChat)
-            .delete()
-            .eq('id', m.id);
+        await Supabase.instance.client.from(kColChat).delete().eq('id', m.id);
         if (!mounted) return;
         _toast(context, 'Message deleted.');
       } catch (e) {
@@ -1823,8 +1819,7 @@ class _ChatViewState extends State<_ChatView> {
                       itemCount: filtered.length,
                       itemBuilder: (_, i) {
                         final m = filtered[i];
-                        final mine =
-                            myUid != null && m.senderId == myUid;
+                        final mine = myUid != null && m.senderId == myUid;
                         return Padding(
                           padding: EdgeInsets.only(
                               bottom: i == filtered.length - 1 ? 0 : 10),
@@ -1933,7 +1928,8 @@ class _PinnedChannel extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 30, height: 30,
+            width: 30,
+            height: 30,
             decoration: BoxDecoration(
               color: const Color(0x38FF6A2C),
               border: Border.all(color: const Color(0x73FF6A2C), width: 1),
@@ -1948,11 +1944,12 @@ class _PinnedChannel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Community · Team Chat',
-                    style: TT.body(size: 12.5, w: FontWeight.w800, color: TT.ember)),
+                    style: TT.body(
+                        size: 12.5, w: FontWeight.w800, color: TT.ember)),
                 const SizedBox(height: 2),
                 Text('LIVE · #GENERAL',
-                    style: TT.mono(size: 10, color: TT.text3)
-                        .copyWith(letterSpacing: 0.04 * 10, fontWeight: FontWeight.w600)),
+                    style: TT.mono(size: 10, color: TT.text3).copyWith(
+                        letterSpacing: 0.04 * 10, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -1978,7 +1975,8 @@ class _ChatMsg extends StatelessWidget {
         child: Text(
           msg.text,
           textAlign: TextAlign.center,
-          style: TT.mono(size: 10, color: TT.text3)
+          style: TT
+              .mono(size: 10, color: TT.text3)
               .copyWith(letterSpacing: 0.06 * 10),
         ),
       );
@@ -2001,7 +1999,8 @@ class _ChatMsg extends StatelessWidget {
             bottomRight: Radius.circular(14),
           );
 
-    final color = _avatarColorFor(msg.senderId.isNotEmpty ? msg.senderId : msg.senderName);
+    final color = _avatarColorFor(
+        msg.senderId.isNotEmpty ? msg.senderId : msg.senderName);
     final initials = _initialsFor(msg.senderName);
     final timeLabel = _clockTime(msg.timestamp);
 
@@ -2009,32 +2008,37 @@ class _ChatMsg extends StatelessWidget {
       final maxBubbleW = c.maxWidth * 0.74;
       final avatar = !mine
           ? Container(
-              width: 30, height: 30,
+              width: 30,
+              height: 30,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(color: color, width: 1.5),
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: [color, color.withOpacity(0.66)],
                 ),
               ),
               alignment: Alignment.center,
               child: Text(
                 initials,
-                style: TT.body(size: 11, w: FontWeight.w800, color: Colors.white),
+                style:
+                    TT.body(size: 11, w: FontWeight.w800, color: Colors.white),
               ),
             )
           : null;
 
       final column = Column(
-        crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (!mine)
             Padding(
               padding: const EdgeInsets.only(bottom: 3),
               child: Text(
                 '${msg.senderName} · $timeLabel',
-                style: TT.mono(size: 10, color: TT.text3)
+                style: TT
+                    .mono(size: 10, color: TT.text3)
                     .copyWith(letterSpacing: 0.04 * 10),
               ),
             ),
@@ -2044,7 +2048,8 @@ class _ChatMsg extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxBubbleW),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 decoration: BoxDecoration(
                   color: bubbleBg,
                   border: Border.all(color: bubbleBorder, width: 1),
@@ -2052,7 +2057,8 @@ class _ChatMsg extends StatelessWidget {
                 ),
                 child: Text(
                   msg.text,
-                  style: TT.body(size: 12.5, w: FontWeight.w500, color: bubbleColor)
+                  style: TT
+                      .body(size: 12.5, w: FontWeight.w500, color: bubbleColor)
                       .copyWith(height: 1.4),
                 ),
               ),
@@ -2066,8 +2072,8 @@ class _ChatMsg extends StatelessWidget {
                 children: [
                   Text(
                     timeLabel,
-                    style: TT.mono(size: 9.5, color: TT.text3)
-                        .copyWith(letterSpacing: 0.04 * 9.5, fontWeight: FontWeight.w600),
+                    style: TT.mono(size: 9.5, color: TT.text3).copyWith(
+                        letterSpacing: 0.04 * 9.5, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 4),
                   const Icon(Icons.done_all, size: 12, color: TT.green),
@@ -2079,7 +2085,8 @@ class _ChatMsg extends StatelessWidget {
 
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+            mine ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: mine
             ? [Flexible(child: column)]
             : [
@@ -2120,7 +2127,8 @@ class _ChatComposer extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onTap: () => focus.requestFocus(),
               child: Container(
-                width: 38, height: 38,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   color: const Color(0x08FFFFFF),
                   border: Border.all(color: TT.line, width: 1),
@@ -2133,7 +2141,8 @@ class _ChatComposer extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                 decoration: BoxDecoration(
                   color: TT.surf,
                   border: Border.all(color: TT.line, width: 1),
@@ -2152,13 +2161,10 @@ class _ChatComposer extends StatelessWidget {
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
                     hintText: 'Message…',
-                    hintStyle: TT.body(
-                        size: 13,
-                        w: FontWeight.w500,
-                        color: TT.text3),
+                    hintStyle:
+                        TT.body(size: 13, w: FontWeight.w500, color: TT.text3),
                   ),
                 ),
               ),
@@ -2168,11 +2174,13 @@ class _ChatComposer extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onTap: sending ? null : onSend,
               child: Container(
-                width: 42, height: 42,
+                width: 42,
+                height: 42,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [TT.ember2, TT.ember],
                   ),
                   boxShadow: TT.shadowEmber,
@@ -2180,7 +2188,8 @@ class _ChatComposer extends StatelessWidget {
                 alignment: Alignment.center,
                 child: sending
                     ? const SizedBox(
-                        width: 16, height: 16,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor:
@@ -2234,8 +2243,8 @@ class _SearchField extends StatelessWidget {
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 hintText: hint,
-                hintStyle: TT.body(
-                    size: 13, w: FontWeight.w500, color: TT.text3),
+                hintStyle:
+                    TT.body(size: 13, w: FontWeight.w500, color: TT.text3),
               ),
             ),
           ),
@@ -2278,7 +2287,9 @@ class _FadeUpDelayedState extends State<_FadeUpDelayed>
   @override
   void initState() {
     super.initState();
-    Future.delayed(widget.delay, () { if (mounted) _ctl.forward(); });
+    Future.delayed(widget.delay, () {
+      if (mounted) _ctl.forward();
+    });
   }
 
   @override

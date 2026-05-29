@@ -134,9 +134,8 @@ class UserGpxTrack {
       difficulty: j['difficulty']?.toString() ?? '',
       points: rawPts,
       elevations: rawEle,
-      distanceKm: (j['distanceKm'] is num)
-          ? (j['distanceKm'] as num).toDouble()
-          : 0.0,
+      distanceKm:
+          (j['distanceKm'] is num) ? (j['distanceKm'] as num).toDouble() : 0.0,
       elevationGainM: (j['elevationGainM'] is num)
           ? (j['elevationGainM'] as num).toInt()
           : 0,

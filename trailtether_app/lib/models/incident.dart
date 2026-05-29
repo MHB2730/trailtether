@@ -336,7 +336,9 @@ class Incident {
       assignedToName: d['assigned_to_name'] as String?,
       incidentTeamId: d['team_id'] as String?,
       flagCount: (d['flag_count'] as num?)?.toInt() ?? 0,
-      verifiedUids: (d['verified_uids'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      verifiedUids:
+          (d['verified_uids'] as List?)?.map((e) => e.toString()).toList() ??
+              [],
       isVerified: d['is_verified'] as bool? ?? false,
       verificationCount: (d['verification_count'] as num?)?.toInt() ?? 0,
       photoUrl: d['photo_url'] as String?,

@@ -20,10 +20,6 @@ Currently the curated trails CRUD is **PC-only** ([[PcTrailsScreen]]). Mobile us
 
 [[berg_pulse_stats]] family has `berg_pulse_heatmap_cells()` returning hex-binned tracks. The public `/pulse/` page on hilltrek.co.za uses it. Hover to confirm — could be richer visualisation.
 
-## Storage bucket RLS in migrations
-
-Capture current bucket policies in a new SQL migration so disaster recovery works. See [[Fragile Areas]].
-
 ## Refresh tokens for tether_pairings
 
 Currently [[tether_pairings]] tokens expire and are claimed once. If the link is lost, the PC user has to mint a new one. Refresh / re-claim flow could be added.
@@ -40,20 +36,22 @@ Currently [[tether_pairings]] tokens expire and are claimed once. If the link is
 - Local notifications iOS authorisation
 - Apple Pay (instead of South African providers, depending on geo)
 
-## flutter test suite
+## flutter test suite (partial ✅)
 
-No automated tests in `trailtether_app/test/`. Manual QA is the safety net. If/when the app grows or contributors join, worth seeding a few golden tests on critical paths ([[Workflow - Record Hike]] save, [[FinishHikeSheet]] state machine).
+23 automated tests now passing — covering [[offline_incident_queue.dart]] retry logic (4 tests), widget tests, and model parsing tests. Manual QA remains for broader flows. More tests on critical paths ([[Workflow - Record Hike]] save, [[FinishHikeSheet]] state machine) still desirable.
 
 ## Hilltrek site weather card moved to APK page?
 
 The `/trailtether/` APK landing page could carry the same `weather.js` widget as the homepage, since users on that page are about to install a weather-dependent app. Marketing decision.
 
-## Audit follow-ups from this session
+## Completed ✅
 
-- Fix [[zapper-checkout]] CORS `*` (described in [[Known Issues]])
-- Build `increment_recorded_trail_downloads` RPC
-- Off-trail incident retry queue
-- Standardise supabase-js imports
+- **Storage bucket RLS in migrations**: Created `20260528_storage_rls_policies.sql` migration. Verified 31 RLS policies active across all 6 storage buckets in production.
+- **Audit follow-ups from this session** — all 4 items done:
+  - [[zapper-checkout]] CORS: fixed (`ALLOWED_ORIGINS` instead of `*`)
+  - `increment_recorded_trail_downloads` RPC: built and deployed
+  - Off-trail incident retry queue: built, tested (4 tests in [[offline_incident_queue.dart]])
+  - Supabase-js imports: all standardised on `jsr:` specifiers
 
 ## See also
 

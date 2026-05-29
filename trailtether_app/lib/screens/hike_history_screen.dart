@@ -224,7 +224,8 @@ class _RowStat extends StatelessWidget {
   final String label;
   final String value;
   final bool ember;
-  const _RowStat({required this.label, required this.value, this.ember = false});
+  const _RowStat(
+      {required this.label, required this.value, this.ember = false});
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +234,8 @@ class _RowStat extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: TT.label(size: 9.5, color: TT.text3, letterSpacing: 0.16 * 9.5)),
+              style: TT.label(
+                  size: 9.5, color: TT.text3, letterSpacing: 0.16 * 9.5)),
           const SizedBox(height: 4),
           Text(
             value,
@@ -271,8 +273,7 @@ class HikeDetailScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Cancel',
-                style: TT.body(size: 13, color: TT.text2)),
+            child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -306,8 +307,8 @@ class HikeDetailScreen extends StatelessWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(result.userMessage,
-            style: TT.body(size: 13, color: TT.text)),
+        content:
+            Text(result.userMessage, style: TT.body(size: 13, color: TT.text)),
         backgroundColor: TT.surf,
         behavior: SnackBarBehavior.floating,
       ),
@@ -316,8 +317,7 @@ class HikeDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final date =
-        DateFormat('EEEE, d MMMM yyyy · HH:mm').format(hike.startedAt);
+    final date = DateFormat('EEEE, d MMMM yyyy · HH:mm').format(hike.startedAt);
 
     return Scaffold(
       backgroundColor: TT.bg,
@@ -438,7 +438,8 @@ class _HeroCard extends StatelessWidget {
               _HeroDivider(),
               _HeroMetric(label: 'POINTS', value: '${hike.pointCount}'),
               _HeroDivider(),
-              _HeroMetric(label: 'ACTIVITY', value: hike.activityType.toUpperCase()),
+              _HeroMetric(
+                  label: 'ACTIVITY', value: hike.activityType.toUpperCase()),
             ],
           ),
           const SizedBox(height: 14),
@@ -477,7 +478,8 @@ class _HeroMetric extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: TT.label(size: 9.5, color: TT.text3, letterSpacing: 0.16 * 9.5)),
+              style: TT.label(
+                  size: 9.5, color: TT.text3, letterSpacing: 0.16 * 9.5)),
           const SizedBox(height: 5),
           Text(
             value,
@@ -594,8 +596,7 @@ class _RouteMap extends StatelessWidget {
                 point: route.first,
                 width: 18,
                 height: 18,
-                child: const Icon(Icons.trip_origin,
-                    color: TT.green, size: 16),
+                child: const Icon(Icons.trip_origin, color: TT.green, size: 16),
               ),
               Marker(
                 point: route.last,
@@ -626,11 +627,12 @@ class _ElevationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final units = context.watch<UnitsProvider>();
-    final altitudes =
-        hike.points.length >= 4 ? hike.points.map((p) => p.altitude).toList() : null;
-    final ascentLabel = '${units.formatElevation(hike.ascentM.toDouble())} ascent';
-    final peakLabel =
-        '${units.formatDistance(hike.distanceKm)} · $ascentLabel';
+    final altitudes = hike.points.length >= 4
+        ? hike.points.map((p) => p.altitude).toList()
+        : null;
+    final ascentLabel =
+        '${units.formatElevation(hike.ascentM.toDouble())} ascent';
+    final peakLabel = '${units.formatDistance(hike.distanceKm)} · $ascentLabel';
 
     return TTCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -663,7 +665,10 @@ class _ElevationCard extends StatelessWidget {
               ),
             )
           else
-            TTBigElevChart(samples: altitudes, peakLabel: peakLabel, elevationUnit: units.elevationUnit),
+            TTBigElevChart(
+                samples: altitudes,
+                peakLabel: peakLabel,
+                elevationUnit: units.elevationUnit),
         ],
       ),
     );
@@ -716,9 +721,7 @@ class _StatGridCard extends StatelessWidget {
             return Wrap(
               spacing: spacing,
               runSpacing: spacing,
-              children: tiles
-                  .map((t) => SizedBox(width: w, child: t))
-                  .toList(),
+              children: tiles.map((t) => SizedBox(width: w, child: t)).toList(),
             );
           }),
         ],
@@ -810,16 +813,16 @@ class _GpsQualityCard extends StatelessWidget {
           const SizedBox(height: 12),
           _GpsRow(label: 'Accepted fixes', value: '${hike.acceptedFixes}'),
           _GpsRow(label: 'Rejected fixes', value: '${hike.rejectedFixes}'),
-          _GpsRow(label: 'Poor accuracy',  value: '${hike.poorAccuracyRejects}'),
-          _GpsRow(label: 'Jump rejects',   value: '${hike.jumpRejects}'),
-          _GpsRow(label: 'Stale rejects',  value: '${hike.staleRejects}'),
-          _GpsRow(label: 'Gap warnings',   value: '${hike.gapWarnings}'),
+          _GpsRow(label: 'Poor accuracy', value: '${hike.poorAccuracyRejects}'),
+          _GpsRow(label: 'Jump rejects', value: '${hike.jumpRejects}'),
+          _GpsRow(label: 'Stale rejects', value: '${hike.staleRejects}'),
+          _GpsRow(label: 'Gap warnings', value: '${hike.gapWarnings}'),
           const SizedBox(height: 10),
           Container(height: 1, color: TT.line),
           const SizedBox(height: 10),
           _GpsRow(label: 'Average accuracy', value: '$acc m'),
-          _GpsRow(label: 'Best accuracy',    value: '$best m'),
-          _GpsRow(label: 'Worst accuracy',   value: '$worst m', last: true),
+          _GpsRow(label: 'Best accuracy', value: '$best m'),
+          _GpsRow(label: 'Worst accuracy', value: '$worst m', last: true),
         ],
       ),
     );
@@ -845,7 +848,8 @@ class _GpsRow extends StatelessWidget {
         children: [
           Text(label, style: TT.body(size: 12.5, color: TT.text2)),
           Text(value,
-              style: TT.numStyle(size: 12.5, color: TT.text, w: FontWeight.w800)),
+              style:
+                  TT.numStyle(size: 12.5, color: TT.text, w: FontWeight.w800)),
         ],
       ),
     );
@@ -872,8 +876,8 @@ class _HealthConnectButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(TT.rMd),
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.favorite_outline,
-                size: 18, color: TT.ember),
+            child:
+                const Icon(Icons.favorite_outline, size: 18, color: TT.ember),
           ),
           const SizedBox(width: 12),
           Expanded(

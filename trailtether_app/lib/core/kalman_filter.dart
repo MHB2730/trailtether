@@ -1,4 +1,3 @@
-
 /// A simple Kalman Filter for 2D coordinates (lat/lon) to smooth GPS jitter.
 class KalmanFilter {
   final double processNoise; // Q

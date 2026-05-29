@@ -31,6 +31,6 @@ Real-time chat messages — either in a team room or the global community "gener
 
 ## Used by
 
-- `chat_screen.dart` (standalone view)
+- `team_chat_screen.dart` (standalone view — was `chat_screen.dart`)
 - `_StandaloneTeamChat` (in [[TTTeamScreen]])
 - General room in community screen

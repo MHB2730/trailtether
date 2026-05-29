@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script src="/assets/js/maintenance-gate.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unsubscribing — Hilltrek</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="icon" href="/assets/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+  <style>
+    .confirm-card {
+      max-width: 520px;
+      margin: 80px auto;
+      padding: 40px 32px;
+      text-align: center;
+      background: var(--bg2, #16140f);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+    }
+    .confirm-icon { font-size: 56px; line-height: 1; margin-bottom: 16px; }
+    .confirm-title { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 12px; }
+    .confirm-message { color: var(--muted, #aaa); margin: 0 0 24px; font-size: 15px; }
+    .confirm-actions a {
+      display: inline-block; padding: 12px 22px;
+      background: var(--accent, #ff7a1a); color: #0a0908;
+      text-decoration: none; font-weight: 600; border-radius: 8px;
+      font-size: 14px; letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+
+  <main class="page">
+    <div class="container">
+      <div class="confirm-card">
+        <div class="confirm-icon" id="icon">⏳</div>
+        <h1 class="confirm-title" id="title">Unsubscribing…</h1>
+        <p class="confirm-message" id="message">Just a sec.</p>
+        <div class="confirm-actions" id="actions" style="display:none;">
+          <a href="/">← Back to Hilltrek</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var SUPABASE_URL  = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
+      var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
+
+      var token = new URLSearchParams(location.search).get('token');
+      var $icon = document.getElementById('icon');
+      var $title = document.getElementById('title');
+      var $msg = document.getElementById('message');
+      var $actions = document.getElementById('actions');
+
+      function show(icon, title, msg) {
+        $icon.textContent = icon;
+        $title.textContent = title;
+        $msg.textContent = msg;
+        $actions.style.display = 'block';
+      }
+
+      if (!token) {
+        show('⚠️', 'No token in link', 'This URL is missing the unsubscribe token. Make sure you clicked the full link from your email.');
+        return;
+      }
+
+      fetch(SUPABASE_URL + '/rest/v1/rpc/subscriber_unsubscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + SUPABASE_ANON,
+        },
+        body: JSON.stringify({ p_token: token }),
+      })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.ok) {
+          show('👋', "You're unsubscribed.", "Sorry to see you go. You won't receive any more emails from Hilltrek. You can re-subscribe anytime from the homepage.");
+        } else {
+          show('⚠️', "Couldn't unsubscribe", 'That link is either expired or invalid. If you keep receiving emails, reply to one of them and we\'ll remove you manually.');
+        }
+      })
+      .catch(function () {
+        show('⚠️', "Couldn't reach server", 'Check your connection and reload the page.');
+      });
+    })();
+  </script>
+
+</body>
+</html>

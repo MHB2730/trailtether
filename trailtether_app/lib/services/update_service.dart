@@ -61,7 +61,8 @@ class UpdateService {
       // Under Google Play Store guidelines, self-updates are strictly prohibited.
       const flavor = String.fromEnvironment('FLUTTER_APP_FLAVOR');
       if (flavor == 'playStore') {
-        LoggerService.log('UPDATE', 'Self-update disabled for Google Play Store build');
+        LoggerService.log(
+            'UPDATE', 'Self-update disabled for Google Play Store build');
         return _status = const UpdateStatus.unknown();
       }
 
@@ -84,8 +85,8 @@ class UpdateService {
       }
 
       final newer = latest.versionCode > currentCode;
-      final mustUpdate =
-          currentCode < latest.minSupportedVersionCode || (newer && latest.isCritical);
+      final mustUpdate = currentCode < latest.minSupportedVersionCode ||
+          (newer && latest.isCritical);
 
       if (!newer) {
         _status = UpdateStatus.upToDate(currentVersion: info.version);
@@ -155,11 +156,8 @@ class UpdateService {
     final parsed = _parseTag(tag);
     if (parsed == null) return null;
 
-    final msix = assets
-        .cast<Map<String, dynamic>>()
-        .firstWhere(
-          (a) =>
-              ((a['name'] as String?) ?? '').toLowerCase().endsWith('.msix'),
+    final msix = assets.cast<Map<String, dynamic>>().firstWhere(
+          (a) => ((a['name'] as String?) ?? '').toLowerCase().endsWith('.msix'),
           orElse: () => const {},
         );
     final downloadUrl = msix['browser_download_url'] as String?;
@@ -197,13 +195,15 @@ class UpdateService {
   Future<bool> downloadAndInstall() async {
     const flavor = String.fromEnvironment('FLUTTER_APP_FLAVOR');
     if (flavor == 'playStore') {
-      LoggerService.log('UPDATE', 'downloadAndInstall aborted: self-updates disabled on Google Play');
+      LoggerService.log('UPDATE',
+          'downloadAndInstall aborted: self-updates disabled on Google Play');
       return false;
     }
 
     final s = _status;
     if (s is! _AvailableUpdate) {
-      LoggerService.log('UPDATE', 'downloadAndInstall called with no pending update');
+      LoggerService.log(
+          'UPDATE', 'downloadAndInstall called with no pending update');
       return false;
     }
     if (_downloading) return false;
@@ -261,7 +261,9 @@ class UpdateService {
             'SHA-256 mismatch — refusing to install. expected=$expectedSha actual=$actualSha',
             StackTrace.current,
           );
-          try { await file.delete(); } catch (_) { /* best-effort cleanup */ }
+          try {
+            await file.delete();
+          } catch (_) {/* best-effort cleanup */}
           throw Exception(
             'Update integrity check failed. The downloaded installer does not match the published hash.',
           );
@@ -308,6 +310,7 @@ class _LatestRelease {
   final String releaseNotes;
   final bool isCritical;
   final int minSupportedVersionCode;
+
   /// Hex SHA-256 of the installer bytes. Empty string = no verification
   /// available for this backend (Windows / GitHub path). When non-empty,
   /// downloadAndInstall refuses to install on hash mismatch.
@@ -357,6 +360,7 @@ class _AvailableUpdate extends UpdateStatus {
   final String downloadUrl;
   final String releaseNotes;
   final bool isCritical;
+
   /// Expected hex SHA-256 of the installer bytes. May be null/empty on
   /// the Windows GitHub path — in that case downloadAndInstall skips the
   /// check and falls back to OS-level code-signing.

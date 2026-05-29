@@ -141,7 +141,8 @@ class _IntroCard extends StatelessWidget {
             'This policy explains what information we collect, why, and your rights regarding '
             'that information. We are committed to compliance with South Africa\'s Protection '
             'of Personal Information Act (POPIA).',
-            style: TT.body(size: 13, color: TT.text2, w: FontWeight.w500)
+            style: TT
+                .body(size: 13, color: TT.text2, w: FontWeight.w500)
                 .copyWith(height: 1.6),
           ),
         ],
@@ -177,7 +178,8 @@ class _PolicySectionCard extends StatelessWidget {
           else
             Text(
               section.body,
-              style: TT.body(size: 13, color: TT.text2, w: FontWeight.w500)
+              style: TT
+                  .body(size: 13, color: TT.text2, w: FontWeight.w500)
                   .copyWith(height: 1.65),
             ),
         ],
@@ -196,8 +198,8 @@ class _ContactBody extends StatefulWidget {
 }
 
 class _ContactBodyState extends State<_ContactBody> {
-  late final TapGestureRecognizer _recognizer =
-      TapGestureRecognizer()..onTap = widget.onTap;
+  late final TapGestureRecognizer _recognizer = TapGestureRecognizer()
+    ..onTap = widget.onTap;
 
   @override
   void dispose() {
@@ -210,7 +212,8 @@ class _ContactBodyState extends State<_ContactBody> {
     const email = PrivacyPolicyScreen._contactEmail;
     final body = widget.body;
     final idx = body.indexOf(email);
-    final base = TT.body(size: 13, color: TT.text2, w: FontWeight.w500)
+    final base = TT
+        .body(size: 13, color: TT.text2, w: FontWeight.w500)
         .copyWith(height: 1.65);
     if (idx < 0) return Text(body, style: base);
 
@@ -256,8 +259,7 @@ class _FooterContact extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.mail_outline_rounded,
-                color: TT.ember, size: 18),
+            const Icon(Icons.mail_outline_rounded, color: TT.ember, size: 18),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -272,8 +274,7 @@ class _FooterContact extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_rounded,
-                color: TT.ember, size: 16),
+            const Icon(Icons.arrow_forward_rounded, color: TT.ember, size: 16),
           ],
         ),
       ),

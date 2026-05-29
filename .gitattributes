@@ -1,0 +1,23 @@
+# Normalise source line endings to LF so the Windows working tree, git's
+# index, and Linux CI all agree. Without this, `dart format` on a Windows
+# checkout flags CRLF-only churn that the Linux CI never sees.
+*.dart   text eol=lf
+*.ts     text eol=lf
+*.js     text eol=lf
+*.sql    text eol=lf
+*.yaml   text eol=lf
+*.yml    text eol=lf
+*.json   text eol=lf
+*.md     text eol=lf
+*.html   text eol=lf
+*.css    text eol=lf
+
+# Binary assets — never touch line endings.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.ico    binary
+*.ttf    binary
+*.otf    binary
+*.apk    binary
+*.msix   binary

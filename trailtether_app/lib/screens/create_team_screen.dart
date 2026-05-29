@@ -204,16 +204,16 @@ class _IntroCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     TTPill(
                       label: hasName ? 'READY' : 'DRAFT',
-                      variant: hasName
-                          ? TTPillVariant.ember
-                          : TTPillVariant.neutral,
+                      variant:
+                          hasName ? TTPillVariant.ember : TTPillVariant.neutral,
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'Form a crew, share live locations, and plan hikes together.',
-                  style: TT.body(size: 12.5, color: TT.text2, w: FontWeight.w500)
+                  style: TT
+                      .body(size: 12.5, color: TT.text2, w: FontWeight.w500)
                       .copyWith(height: 1.45),
                 ),
               ],
@@ -259,14 +259,13 @@ class _Field extends StatelessWidget {
         onChanged: onChanged,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle:
-              TT.body(size: 14, color: TT.text3, w: FontWeight.w500),
+          hintStyle: TT.body(size: 14, color: TT.text3, w: FontWeight.w500),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
           counterText: '',
-          contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14, vertical: 14),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         ),
       ),
     );
@@ -317,16 +316,15 @@ class _PrimaryCta extends StatelessWidget {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(TT.emberInk),
+                      valueColor: AlwaysStoppedAnimation<Color>(TT.emberInk),
                     ),
                   )
                 else
                   Icon(icon, color: TT.emberInk, size: 16),
                 const SizedBox(width: 8),
                 Text(label,
-                    style: TT.body(
-                            size: 13, w: FontWeight.w900, color: TT.emberInk)
+                    style: TT
+                        .body(size: 13, w: FontWeight.w900, color: TT.emberInk)
                         .copyWith(letterSpacing: 0.14 * 13)),
               ],
             ),
@@ -362,7 +360,8 @@ class _SecondaryCta extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Text(label,
-                style: TT.body(size: 13, w: FontWeight.w800, color: TT.text2)
+                style: TT
+                    .body(size: 13, w: FontWeight.w800, color: TT.text2)
                     .copyWith(letterSpacing: 0.14 * 13)),
           ),
         ),

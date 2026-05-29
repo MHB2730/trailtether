@@ -118,8 +118,7 @@ class TrailRepository {
       if (patch.isEmpty) return true;
 
       await _db.from('trails').update(patch).eq('id', id);
-      LoggerService.log(
-          'TRAILS_REPO', 'Updated $id (${patch.keys.join(",")})');
+      LoggerService.log('TRAILS_REPO', 'Updated $id (${patch.keys.join(",")})');
       return true;
     } catch (e, stack) {
       LoggerService.error('TRAILS_REPO', 'updateMeta($id) failed: $e', stack);

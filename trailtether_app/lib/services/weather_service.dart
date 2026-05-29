@@ -96,8 +96,7 @@ class WeatherService {
     // to 5s + 4s + 6s (= 15s worst case) so the user sees data within
     // 2-3s in the common case and a "TAP TO RETRY" within 15s if the
     // connection is dead.
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 5);
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
     try {
       final request =
           await client.getUrl(uri).timeout(const Duration(seconds: 4));

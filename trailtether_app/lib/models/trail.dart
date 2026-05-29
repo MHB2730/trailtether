@@ -134,9 +134,8 @@ class Trail {
     final rawCoords = (json['coords'] is List)
         ? json['coords'] as List<dynamic>
         : const <dynamic>[];
-    final rawProfile = (json['profile'] is List)
-        ? json['profile'] as List<dynamic>
-        : null;
+    final rawProfile =
+        (json['profile'] is List) ? json['profile'] as List<dynamic> : null;
 
     final coords = <TrailCoord>[];
     for (final c in rawCoords) {
@@ -229,12 +228,10 @@ class Trail {
     // Threshold of 1.0 m filters residual noise after smoothing.
     int elevGain = 0;
     int elevDescent = 0;
-    int minEleVal = (json['minEle'] is num)
-        ? (json['minEle'] as num).toInt()
-        : 0;
-    int maxEleVal = (json['maxEle'] is num)
-        ? (json['maxEle'] as num).toInt()
-        : 0;
+    int minEleVal =
+        (json['minEle'] is num) ? (json['minEle'] as num).toInt() : 0;
+    int maxEleVal =
+        (json['maxEle'] is num) ? (json['maxEle'] as num).toInt() : 0;
 
     if (has3d) {
       double gain = 0;

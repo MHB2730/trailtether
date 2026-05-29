@@ -138,7 +138,8 @@ class _WarningCard extends StatelessWidget {
                 children: [
                   Text(
                     warning.headline,
-                    style: TT.body(size: 13, w: FontWeight.w800, color: TT.text),
+                    style:
+                        TT.body(size: 13, w: FontWeight.w800, color: TT.text),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -178,7 +179,8 @@ class _DayBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TT.mono(size: 9.5, color: color, letterSpacing: 0.12 * 9.5)
+        style: TT
+            .mono(size: 9.5, color: color, letterSpacing: 0.12 * 9.5)
             .copyWith(fontWeight: FontWeight.w800),
       ),
     );
@@ -239,7 +241,8 @@ class _WarningsSheet extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: TT.ember, size: 18),
+                  const Icon(Icons.warning_amber_rounded,
+                      color: TT.ember, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     'Weather warnings',
@@ -249,9 +252,7 @@ class _WarningsSheet extends StatelessWidget {
                   Text(
                     '${warnings.length}',
                     style: TT.mono(
-                        size: 12,
-                        color: TT.text3,
-                        letterSpacing: 0.1 * 12),
+                        size: 12, color: TT.text3, letterSpacing: 0.1 * 12),
                   ),
                 ],
               ),

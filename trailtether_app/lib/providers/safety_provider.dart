@@ -48,7 +48,8 @@ class SafetyProvider extends ChangeNotifier {
     return out;
   }
 
-  static double _haversineKm(double lat1, double lon1, double lat2, double lon2) {
+  static double _haversineKm(
+      double lat1, double lon1, double lat2, double lon2) {
     const r = 6371.0;
     final dLat = (lat2 - lat1) * math.pi / 180.0;
     final dLon = (lon2 - lon1) * math.pi / 180.0;
@@ -94,8 +95,7 @@ class SafetyProvider extends ChangeNotifier {
                 continue;
               }
               if (_userLat != null && _userLon != null) {
-                final d =
-                    _haversineKm(_userLat!, _userLon!, inc.lat, inc.lon);
+                final d = _haversineKm(_userLat!, _userLon!, inc.lat, inc.lon);
                 if (d <= kProximityRadiusKm) {
                   _showProximityAlert(inc, d);
                 }

@@ -11,11 +11,11 @@ import '../services/recorded_trail_service.dart';
 /// a partial success (local OK + trail upload failed) still surfaces
 /// what actually happened to the user.
 class HikeSaveResult {
-  final bool localSaved;        // wrote to SharedPreferences
-  final bool supabaseSynced;    // hike_history upsert succeeded
-  final bool trailUploaded;     // recorded_trails + GPX file landed
-  final String? error;          // human-readable last error, if any
-  final bool offlineOnly;       // userId was null (not signed in)
+  final bool localSaved; // wrote to SharedPreferences
+  final bool supabaseSynced; // hike_history upsert succeeded
+  final bool trailUploaded; // recorded_trails + GPX file landed
+  final String? error; // human-readable last error, if any
+  final bool offlineOnly; // userId was null (not signed in)
   const HikeSaveResult({
     required this.localSaved,
     required this.supabaseSynced,
@@ -65,7 +65,8 @@ class HikeHistoryProvider extends ChangeNotifier {
       await _save();
       localSaved = true;
     } catch (e, stack) {
-      LoggerService.error('HISTORY', 'local save failed for ${hike.id}: $e', stack);
+      LoggerService.error(
+          'HISTORY', 'local save failed for ${hike.id}: $e', stack);
       lastError = 'Could not save locally: $e';
       notifyListeners();
       return HikeSaveResult(
@@ -94,7 +95,8 @@ class HikeHistoryProvider extends ChangeNotifier {
       await syncToSupabase(hike, userId);
       supabaseSynced = true;
     } catch (e, stack) {
-      LoggerService.error('SYNC', 'hike_history sync failed for ${hike.id}: $e', stack);
+      LoggerService.error(
+          'SYNC', 'hike_history sync failed for ${hike.id}: $e', stack);
       lastError = 'hike_history sync failed: $e';
     }
 
@@ -105,7 +107,8 @@ class HikeHistoryProvider extends ChangeNotifier {
       final trail = await RecordedTrailService.saveFromHike(hike, userId);
       trailUploaded = (trail != null);
       if (!trailUploaded) {
-        lastError ??= 'recorded_trails save returned null (likely DB validation)';
+        lastError ??=
+            'recorded_trails save returned null (likely DB validation)';
       }
     } catch (e, stack) {
       LoggerService.error('TRAILS', 'promoteFromHike failed: $e', stack);
@@ -146,57 +149,12 @@ class HikeHistoryProvider extends ChangeNotifier {
     });
     LoggerService.log('SYNC', 'Hike synced to Supabase: ${hike.id}');
 
-    // Post to community_activities so the feed actually has content.
-    // Without this, the feed has only check-ins from cave/trail screens
-    // and shows nothing for recorded hikes. Failure here is non-fatal
-    // (kept inside a separate try/catch) — the hike_history upsert is
-    // what matters for the funnel; the community post is gravy.
-    try {
-      await _postCommunityActivity(client, hike, userId);
-    } catch (e, stack) {
-      LoggerService.error(
-          'COMMUNITY', 'activity post failed (non-fatal): $e', stack);
-    }
-  }
-
-  Future<void> _postCommunityActivity(
-      SupabaseClient client, SavedHike hike, String userId) async {
-    try {
-      final user = client.auth.currentUser;
-      final displayName = (user?.userMetadata?['display_name'] as String?) ??
-          (user?.userMetadata?['full_name'] as String?) ??
-          user?.email?.split('@').first ??
-          'Hiker';
-
-      final hours = hike.durationSeconds ~/ 3600;
-      final minutes = (hike.durationSeconds % 3600) ~/ 60;
-      final durationStr =
-          hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
-      final subtitle =
-          '${hike.distanceKm.toStringAsFixed(1)} km · ${hike.ascentM} m ascent · $durationStr';
-
-      await client.from('community_activities').insert({
-        'user_id': userId,
-        'user_name': displayName,
-        'team_id': hike.teamId,
-        'type': 'hike_completed',
-        'title': hike.name,
-        'subtitle': subtitle,
-        'timestamp': hike.endedAt.toIso8601String(),
-        'metadata': {
-          'distance_km': hike.distanceKm,
-          'ascent_m': hike.ascentM,
-          'duration_seconds': hike.durationSeconds,
-          'activity_type': hike.activityType,
-          'peaks_climbed': hike.peaksClimbed,
-          'hike_id': hike.id,
-        },
-      });
-      LoggerService.log('COMMUNITY', 'Posted activity for hike ${hike.id}');
-    } catch (e, stack) {
-      LoggerService.error(
-          'COMMUNITY', 'Failed to post activity for ${hike.id}: $e', stack);
-    }
+    // The matching community feed row is created server-side by the
+    // `on_hike_saved` AFTER INSERT trigger on hike_history. We deliberately
+    // do NOT post it from the client too: that produced duplicate feed
+    // entries on a fresh save, plus an extra duplicate on every re-save
+    // (the trigger only fires on INSERT, but a client post would run on
+    // every upsert).
   }
 
   Future<void> remove(String id) async {

@@ -106,7 +106,8 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
   @override
   void initState() {
     super.initState();
-    _enterCtl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+    _enterCtl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900))
       ..forward();
     _scheduleNext();
   }
@@ -164,7 +165,8 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                           opacity: 0.32,
                           child: ShaderMask(
                             shaderCallback: (rect) => const LinearGradient(
-                              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
                               colors: [Colors.white, Colors.transparent],
                               stops: [0.5, 1.0],
                             ).createShader(rect),
@@ -210,7 +212,8 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                                 .animate(anim);
                             return FadeTransition(
                               opacity: anim,
-                              child: ScaleTransition(scale: scale, child: child),
+                              child:
+                                  ScaleTransition(scale: scale, child: child),
                             );
                           },
                           child: _Scene(
@@ -235,7 +238,8 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                             child: RichText(
                               textAlign: TextAlign.center,
                               text: TextSpan(
-                                style: TT.title(26, letterSpacing: -0.02 * 26)
+                                style: TT
+                                    .title(26, letterSpacing: -0.02 * 26)
                                     .copyWith(height: 1.15),
                                 children: const [
                                   TextSpan(text: 'Plan smarter.\n'),
@@ -259,7 +263,8 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                             child: GestureDetector(
                               onTapDown: (_) => setState(() => _paused = true),
                               onTapUp: (_) => setState(() => _paused = false),
-                              onTapCancel: () => setState(() => _paused = false),
+                              onTapCancel: () =>
+                                  setState(() => _paused = false),
                               child: AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 500),
                                 switchInCurve: TT.easeOut,
@@ -349,7 +354,8 @@ class _BrandBar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
                 child: Text(
                   'SKIP',
-                  style: TT.body(size: 11, w: FontWeight.w700, color: TT.text2)
+                  style: TT
+                      .body(size: 11, w: FontWeight.w700, color: TT.text2)
                       .copyWith(letterSpacing: 0.1 * 11),
                 ),
               ),
@@ -389,7 +395,8 @@ class _CopyBlock extends StatelessWidget {
                   color: feat.color,
                   shape: BoxShape.circle,
                   boxShadow: [
-                    BoxShadow(color: feat.color, blurRadius: 5, spreadRadius: 0),
+                    BoxShadow(
+                        color: feat.color, blurRadius: 5, spreadRadius: 0),
                   ],
                 ),
               ),
@@ -410,7 +417,8 @@ class _CopyBlock extends StatelessWidget {
         Text(
           feat.title,
           textAlign: TextAlign.center,
-          style: TT.body(size: 15, w: FontWeight.w700)
+          style: TT
+              .body(size: 15, w: FontWeight.w700)
               .copyWith(height: 1.35, letterSpacing: -0.005 * 15),
         ),
         const SizedBox(height: 6),
@@ -419,7 +427,8 @@ class _CopyBlock extends StatelessWidget {
           child: Text(
             feat.body,
             textAlign: TextAlign.center,
-            style: TT.body(size: 12, w: FontWeight.w500, color: TT.text2)
+            style: TT
+                .body(size: 12, w: FontWeight.w500, color: TT.text2)
                 .copyWith(height: 1.5),
           ),
         ),
@@ -523,11 +532,13 @@ class _GetStartedButtonState extends State<_GetStartedButton> {
                     children: [
                       Text(
                         'GET STARTED',
-                        style: TT.body(
-                          size: 13,
-                          w: FontWeight.w900,
-                          color: TT.emberInk,
-                        ).copyWith(letterSpacing: 0.14 * 13),
+                        style: TT
+                            .body(
+                              size: 13,
+                              w: FontWeight.w900,
+                              color: TT.emberInk,
+                            )
+                            .copyWith(letterSpacing: 0.14 * 13),
                       ),
                       const SizedBox(width: 10),
                       const Icon(Icons.chevron_right,
@@ -664,9 +675,9 @@ class _SceneTetherState extends State<_SceneTether>
   late final AnimationController _windowCtl = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 2200))
     ..repeat(reverse: true);
-  late final AnimationController _pulseCtl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))
-        ..repeat();
+  late final AnimationController _pulseCtl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 2400))
+    ..repeat();
 
   @override
   void dispose() {
@@ -693,7 +704,8 @@ class _SceneTetherState extends State<_SceneTether>
 
 class _TetherPainter extends CustomPainter {
   final double arcT, windowT, pulseT;
-  _TetherPainter({required this.arcT, required this.windowT, required this.pulseT});
+  _TetherPainter(
+      {required this.arcT, required this.windowT, required this.pulseT});
 
   // The shared cubic arc the dashed line + packet pulses ride along.
   Path _arcPath() {
@@ -870,8 +882,8 @@ class _TetherPainter extends CustomPainter {
         Paint()..color = TT.emberInk);
     // Tiny screen content.
     final scOp = 0.5 + 0.5 * (math.sin(_twoPi * windowT * 0.7) * 0.5 + 0.5);
-    canvas.drawCircle(
-        const Offset(0, -10), 1.5, Paint()..color = TT.ember2.withOpacity(scOp));
+    canvas.drawCircle(const Offset(0, -10), 1.5,
+        Paint()..color = TT.ember2.withOpacity(scOp));
     canvas.drawRect(const Rect.fromLTWH(-6, -5, 12, 1.5),
         Paint()..color = TT.ember.withOpacity(0.7));
     canvas.drawRect(const Rect.fromLTWH(-6, -1, 9, 1.5),
@@ -897,7 +909,8 @@ class _TetherPainter extends CustomPainter {
     _floatingLabel(canvas, const Offset(252, 55), '+2 SE', lbl2Op);
   }
 
-  void _floatingLabel(Canvas canvas, Offset center, String text, double opacity) {
+  void _floatingLabel(
+      Canvas canvas, Offset center, String text, double opacity) {
     final rect = RRect.fromRectAndRadius(
         Rect.fromCenter(center: center, width: 60, height: 18),
         const Radius.circular(4));
@@ -1032,7 +1045,8 @@ class _PlanPainter extends CustomPainter {
     canvas.save();
     canvas.translate(70, 180);
     canvas.rotate(math.pi / 4);
-    canvas.drawRect(const Rect.fromLTWH(-5, -5, 10, 10), Paint()..color = TT.ember);
+    canvas.drawRect(
+        const Rect.fromLTWH(-5, -5, 10, 10), Paint()..color = TT.ember);
     canvas.drawRect(
         const Rect.fromLTWH(-5, -5, 10, 10),
         Paint()
@@ -1062,8 +1076,7 @@ class _PlanPainter extends CustomPainter {
     final titleRect = RRect.fromRectAndRadius(
         Rect.fromCenter(center: const Offset(206, 52), width: 132, height: 22),
         const Radius.circular(5));
-    canvas.drawRRect(
-        titleRect, Paint()..color = const Color(0xEB0A0C0F));
+    canvas.drawRRect(titleRect, Paint()..color = const Color(0xEB0A0C0F));
     canvas.drawRRect(
         titleRect,
         Paint()
@@ -1387,8 +1400,8 @@ class _NavigatePainter extends CustomPainter {
     // Compass -----------------------------------------------------------
     canvas.save();
     canvas.translate(330, 80);
-    canvas.drawCircle(Offset.zero, 44,
-        Paint()..color = const Color(0xF20A0C0F));
+    canvas.drawCircle(
+        Offset.zero, 44, Paint()..color = const Color(0xF20A0C0F));
     canvas.drawCircle(
         Offset.zero,
         44,
@@ -1483,8 +1496,7 @@ class _NavigatePainter extends CustomPainter {
       canvas.translate(62, 272 + (1 - chipT) * 6);
       final chip = RRect.fromRectAndRadius(
           const Rect.fromLTWH(0, 0, 170, 36), const Radius.circular(10));
-      canvas.drawRRect(
-          chip, Paint()..color = TT.surf.withOpacity(chipT));
+      canvas.drawRRect(chip, Paint()..color = TT.surf.withOpacity(chipT));
       canvas.drawRRect(
           chip,
           Paint()
@@ -1497,8 +1509,8 @@ class _NavigatePainter extends CustomPainter {
         final tab = RRect.fromRectAndRadius(
             Rect.fromLTWH(10.0 + i * 53, 6, 48, 24), const Radius.circular(7));
         if (active) {
-          canvas.drawRRect(tab,
-              Paint()..color = TT.emberDim.withOpacity(chipT));
+          canvas.drawRRect(
+              tab, Paint()..color = TT.emberDim.withOpacity(chipT));
           canvas.drawRRect(
               tab,
               Paint()
@@ -1509,8 +1521,7 @@ class _NavigatePainter extends CustomPainter {
         _drawText(canvas,
             text: labels[i],
             center: Offset(10.0 + i * 53 + 24, 18),
-            color: (active ? TT.ember2 : TT.text2)
-                .withOpacity(chipT),
+            color: (active ? TT.ember2 : TT.text2).withOpacity(chipT),
             fontFamily: 'Manrope',
             size: 10,
             weight: FontWeight.w800,
@@ -1566,8 +1577,7 @@ class _SceneAwareState extends State<_SceneAware>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge(
-          [_entry, _cloud, _sunPulse, _hazard, _alert]),
+      animation: Listenable.merge([_entry, _cloud, _sunPulse, _hazard, _alert]),
       builder: (_, __) => _sceneFit(_AwarePainter(
         entryT: _entry.value,
         cloudT: _cloud.value,
@@ -1653,7 +1663,8 @@ class _AwarePainter extends CustomPainter {
 
     // Wind lines.
     for (var i = 0; i < 3; i++) {
-      final pulse = (math.sin(sunT * _twoPi + i * 0.5) * 0.5 + 0.5).clamp(0.0, 1.0);
+      final pulse =
+          (math.sin(sunT * _twoPi + i * 0.5) * 0.5 + 0.5).clamp(0.0, 1.0);
       final op = 0.3 + 0.5 * pulse;
       canvas.drawLine(
           Offset(110, 82 + i * 8.0),
@@ -1709,8 +1720,8 @@ class _AwarePainter extends CustomPainter {
           ..color = TT.amber.withOpacity(0.35)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1);
-    canvas.drawRect(const Rect.fromLTWH(0, 0, 3, 64),
-        Paint()..color = TT.amber);
+    canvas.drawRect(
+        const Rect.fromLTWH(0, 0, 3, 64), Paint()..color = TT.amber);
     // Pulsing icon halo.
     final hr = 11 + 4 * hazardT;
     canvas.save();
@@ -1779,8 +1790,8 @@ class _AwarePainter extends CustomPainter {
           ..color = TT.green.withOpacity(0.32)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1);
-    canvas.drawRect(const Rect.fromLTWH(0, 0, 3, 64),
-        Paint()..color = TT.green);
+    canvas.drawRect(
+        const Rect.fromLTWH(0, 0, 3, 64), Paint()..color = TT.green);
     canvas.save();
     canvas.translate(20, 18);
     canvas.drawCircle(
@@ -1853,8 +1864,7 @@ class _AwarePainter extends CustomPainter {
           const Offset(18, 17),
           dr,
           Paint()
-            ..color = TT.ember
-                .withOpacity((1 - 0.6 * alertT) * alertEntry));
+            ..color = TT.ember.withOpacity((1 - 0.6 * alertT) * alertEntry));
       _drawText(canvas,
           text: 'Storm in 90 min',
           topLeft: const Offset(34, 6),
@@ -1893,8 +1903,7 @@ class _SceneSOS extends StatefulWidget {
   State<_SceneSOS> createState() => _SceneSOSState();
 }
 
-class _SceneSOSState extends State<_SceneSOS>
-    with TickerProviderStateMixin {
+class _SceneSOSState extends State<_SceneSOS> with TickerProviderStateMixin {
   late final AnimationController _entry = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 1100))
     ..forward();
@@ -1957,9 +1966,7 @@ class _SOSPainter extends CustomPainter {
     for (final t in [ripple1, ripple2, ripple3]) {
       final r = 60 + 100 * t;
       final op = (0.9 - 0.9 * t).clamp(0.0, 1.0);
-      canvas.drawCircle(
-          const Offset(206, 160),
-          r,
+      canvas.drawCircle(const Offset(206, 160), r,
           Paint()..color = TT.red.withOpacity(0.06 * op));
       canvas.drawCircle(
           const Offset(206, 160),
@@ -1980,7 +1987,8 @@ class _SOSPainter extends CustomPainter {
 
     // Orb pop animation.
     final popT = _sub(0.10, 0.55);
-    final s = popT < 0.7 ? (popT / 0.7) * 1.15 : 1.15 - ((popT - 0.7) / 0.3) * 0.15;
+    final s =
+        popT < 0.7 ? (popT / 0.7) * 1.15 : 1.15 - ((popT - 0.7) / 0.3) * 0.15;
     canvas.save();
     canvas.translate(206, 160);
     canvas.scale(s);
@@ -2052,8 +2060,7 @@ class _SOSPainter extends CustomPainter {
       canvas.translate(206, 278 + (1 - chipT) * 8);
       final chipRect = RRect.fromRectAndRadius(
           const Rect.fromLTWH(-92, -16, 184, 32), const Radius.circular(9));
-      canvas.drawRRect(
-          chipRect, Paint()..color = TT.surf.withOpacity(chipT));
+      canvas.drawRRect(chipRect, Paint()..color = TT.surf.withOpacity(chipT));
       canvas.drawRRect(
           chipRect,
           Paint()

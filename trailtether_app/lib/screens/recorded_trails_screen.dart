@@ -70,15 +70,16 @@ class _RecordedTrailsScreenState extends State<RecordedTrailsScreen> {
             ],
           ),
         Padding(
-          padding: EdgeInsets.fromLTRB(
-              18, widget.embedded ? 6 : 6, 18, 12),
+          padding: EdgeInsets.fromLTRB(18, widget.embedded ? 6 : 6, 18, 12),
           child: TTSegmented(
             tabs: const ['MY TRAILS', 'COMMUNITY'],
             active: _tab,
             onChange: (i) => setState(() => _tab = i),
           ),
         ),
-        Expanded(child: _TrailList(scope: _tab == 0 ? _Scope.mine : _Scope.community)),
+        Expanded(
+            child:
+                _TrailList(scope: _tab == 0 ? _Scope.mine : _Scope.community)),
       ],
     );
 
@@ -167,8 +168,7 @@ class _EmptyState extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: TT.emberDim,
                   shape: BoxShape.circle,
-                  border:
-                      Border.all(color: const Color(0x52FF6A2C), width: 1),
+                  border: Border.all(color: const Color(0x52FF6A2C), width: 1),
                 ),
                 alignment: Alignment.center,
                 child: Icon(
@@ -254,11 +254,12 @@ class _TrailRow extends StatelessWidget {
                   label: 'DIST',
                   value: units.formatDistance(trail.distanceKm, decimals: 2)),
               _Divider(),
-              _MiniMetric(label: 'ASC', value: units.formatElevation(trail.ascentM.toDouble())),
+              _MiniMetric(
+                  label: 'ASC',
+                  value: units.formatElevation(trail.ascentM.toDouble())),
               _Divider(),
               _MiniMetric(
-                  label: 'TIME',
-                  value: _fmtDuration(trail.durationSeconds)),
+                  label: 'TIME', value: _fmtDuration(trail.durationSeconds)),
             ],
           ),
         ],
@@ -498,9 +499,8 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
             SnackBar(
               backgroundColor: TT.surf,
               behavior: SnackBarBehavior.floating,
-              content:
-                  Text('Trail is now private',
-                      style: TT.body(size: 13, color: TT.text)),
+              content: Text('Trail is now private',
+                  style: TT.body(size: 13, color: TT.text)),
             ),
           );
         }
@@ -523,14 +523,14 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
                 child: Text('Cancel',
-                    style: TT.body(
-                        size: 13, w: FontWeight.w700, color: TT.text2)),
+                    style:
+                        TT.body(size: 13, w: FontWeight.w700, color: TT.text2)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 child: Text('Delete',
-                    style: TT.body(
-                        size: 13, w: FontWeight.w800, color: TT.red)),
+                    style:
+                        TT.body(size: 13, w: FontWeight.w800, color: TT.red)),
               ),
             ],
           ),
@@ -604,8 +604,7 @@ class _DetailAppBar extends StatelessWidget {
               style: TT.title(20, letterSpacing: -0.01 * 20),
             ),
           ),
-          if (isMine)
-            _OverflowMenu(sharing: sharing, onSelected: onAction),
+          if (isMine) _OverflowMenu(sharing: sharing, onSelected: onAction),
         ],
       ),
     );
@@ -641,20 +640,17 @@ class _OverflowMenu extends StatelessWidget {
         PopupMenuItem<String>(
           value: 'share_public',
           enabled: sharing != TrailSharing.public,
-          child: _menuTile(
-              Icons.public, 'Share to community', TT.green),
+          child: _menuTile(Icons.public, 'Share to community', TT.green),
         ),
         PopupMenuItem<String>(
           value: 'make_private',
           enabled: sharing != TrailSharing.private,
-          child: _menuTile(
-              Icons.lock_outline, 'Make private', TT.text2),
+          child: _menuTile(Icons.lock_outline, 'Make private', TT.text2),
         ),
         const PopupMenuDivider(),
         PopupMenuItem<String>(
           value: 'delete',
-          child: _menuTile(
-              Icons.delete_outline, 'Delete trail', TT.red),
+          child: _menuTile(Icons.delete_outline, 'Delete trail', TT.red),
         ),
       ],
     );
@@ -666,8 +662,7 @@ class _OverflowMenu extends StatelessWidget {
         Icon(icon, size: 16, color: tint),
         const SizedBox(width: 10),
         Text(label,
-            style:
-                TT.body(size: 13, w: FontWeight.w700, color: TT.text)),
+            style: TT.body(size: 13, w: FontWeight.w700, color: TT.text)),
       ],
     );
   }
@@ -765,8 +760,7 @@ class _TrailMap extends StatelessWidget {
                 point: pts.first,
                 width: 18,
                 height: 18,
-                child: const Icon(Icons.trip_origin,
-                    color: TT.green, size: 16),
+                child: const Icon(Icons.trip_origin, color: TT.green, size: 16),
               ),
               Marker(
                 point: pts.last,
@@ -804,8 +798,7 @@ class _StatsCard extends StatelessWidget {
         children: [
           Text(
             'STATS',
-            style:
-                TT.label(size: 11, color: TT.ember, letterSpacing: 1.4),
+            style: TT.label(size: 11, color: TT.ember, letterSpacing: 1.4),
           ),
           const SizedBox(height: 12),
           LayoutBuilder(
@@ -878,15 +871,14 @@ class _Stat extends StatelessWidget {
         decoration: BoxDecoration(
           color: ember ? TT.emberSoft : const Color(0x05FFFFFF),
           borderRadius: BorderRadius.circular(TT.rSm),
-          border: Border.all(
-              color: ember ? const Color(0x33FF6A2C) : TT.line),
+          border: Border.all(color: ember ? const Color(0x33FF6A2C) : TT.line),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: TT.label(
-                    size: 9.5, color: TT.text3, letterSpacing: 1.4)),
+                style:
+                    TT.label(size: 9.5, color: TT.text3, letterSpacing: 1.4)),
             const SizedBox(height: 5),
             TTCountUp(
               text: value,
@@ -916,17 +908,20 @@ class _ElevationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final units = context.watch<UnitsProvider>();
-    final peakLabel = '${units.formatDistance(distanceKm)} · ${units.formatElevation(ascentM.toDouble())}';
+    final peakLabel =
+        '${units.formatDistance(distanceKm)} · ${units.formatElevation(ascentM.toDouble())}';
     return TTCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('ELEVATION',
-              style: TT.label(
-                  size: 11, color: TT.ember, letterSpacing: 1.4)),
+              style: TT.label(size: 11, color: TT.ember, letterSpacing: 1.4)),
           const SizedBox(height: 4),
-          TTBigElevChart(samples: altitudes, peakLabel: peakLabel, elevationUnit: units.elevationUnit),
+          TTBigElevChart(
+              samples: altitudes,
+              peakLabel: peakLabel,
+              elevationUnit: units.elevationUnit),
         ],
       ),
     );

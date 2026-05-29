@@ -50,6 +50,7 @@ class RecordingProvider extends ChangeNotifier {
   double _remainingDist = 0.0;
   bool _isOffTrail = false;
   double _offTrailDist = 0.0;
+
   /// Bearing in degrees (0–360, true north = 0) from current position to the
   /// nearest trail point. Null when on-trail or no target trail is set.
   double? _bearingToTrail;
@@ -103,8 +104,9 @@ class RecordingProvider extends ChangeNotifier {
   double get offTrailDist => _offTrailDist;
   double? get bearingToTrail => _bearingToTrail;
   LatLng? get nearestTrailPoint => _nearestTrailPoint;
-  Duration? get offTrailDuration =>
-      _offTrailSince == null ? null : DateTime.now().difference(_offTrailSince!);
+  Duration? get offTrailDuration => _offTrailSince == null
+      ? null
+      : DateTime.now().difference(_offTrailSince!);
 
   /// Compass-style heading label ("N", "NE", "E", …) for the bearing back to
   /// the trail. Empty string when on-trail.
@@ -115,6 +117,7 @@ class RecordingProvider extends ChangeNotifier {
     final idx = ((b + 22.5) % 360 / 45).floor();
     return labels[idx];
   }
+
   Incident? get nearbyIncident => _nearbyIncident;
   int get acceptedFixes => _acceptedFixes;
   int get rejectedFixes => _rejectedFixes;
@@ -398,11 +401,15 @@ class RecordingProvider extends ChangeNotifier {
       'is_emergency': false,
       'status': 'open',
     };
-    unawaited(Supabase.instance.client.from('incidents').insert(incidentPayload).then((_) {
+    unawaited(Supabase.instance.client
+        .from('incidents')
+        .insert(incidentPayload)
+        .then((_) {
       LoggerService.log('OFF_TRAIL',
           'Published off-trail alert: ${off}m, threshold ${thresholdM.toStringAsFixed(0)}m');
     }).catchError((e) {
-      LoggerService.error('OFF_TRAIL', 'alert insert failed; queueing offline: $e');
+      LoggerService.error(
+          'OFF_TRAIL', 'alert insert failed; queueing offline: $e');
       unawaited(OfflineIncidentQueue.enqueue(incidentPayload));
     }));
   }
@@ -603,6 +610,11 @@ class RecordingProvider extends ChangeNotifier {
     _acceptedFixes++;
     _lastAcceptedTime = newPoint.timestamp;
     _points.add(newPoint);
+    // Advance the live position to the accepted fix. Without this the map's
+    // "you" marker stays pinned to the start fix (the only other place
+    // _currentPosition is set is the start() kickstart) while the route
+    // polyline grows underneath it.
+    _currentPosition = pos;
     LoggerService.log(
       'GPS_ACCEPT',
       'accuracy=${newPoint.accuracy.toStringAsFixed(1)}m '

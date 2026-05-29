@@ -165,8 +165,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
         builder: (ctx, setLocalState) => Container(
           decoration: const BoxDecoration(
             color: TT.bg2,
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(TT.rXl)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(TT.rXl)),
             border: Border(top: BorderSide(color: TT.line2)),
           ),
           padding: const EdgeInsets.all(22),
@@ -186,14 +185,12 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                 ),
               ),
               Text('START ACTIVITY',
-                  style: TT.label(
-                      size: 12, color: TT.ember, letterSpacing: 1.4)),
+                  style:
+                      TT.label(size: 12, color: TT.ember, letterSpacing: 1.4)),
               const SizedBox(height: 18),
               Text('ACTIVITY TYPE',
                   style: TT.label(
-                      size: 10.5,
-                      color: TT.text3,
-                      letterSpacing: 1.4)),
+                      size: 10.5, color: TT.text3, letterSpacing: 1.4)),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -219,9 +216,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
               const SizedBox(height: 22),
               Text('CONTEXT',
                   style: TT.label(
-                      size: 10.5,
-                      color: TT.text3,
-                      letterSpacing: 1.4)),
+                      size: 10.5, color: TT.text3, letterSpacing: 1.4)),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -236,8 +231,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       label: 'TEAM',
                       icon: Icons.groups,
                       active: contextStr == 'team',
-                      onTap: () =>
-                          setLocalState(() => contextStr = 'team')),
+                      onTap: () => setLocalState(() => contextStr = 'team')),
                   const SizedBox(width: 8),
                   _TypeButton(
                       label: 'TRAINING',
@@ -251,9 +245,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                 const SizedBox(height: 18),
                 Text('SELECT TEAM',
                     style: TT.label(
-                        size: 10.5,
-                        color: TT.text3,
-                        letterSpacing: 1.4)),
+                        size: 10.5, color: TT.text3, letterSpacing: 1.4)),
                 const SizedBox(height: 10),
                 Consumer<TeamProvider>(
                   builder: (_, tp, __) => _TeamDropdown(
@@ -280,7 +272,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final rec = context.watch<RecordingProvider>();
@@ -289,10 +280,9 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     // top of the screen under immersiveSticky (status bar hidden ⇒
     // padding.top reads 0). 24 dp keeps them out of the swipe-down
     // gesture zone.
-    final topPad =
-        MediaQuery.of(context).padding.top > 0
-            ? MediaQuery.of(context).padding.top
-            : 24.0;
+    final topPad = MediaQuery.of(context).padding.top > 0
+        ? MediaQuery.of(context).padding.top
+        : 24.0;
     final botPad = MediaQuery.of(context).padding.bottom;
 
     if (rec.points.isNotEmpty && _weather == null && !_loadingWeather) {
@@ -362,9 +352,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                 Navigator.pop(context);
               },
               trailName: rec.targetTrail?.name ??
-                  (rec.points.isEmpty
-                      ? 'Waiting for GPS…'
-                      : 'Custom Route'),
+                  (rec.points.isEmpty ? 'Waiting for GPS…' : 'Custom Route'),
               sunsetLabel: sunsetCountdown,
               gpsLabel: rec.gpsHealthLabel,
               gpsColor: rec.gpsHealthColor,
@@ -432,9 +420,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                   ),
                 const SizedBox(height: 10),
                 _MapButton(
-                  icon: _mapMode == 2
-                      ? Icons.view_in_ar
-                      : Icons.layers_outlined,
+                  icon:
+                      _mapMode == 2 ? Icons.view_in_ar : Icons.layers_outlined,
                   active: _mapMode != 0,
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -445,9 +432,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                 ),
                 const SizedBox(height: 10),
                 _MapButton(
-                  icon: rec.isGhostMode
-                      ? Icons.visibility_off
-                      : Icons.visibility,
+                  icon:
+                      rec.isGhostMode ? Icons.visibility_off : Icons.visibility,
                   active: rec.isGhostMode,
                   onTap: () => rec.toggleGhostMode(),
                 ),
@@ -477,7 +463,10 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       child: _LiveStat(
                         label: 'ALTITUDE',
                         value: rec.points.isNotEmpty
-                            ? units.elevationFromM(rec.points.last.altitude).toInt().toString()
+                            ? units
+                                .elevationFromM(rec.points.last.altitude)
+                                .toInt()
+                                .toString()
                             : '0',
                         unit: units.elevationUnit,
                         icon: Icons.terrain,
@@ -489,7 +478,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                       child: _LiveStat(
                         label: 'PACE',
                         value: rec.points.isNotEmpty
-                            ? units.formatSpeed(rec.points.last.speed * 3.6, withUnit: false)
+                            ? units.formatSpeed(rec.points.last.speed * 3.6,
+                                withUnit: false)
                             : '0.0',
                         unit: units.speedUnit,
                         icon: Icons.speed,
@@ -500,7 +490,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                     Expanded(
                       child: _LiveStat(
                         label: 'DISTANCE',
-                        value: units.formatDistance(rec.distanceKm, decimals: 2, withUnit: false),
+                        value: units.formatDistance(rec.distanceKm,
+                            decimals: 2, withUnit: false),
                         unit: units.distanceUnit,
                         icon: Icons.straighten,
                         accent: TT.green,
@@ -529,13 +520,12 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                   end: Alignment.bottomCenter,
                   colors: [Color(0xE6131820), Color(0xFF07090C)],
                 ),
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(TT.rXl)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(TT.rXl)),
                 border: const Border(top: BorderSide(color: TT.line2)),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.6),
-                      blurRadius: 30),
+                      color: Colors.black.withOpacity(0.6), blurRadius: 30),
                 ],
               ),
               child: Row(
@@ -622,8 +612,7 @@ class _SituationBar extends StatelessWidget {
       radius: TT.rLg,
       child: Row(
         children: [
-          TTIconBtn(
-              icon: Icons.chevron_left, size: 36, onTap: onBack),
+          TTIconBtn(icon: Icons.chevron_left, size: 36, onTap: onBack),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -633,9 +622,7 @@ class _SituationBar extends StatelessWidget {
                   children: [
                     Text('TRAIL NAVIGATION',
                         style: TT.label(
-                            size: 10,
-                            color: TT.ember,
-                            letterSpacing: 1.4)),
+                            size: 10, color: TT.ember, letterSpacing: 1.4)),
                     const Spacer(),
                     Text('SUNSET $sunsetLabel',
                         style: TT.mono(size: 9.5, color: TT.text3)),
@@ -648,8 +635,8 @@ class _SituationBar extends StatelessWidget {
                   trailName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TT.body(
-                      size: 14.5, w: FontWeight.w800, color: TT.text),
+                  style:
+                      TT.body(size: 14.5, w: FontWeight.w800, color: TT.text),
                 ),
               ],
             ),
@@ -728,8 +715,8 @@ class _LiveStat extends StatelessWidget {
               Icon(icon, size: 12, color: accent),
               const SizedBox(width: 6),
               Text(label,
-                  style: TT.label(
-                      size: 9.5, color: TT.text3, letterSpacing: 1.4)),
+                  style:
+                      TT.label(size: 9.5, color: TT.text3, letterSpacing: 1.4)),
             ],
           ),
           const SizedBox(height: 8),
@@ -741,8 +728,7 @@ class _LiveStat extends StatelessWidget {
                   style: TT.numStyle(
                       size: 22, color: TT.text, w: FontWeight.w800)),
               const SizedBox(width: 4),
-              Text(unit,
-                  style: TT.mono(size: 11, color: TT.text3)),
+              Text(unit, style: TT.mono(size: 11, color: TT.text3)),
             ],
           ),
         ],
@@ -774,13 +760,11 @@ class _TargetCard extends StatelessWidget {
             children: [
               const Icon(Icons.flag_rounded, color: TT.ember, size: 14),
               const SizedBox(width: 6),
-              Text(
-                  'REMAINING ${rec.remainingDist.toStringAsFixed(1)} KM',
-                  style: TT.label(
-                      size: 10, color: TT.text, letterSpacing: 1.4)),
+              Text('REMAINING ${rec.remainingDist.toStringAsFixed(1)} KM',
+                  style:
+                      TT.label(size: 10, color: TT.text, letterSpacing: 1.4)),
               const Spacer(),
-              Text(
-                  'ETA ${eta != null ? SunUtils.formatDuration(eta) : '--'}',
+              Text('ETA ${eta != null ? SunUtils.formatDuration(eta) : '--'}',
                   style: TT.mono(size: 10.5, color: TT.ember)),
             ],
           ),
@@ -823,12 +807,10 @@ class _MapButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: active ? TT.ember : const Color(0xB80D1116),
           shape: BoxShape.circle,
-          border: Border.all(
-              color: active ? TT.ember : TT.line2, width: 1),
+          border: Border.all(color: active ? TT.ember : TT.line2, width: 1),
           boxShadow: active ? TT.shadowEmber : null,
         ),
-        child: Icon(icon,
-            color: active ? TT.emberInk : TT.text, size: 18),
+        child: Icon(icon, color: active ? TT.emberInk : TT.text, size: 18),
       ),
     );
   }
@@ -879,27 +861,24 @@ class _OffTrailBanner extends StatelessWidget {
                   color: TT.red, size: 26),
             )
           else
-            const Icon(Icons.warning_amber_rounded,
-                color: TT.red, size: 20),
+            const Icon(Icons.warning_amber_rounded, color: TT.red, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('OFF TRAIL',
-                    style: TT.label(
-                        size: 11, color: TT.red, letterSpacing: 1.4)),
+                    style:
+                        TT.label(size: 11, color: TT.red, letterSpacing: 1.4)),
                 const SizedBox(height: 2),
                 Text(
                   bearing != null
                       ? 'Trail ${dist.toInt()}m $direction · turn around'
                       : '${dist.toInt()}m away from path',
-                  style: TT.body(
-                      size: 13, w: FontWeight.w700, color: TT.text),
+                  style: TT.body(size: 13, w: FontWeight.w700, color: TT.text),
                 ),
                 if (durStr.isNotEmpty)
-                  Text(durStr,
-                      style: TT.mono(size: 10.5, color: TT.text2)),
+                  Text(durStr, style: TT.mono(size: 10.5, color: TT.text2)),
               ],
             ),
           ),
@@ -927,8 +906,7 @@ class _IncidentBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.report_problem,
-              color: TT.amber, size: 20),
+          const Icon(Icons.report_problem, color: TT.amber, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -940,8 +918,7 @@ class _IncidentBanner extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   incident.type.label.toUpperCase(),
-                  style: TT.body(
-                      size: 13, w: FontWeight.w700, color: TT.text),
+                  style: TT.body(size: 13, w: FontWeight.w700, color: TT.text),
                 ),
               ],
             ),
@@ -985,8 +962,7 @@ class _LiveMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final points = rec.points;
     final currentPos = rec.currentPosition != null
-        ? LatLng(rec.currentPosition!.latitude,
-            rec.currentPosition!.longitude)
+        ? LatLng(rec.currentPosition!.latitude, rec.currentPosition!.longitude)
         : (points.isNotEmpty ? points.last.toLatLng : null);
 
     if (following && currentPos != null) {
@@ -1194,11 +1170,13 @@ class _PrimaryButton extends StatelessWidget {
               const SizedBox(width: 10),
             ],
             Text(label,
-                style: TT.body(
-                  size: 13,
-                  w: FontWeight.w900,
-                  color: TT.emberInk,
-                ).copyWith(letterSpacing: 0.16 * 13)),
+                style: TT
+                    .body(
+                      size: 13,
+                      w: FontWeight.w900,
+                      color: TT.emberInk,
+                    )
+                    .copyWith(letterSpacing: 0.16 * 13)),
           ],
         ),
       ),
@@ -1234,11 +1212,13 @@ class _DangerButton extends StatelessWidget {
             Icon(icon, color: TT.red, size: 18),
             const SizedBox(width: 8),
             Text(label,
-                style: TT.body(
-                  size: 13,
-                  w: FontWeight.w900,
-                  color: TT.red,
-                ).copyWith(letterSpacing: 0.16 * 13)),
+                style: TT
+                    .body(
+                      size: 13,
+                      w: FontWeight.w900,
+                      color: TT.red,
+                    )
+                    .copyWith(letterSpacing: 0.16 * 13)),
           ],
         ),
       ),
@@ -1272,8 +1252,7 @@ class _TypeButton extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Icon(icon,
-                    color: active ? TT.ember : TT.text3, size: 18),
+                Icon(icon, color: active ? TT.ember : TT.text3, size: 18),
                 const SizedBox(height: 6),
                 Text(
                   label,

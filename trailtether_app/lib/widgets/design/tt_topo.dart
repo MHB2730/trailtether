@@ -27,22 +27,59 @@ class _TopoPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
     // Six layered waves drifting top to bottom of the screen.
     const lines = <List<Offset>>[
-      [Offset(0, 0.50), Offset(0.25, 0.33), Offset(0.5, 0.43), Offset(1.0, 0.40)],
-      [Offset(0, 0.57), Offset(0.25, 0.42), Offset(0.5, 0.50), Offset(1.0, 0.48)],
-      [Offset(0, 0.63), Offset(0.25, 0.50), Offset(0.5, 0.57), Offset(1.0, 0.57)],
-      [Offset(0, 0.70), Offset(0.25, 0.58), Offset(0.5, 0.63), Offset(1.0, 0.65)],
-      [Offset(0, 0.43), Offset(0.25, 0.27), Offset(0.5, 0.37), Offset(1.0, 0.33)],
-      [Offset(0, 0.37), Offset(0.25, 0.20), Offset(0.5, 0.30), Offset(1.0, 0.27)],
-      [Offset(0, 0.30), Offset(0.25, 0.13), Offset(0.5, 0.23), Offset(1.0, 0.20)],
+      [
+        Offset(0, 0.50),
+        Offset(0.25, 0.33),
+        Offset(0.5, 0.43),
+        Offset(1.0, 0.40)
+      ],
+      [
+        Offset(0, 0.57),
+        Offset(0.25, 0.42),
+        Offset(0.5, 0.50),
+        Offset(1.0, 0.48)
+      ],
+      [
+        Offset(0, 0.63),
+        Offset(0.25, 0.50),
+        Offset(0.5, 0.57),
+        Offset(1.0, 0.57)
+      ],
+      [
+        Offset(0, 0.70),
+        Offset(0.25, 0.58),
+        Offset(0.5, 0.63),
+        Offset(1.0, 0.65)
+      ],
+      [
+        Offset(0, 0.43),
+        Offset(0.25, 0.27),
+        Offset(0.5, 0.37),
+        Offset(1.0, 0.33)
+      ],
+      [
+        Offset(0, 0.37),
+        Offset(0.25, 0.20),
+        Offset(0.5, 0.30),
+        Offset(1.0, 0.27)
+      ],
+      [
+        Offset(0, 0.30),
+        Offset(0.25, 0.13),
+        Offset(0.5, 0.23),
+        Offset(1.0, 0.20)
+      ],
     ];
     for (final pts in lines) {
-      final path = Path()..moveTo(pts[0].dx * size.width, pts[0].dy * size.height);
+      final path = Path()
+        ..moveTo(pts[0].dx * size.width, pts[0].dy * size.height);
       for (var i = 1; i < pts.length; i++) {
         final c1x = (pts[i - 1].dx + 0.1) * size.width;
         final c1y = pts[i - 1].dy * size.height;
         final c2x = (pts[i].dx - 0.1) * size.width;
         final c2y = pts[i].dy * size.height;
-        path.cubicTo(c1x, c1y, c2x, c2y, pts[i].dx * size.width, pts[i].dy * size.height);
+        path.cubicTo(c1x, c1y, c2x, c2y, pts[i].dx * size.width,
+            pts[i].dy * size.height);
       }
       canvas.drawPath(path, paint);
     }
@@ -68,15 +105,19 @@ class TTPulseRings extends StatefulWidget {
   State<TTPulseRings> createState() => _TTPulseRingsState();
 }
 
-class _TTPulseRingsState extends State<TTPulseRings> with TickerProviderStateMixin {
+class _TTPulseRingsState extends State<TTPulseRings>
+    with TickerProviderStateMixin {
   late final List<AnimationController> _ctls;
 
   @override
   void initState() {
     super.initState();
     _ctls = List.generate(widget.rings, (i) {
-      final c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400));
-      Future.delayed(Duration(milliseconds: i * 800), () { if (mounted) c.repeat(); });
+      final c = AnimationController(
+          vsync: this, duration: const Duration(milliseconds: 2400));
+      Future.delayed(Duration(milliseconds: i * 800), () {
+        if (mounted) c.repeat();
+      });
       return c;
     });
   }
@@ -136,10 +177,14 @@ class TTFAB extends StatefulWidget {
 
 class _TTFABState extends State<TTFAB> with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
-      AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
+      AnimationController(vsync: this, duration: const Duration(seconds: 3))
+        ..repeat(reverse: true);
 
   @override
-  void dispose() { _ctl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -153,10 +198,12 @@ class _TTFABState extends State<TTFAB> with SingleTickerProviderStateMixin {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: widget.label == null ? 18 : 18, vertical: 14),
+          padding: EdgeInsets.symmetric(
+              horizontal: widget.label == null ? 18 : 18, vertical: 14),
           decoration: BoxDecoration(
             color: TT.ember,
-            borderRadius: BorderRadius.circular(widget.label == null ? 999 : 16),
+            borderRadius:
+                BorderRadius.circular(widget.label == null ? 999 : 16),
             boxShadow: TT.shadowEmber,
           ),
           child: Row(
@@ -166,7 +213,8 @@ class _TTFABState extends State<TTFAB> with SingleTickerProviderStateMixin {
               if (widget.label != null) ...[
                 const SizedBox(width: 8),
                 Text(widget.label!,
-                    style: TT.body(size: 12, w: FontWeight.w900, color: TT.emberInk)
+                    style: TT
+                        .body(size: 12, w: FontWeight.w900, color: TT.emberInk)
                         .copyWith(letterSpacing: 0.12 * 12)),
               ],
             ],

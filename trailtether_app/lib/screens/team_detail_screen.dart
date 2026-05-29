@@ -81,8 +81,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              TeamInviteScreen(team: widget.team),
+                          builder: (_) => TeamInviteScreen(team: widget.team),
                         ),
                       ),
                     ),
@@ -165,21 +164,21 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           content: Text(
             'This will remove the team and all its hike plans. '
             'This cannot be undone.',
-            style: TT.body(size: 13, color: TT.text2, w: FontWeight.w500)
+            style: TT
+                .body(size: 13, color: TT.text2, w: FontWeight.w500)
                 .copyWith(height: 1.5),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: Text('Cancel',
-                  style: TT.body(
-                      size: 13, w: FontWeight.w700, color: TT.text2)),
+                  style:
+                      TT.body(size: 13, w: FontWeight.w700, color: TT.text2)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
               child: Text('Delete',
-                  style: TT.body(
-                      size: 13, w: FontWeight.w800, color: TT.red)),
+                  style: TT.body(size: 13, w: FontWeight.w800, color: TT.red)),
             ),
           ],
         ),
@@ -293,7 +292,8 @@ class _HikePlansTabState extends State<_HikePlansTab> {
             else
               for (var i = 0; i < plans.length; i++)
                 Padding(
-                  padding: EdgeInsets.only(bottom: i == plans.length - 1 ? 0 : 10),
+                  padding:
+                      EdgeInsets.only(bottom: i == plans.length - 1 ? 0 : 10),
                   child: _PlanCard(
                     plan: plans[i],
                     canDelete: plans[i].createdBy == widget.currentUid,
@@ -372,7 +372,8 @@ class _QuickPlanButton extends StatelessWidget {
               const Icon(Icons.add, color: TT.text2, size: 15),
               const SizedBox(width: 8),
               Text('QUICK PLAN',
-                  style: TT.body(size: 12.5, w: FontWeight.w800, color: TT.text2)
+                  style: TT
+                      .body(size: 12.5, w: FontWeight.w800, color: TT.text2)
                       .copyWith(letterSpacing: 0.14 * 12.5)),
             ],
           ),
@@ -526,9 +527,8 @@ class _PlanCardState extends State<_PlanCard> {
                 const SizedBox(width: 8),
                 TTPill(
                   label: isActive ? 'ACTIVE' : 'UPCOMING',
-                  variant: isActive
-                      ? TTPillVariant.ember
-                      : TTPillVariant.neutral,
+                  variant:
+                      isActive ? TTPillVariant.ember : TTPillVariant.neutral,
                 ),
               ],
               if (widget.canDelete) ...[
@@ -550,9 +550,7 @@ class _PlanCardState extends State<_PlanCard> {
               const Icon(Icons.calendar_today, color: TT.text3, size: 12),
               const SizedBox(width: 6),
               Text(
-                extras.time.isNotEmpty
-                    ? '$dateStr · ${extras.time}'
-                    : dateStr,
+                extras.time.isNotEmpty ? '$dateStr · ${extras.time}' : dateStr,
                 style: TT.mono(size: 11, color: TT.text2),
               ),
             ],
@@ -568,8 +566,8 @@ class _PlanCardState extends State<_PlanCard> {
                 Expanded(
                   child: Text(
                     widget.plan.meetingPoint,
-                    style: TT.body(
-                        size: 12, w: FontWeight.w500, color: TT.text2),
+                    style:
+                        TT.body(size: 12, w: FontWeight.w500, color: TT.text2),
                   ),
                 ),
               ],
@@ -623,7 +621,8 @@ class _PlanCardState extends State<_PlanCard> {
                 Expanded(
                   child: Text(
                     'Going: ${goingNames.join(", ")}',
-                    style: TT.body(size: 11.5, w: FontWeight.w600, color: TT.green),
+                    style: TT.body(
+                        size: 11.5, w: FontWeight.w600, color: TT.green),
                   ),
                 ),
               ],
@@ -640,7 +639,8 @@ class _PlanCardState extends State<_PlanCard> {
                 Expanded(
                   child: Text(
                     'Team: ${invitedNames.join(", ")}',
-                    style: TT.body(size: 11.5, w: FontWeight.w500, color: TT.text2),
+                    style: TT.body(
+                        size: 11.5, w: FontWeight.w500, color: TT.text2),
                   ),
                 ),
               ],
@@ -650,8 +650,7 @@ class _PlanCardState extends State<_PlanCard> {
           if (extras.weather.isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0x1A5AA1D6),
                 borderRadius: BorderRadius.circular(999),
@@ -678,16 +677,14 @@ class _PlanCardState extends State<_PlanCard> {
               children: extras.gearList.map((item) {
                 final packed = item.memberStatuses.values.any((v) => v);
                 return Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: packed
                         ? const Color(0x1A4CC38A)
                         : const Color(0x08FFFFFF),
                     border: Border.all(
-                      color: packed
-                          ? const Color(0x4D4CC38A)
-                          : TT.line2,
+                      color: packed ? const Color(0x4D4CC38A) : TT.line2,
                       width: 1,
                     ),
                     borderRadius: BorderRadius.circular(6),
@@ -733,8 +730,7 @@ class _PlanCardState extends State<_PlanCard> {
               extras.userNotes,
               style: TT
                   .body(size: 12, color: TT.text3, w: FontWeight.w500)
-                  .copyWith(
-                      height: 1.45, fontStyle: FontStyle.italic),
+                  .copyWith(height: 1.45, fontStyle: FontStyle.italic),
             ),
           ],
 
@@ -775,9 +771,8 @@ class _PlanCardState extends State<_PlanCard> {
                     label: 'HELP',
                     color: TT.red,
                     icon: Icons.warning_amber,
-                    onTap: () => context
-                        .read<TeamTrackingProvider>()
-                        .checkIn('help'),
+                    onTap: () =>
+                        context.read<TeamTrackingProvider>().checkIn('help'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -824,7 +819,8 @@ class _RsvpChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: active ? activeColor.withOpacity(0.15) : const Color(0x08FFFFFF),
+          color:
+              active ? activeColor.withOpacity(0.15) : const Color(0x08FFFFFF),
           border: Border.all(
             color: active ? activeColor : TT.line2,
             width: 1,
@@ -877,8 +873,8 @@ class _CheckInBtn extends StatelessWidget {
               Icon(icon, color: color, size: 18),
               const SizedBox(height: 4),
               Text(label,
-                  style: TT.body(
-                          size: 9.5, w: FontWeight.w900, color: color)
+                  style: TT
+                      .body(size: 9.5, w: FontWeight.w900, color: color)
                       .copyWith(letterSpacing: 0.12 * 9.5)),
             ],
           ),
@@ -928,18 +924,16 @@ class _EmberPillButton extends StatelessWidget {
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(TT.emberInk),
+                      valueColor: AlwaysStoppedAnimation<Color>(TT.emberInk),
                     ),
                   )
                 else
                   Icon(icon, color: TT.emberInk, size: 16),
                 const SizedBox(width: 8),
                 Text(label,
-                    style: TT.body(
-                            size: 12.5,
-                            w: FontWeight.w900,
-                            color: TT.emberInk)
+                    style: TT
+                        .body(
+                            size: 12.5, w: FontWeight.w900, color: TT.emberInk)
                         .copyWith(letterSpacing: 0.14 * 12.5)),
               ],
             ),
@@ -1057,7 +1051,8 @@ class _CalendarGrid extends StatelessWidget {
               .map((d) => Expanded(
                     child: Center(
                       child: Text(d,
-                          style: TT.mono(size: 10.5, color: TT.text3)
+                          style: TT
+                              .mono(size: 10.5, color: TT.text3)
                               .copyWith(letterSpacing: 0.1 * 10.5)),
                     ),
                   ))
@@ -1157,8 +1152,8 @@ class _MembersTabState extends State<_MembersTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e',
-                style: TT.body(size: 13, color: TT.text)),
+            content:
+                Text('Error: $e', style: TT.body(size: 13, color: TT.text)),
             backgroundColor: TT.surf2,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1262,8 +1257,7 @@ class _MembersTabState extends State<_MembersTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('SHARE INVITE LINK',
-                    style: TT.label(color: TT.ember)),
+                Text('SHARE INVITE LINK', style: TT.label(color: TT.ember)),
                 const SizedBox(height: 8),
                 Text(
                   'Send the team code via WhatsApp, email, SMS, or any installed share target. The recipient enters it in Teams → Join Team.',
@@ -1309,9 +1303,7 @@ class _MembersTabState extends State<_MembersTab> {
                         child: Text(
                           'CODE  ${widget.team.inviteCode}',
                           style: TT.mono(
-                              size: 12,
-                              color: TT.text2,
-                              letterSpacing: 1.2),
+                              size: 12, color: TT.text2, letterSpacing: 1.2),
                         ),
                       ),
                       GestureDetector(
@@ -1346,8 +1338,7 @@ class _MembersTabState extends State<_MembersTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('INVITE BY USERNAME',
-                    style: TT.label(color: TT.ember)),
+                Text('INVITE BY USERNAME', style: TT.label(color: TT.ember)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -1488,8 +1479,7 @@ class _MemberRow extends StatelessWidget {
             alignment: Alignment.center,
             child: Text(
               _initials(member.displayName),
-              style:
-                  TT.body(size: 12, w: FontWeight.w800, color: Colors.white),
+              style: TT.body(size: 12, w: FontWeight.w800, color: Colors.white),
             ),
           ),
           const SizedBox(width: 12),
@@ -1501,7 +1491,9 @@ class _MemberRow extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        isMe ? '${member.displayName} (you)' : member.displayName,
+                        isMe
+                            ? '${member.displayName} (you)'
+                            : member.displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TT.body(
@@ -1540,8 +1532,7 @@ class _MemberRow extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0x1AE63D2E),
                   borderRadius: BorderRadius.circular(TT.rSm),
-                  border:
-                      Border.all(color: const Color(0x59E63D2E), width: 1),
+                  border: Border.all(color: const Color(0x59E63D2E), width: 1),
                 ),
                 child: const Icon(Icons.person_remove_outlined,
                     color: TT.red, size: 16),
@@ -1732,8 +1723,7 @@ class _PublicLeaderboardCardState extends State<_PublicLeaderboardCard> {
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                 ),
               ),
             ),
@@ -1774,9 +1764,7 @@ class _PublicLeaderboardCardState extends State<_PublicLeaderboardCard> {
                     : Text(
                         'SAVE',
                         style: TT.label(
-                            size: 12,
-                            color: TT.emberInk,
-                            letterSpacing: 1.6),
+                            size: 12, color: TT.emberInk, letterSpacing: 1.6),
                       ),
               ),
             ),

@@ -11,7 +11,7 @@ class LoggerService {
   static final List<String> _memoryLogs = [];
   static const int _maxLogs = 1000;
   static List<String> get memoryLogs => List.unmodifiable(_memoryLogs);
-  
+
   static final List<void Function(String)> _listeners = [];
   static const bool _remoteLoggingEnabled = true;
   static String? currentTeamId;
@@ -73,7 +73,8 @@ class LoggerService {
     _listeners.remove(listener);
   }
 
-  static Future<void> _syncToSupabase(String tag, String message, String level) async {
+  static Future<void> _syncToSupabase(
+      String tag, String message, String level) async {
     if (!kSupabaseAvailable) return;
     try {
       final client = Supabase.instance.client;

@@ -56,8 +56,7 @@ class _PcTrailsScreenState extends State<PcTrailsScreen> {
   Future<void> _seedFromBundle() async {
     final confirm = await _confirm(
       title: 'Seed catalogue from bundle?',
-      body:
-          'Inserts the 239 bundled trails into Supabase. Idempotent — '
+      body: 'Inserts the 239 bundled trails into Supabase. Idempotent — '
           'existing rows are replaced, so re-running is safe.',
       action: 'Seed',
     );
@@ -244,8 +243,7 @@ class _PcTrailsScreenState extends State<PcTrailsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor:
-            ok ? const Color(0xFF5AC26D) : const Color(0xFFFF6B6B),
+        backgroundColor: ok ? const Color(0xFF5AC26D) : const Color(0xFFFF6B6B),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
       ),
@@ -372,8 +370,8 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(width: 14),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: TT.surf,
                   border: Border.all(color: TT.line2),
@@ -450,8 +448,7 @@ class _Filters extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: TT.surf,
                 border: Border.all(color: TT.line2),
@@ -482,7 +479,14 @@ class _Filters extends StatelessWidget {
           Expanded(
             child: _PcDropdown(
               value: difficulty,
-              items: const ['All', 'Easy', 'Moderate', 'Challenging', 'Hard', 'Extreme'],
+              items: const [
+                'All',
+                'Easy',
+                'Moderate',
+                'Challenging',
+                'Hard',
+                'Extreme'
+              ],
               onChanged: (v) => onChanged(v, category),
             ),
           ),
@@ -512,8 +516,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.alt_route_outlined,
-                size: 48, color: TT.text3),
+            const Icon(Icons.alt_route_outlined, size: 48, color: TT.text3),
             const SizedBox(height: 16),
             Text(
               total == 0
@@ -695,8 +698,7 @@ class _IconBtn extends StatelessWidget {
               border: Border.all(color: TT.line2),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon,
-                size: 16, color: danger ? TT.red : TT.text2),
+            child: Icon(icon, size: 16, color: danger ? TT.red : TT.text2),
           ),
         ),
       ),
@@ -720,15 +722,13 @@ class _PcButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onTap != null;
     return MouseRegion(
-      cursor:
-          enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
       child: GestureDetector(
         onTap: onTap,
         child: Opacity(
           opacity: enabled ? 1.0 : 0.45,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: ember ? TT.ember : TT.surf,
               border: Border.all(color: ember ? TT.ember : TT.line2),
@@ -738,16 +738,17 @@ class _PcButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon,
-                    size: 14, color: ember ? TT.emberInk : TT.text2),
+                Icon(icon, size: 14, color: ember ? TT.emberInk : TT.text2),
                 const SizedBox(width: 6),
                 Text(
                   label,
-                  style: TT.body(
-                    size: 12,
-                    w: FontWeight.w800,
-                    color: ember ? TT.emberInk : TT.text,
-                  ).copyWith(letterSpacing: 0.06 * 12),
+                  style: TT
+                      .body(
+                        size: 12,
+                        w: FontWeight.w800,
+                        color: ember ? TT.emberInk : TT.text,
+                      )
+                      .copyWith(letterSpacing: 0.06 * 12),
                 ),
               ],
             ),
@@ -866,8 +867,8 @@ class _TrailEditDialogState extends State<_TrailEditDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(widget.title.toUpperCase(),
-                  style: TT.label(
-                      size: 11, color: TT.ember, letterSpacing: 1.6)),
+                  style:
+                      TT.label(size: 11, color: TT.ember, letterSpacing: 1.6)),
               const SizedBox(height: 14),
               _Field(
                 label: 'Name',
@@ -885,7 +886,13 @@ class _TrailEditDialogState extends State<_TrailEditDialog> {
                       label: 'Difficulty',
                       child: _PcDropdown(
                         value: _difficulty,
-                        items: const ['Easy', 'Moderate', 'Challenging', 'Hard', 'Extreme'],
+                        items: const [
+                          'Easy',
+                          'Moderate',
+                          'Challenging',
+                          'Hard',
+                          'Extreme'
+                        ],
                         onChanged: (v) => setState(() => _difficulty = v),
                       ),
                     ),
@@ -896,7 +903,13 @@ class _TrailEditDialogState extends State<_TrailEditDialog> {
                       label: 'Category',
                       child: _PcDropdown(
                         value: _category,
-                        items: const ['hike', 'cave', 'peak', 'circular', 'scramble'],
+                        items: const [
+                          'hike',
+                          'cave',
+                          'peak',
+                          'circular',
+                          'scramble'
+                        ],
                         onChanged: (v) => setState(() => _category = v),
                       ),
                     ),
@@ -962,9 +975,7 @@ class _TrailEditDialogState extends State<_TrailEditDialog> {
                     },
                     child: Text('Save',
                         style: TT.body(
-                            size: 13,
-                            w: FontWeight.w800,
-                            color: TT.ember)),
+                            size: 13, w: FontWeight.w800, color: TT.ember)),
                   ),
                 ],
               ),

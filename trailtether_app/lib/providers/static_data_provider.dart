@@ -87,8 +87,7 @@ class StaticDataProvider extends ChangeNotifier {
         query: _query,
         difficulty: _difficulty == 'All' ? null : _difficulty,
       );
-      LoggerService.log(
-          'STATIC_DATA', 'Refreshed ${_allTrails.length} trails');
+      LoggerService.log('STATIC_DATA', 'Refreshed ${_allTrails.length} trails');
     } catch (e) {
       LoggerService.error('STATIC_DATA', 'refreshTrails failed: $e');
     }

@@ -12,7 +12,7 @@ source_paths: [trailtether_app/pubspec.yaml, hilltrek-admin/app.js, supabase/fun
 |---|---|---|---|
 | `flutter` SDK | 3.3.0+ | Framework | [[Pubspec Configuration]] |
 | `supabase_flutter` | ^2.5.0 | Auth, Postgres client, Storage, Realtime | [[supabase_flutter]] |
-| `provider` | ^6.1.2 | State management — 16 ChangeNotifierProviders in [[main.dart]] | [[provider]] |
+| `provider` | ^6.1.2 | State management — 17 ChangeNotifierProviders in [[main.dart]] | [[provider]] |
 | `flutter_map` | ^7.0.1 | 2D map (OpenTopo, Stadia tiles) | [[flutter_map]] |
 | `flutter_map_tile_caching` | ^9.1.0 | FMTC offline tile cache, ObjectBox backend | [[offline_map_service.dart]] |
 | `geolocator` | ^13.0.1 | GPS + permissions | [[geolocator]], [[location_service.dart]] |
@@ -50,6 +50,7 @@ source_paths: [trailtether_app/pubspec.yaml, hilltrek-admin/app.js, supabase/fun
 | `window_manager` | ^0.4.3 | Window chrome on desktop | [[MainPcShell]] |
 | `open_filex` | ^4.5.0 | Sideload-install downloaded APK | [[update_service.dart]] |
 | `health` | 12.2.0 | Health Connect / HealthKit integration | — |
+| `sentry_flutter` | ^8.8.0 | Error reporting + telemetry | [[telemetry_service.dart]] |
 
 Dev: `flutter_lints ^4.0.0`, `flutter_launcher_icons ^0.14.1`, `flutter_native_splash ^2.4.1`, `msix ^3.16.1`.
 
@@ -58,12 +59,11 @@ Dev: `flutter_lints ^4.0.0`, `flutter_launcher_icons ^0.14.1`, `flutter_native_s
 | Dep | Used by | Role |
 |---|---|---|
 | `jsr:@supabase/supabase-js@2` | Most functions | DB client | [[supabase-js]] |
-| `https://esm.sh/@supabase/supabase-js@2.45.0` | Payment functions, finalize-orphan-hikes | Older pinned import — non-standard | — |
 | `https://deno.land/x/denomailer@1.6.0/mod.ts` | [[subscriber-send-confirmation]], [[newsletter-send]] | SMTP send | [[denomailer]] |
 | `https://deno.land/std@0.224.0/crypto/mod.ts` | [[payfast-checkout]] | MD5 (not in WebCrypto) | — |
 
-> [!warning] Verify
-> Two different supabase-js imports across functions (jsr vs esm.sh). Should standardise on `jsr:` per Supabase's current recommendation.
+> [!note]
+> All edge functions now use `jsr:` specifiers exclusively for `supabase-js`, per Supabase's current recommendation. The legacy `esm.sh` import was removed.
 
 ## Static sites + admin SPA
 
@@ -84,3 +84,5 @@ No package.json at repo root anymore (legacy Vite remnants purged this session).
 - **Payments**: PayFast, Yoco, Zapper (ZAR only — [[Workflow - Checkout]])
 - **Captcha**: Cloudflare Turnstile (on APK download gate; secret in `TURNSTILE_SECRET`)
 - **Signing**: APK signed with stored cert; MSIX signed with `.pfx` outside the repo (`%USERPROFILE%\.trailtether-signing\`)
+- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — analyze, test, format check, dry-run APK build on push/PR to main
+- **Telemetry**: Sentry (via `sentry_flutter` — DSN injected at build via `--dart-define=SENTRY_DSN=...`)

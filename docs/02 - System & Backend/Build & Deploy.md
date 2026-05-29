@@ -19,12 +19,9 @@ source_paths: [scripts/publish_release.ps1, scripts/publish_windows.ps1, scripts
 ## Flutter analyze + tests
 
 ```bash
-cd trailtether_app && flutter analyze    # currently 25 info-level lints, 0 errors
-cd trailtether_app && flutter test       # no automated tests at present
+cd trailtether_app && flutter analyze    # 0 issues
+cd trailtether_app && flutter test       # 23 tests (offline incident queue, model parsing, widget)
 ```
-
-> [!warning] Verify
-> No test suite exists in `trailtether_app/test/`. Manual QA is the safety net.
 
 ## Build outputs
 
@@ -89,8 +86,19 @@ The in-app updater (see [[update_service.dart]]) reads from [[app_releases]] on 
 | Edge function | `mcp__supabase__deploy_edge_function` (or `supabase functions deploy <name>`) |
 | Storage policies | Not in migrations — manual via Supabase dashboard |
 
-> [!warning] Verify
-> Storage bucket RLS policies aren't in migrations. Bucket policies for `recorded-trails`, `gpx_uploads`, `incident-photos`, `profile-photos`, `app-releases` need to be verified in the Supabase dashboard. See [[Known Issues]].
+> [!note]
+> Storage bucket RLS policies are documented in `20260528_storage_rls_policies.sql` (migration file kept as reference). All 31 policies are verified active in production.
+
+## GitHub Actions CI
+
+On every push/PR to `main`, `.github/workflows/ci.yml` runs:
+1. `flutter pub get`
+2. `dart format --set-exit-if-changed lib/ test/`
+3. `flutter analyze`
+4. `flutter test`
+5. `flutter build apk --release --flavor sideload --split-per-abi --no-pub` (dry-run)
+
+Requires Java 17 (Zulu) + Flutter 3.24.5 stable.
 
 ## Environments
 

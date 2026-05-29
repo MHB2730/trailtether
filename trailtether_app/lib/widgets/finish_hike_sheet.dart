@@ -169,8 +169,7 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
           const SizedBox(height: 18),
           Text(
             'ACTIVITY TYPE',
-            style: TT.label(
-                size: 10.5, color: TT.text3, letterSpacing: 1.4),
+            style: TT.label(size: 10.5, color: TT.text3, letterSpacing: 1.4),
           ),
           const SizedBox(height: 8),
           Row(
@@ -197,8 +196,7 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
           const SizedBox(height: 18),
           Text(
             'CONTEXT',
-            style: TT.label(
-                size: 10.5, color: TT.text3, letterSpacing: 1.4),
+            style: TT.label(size: 10.5, color: TT.text3, letterSpacing: 1.4),
           ),
           const SizedBox(height: 8),
           Row(
@@ -226,8 +224,7 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
             const SizedBox(height: 18),
             Text(
               'SELECT TEAM',
-              style: TT.label(
-                  size: 10.5, color: TT.text3, letterSpacing: 1.4),
+              style: TT.label(size: 10.5, color: TT.text3, letterSpacing: 1.4),
             ),
             const SizedBox(height: 8),
             Consumer<TeamProvider>(
@@ -248,9 +245,7 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
                     Text(
                       'PEAKS RECORDED',
                       style: TT.label(
-                          size: 10.5,
-                          color: TT.text3,
-                          letterSpacing: 1.4),
+                          size: 10.5, color: TT.text3, letterSpacing: 1.4),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -261,8 +256,7 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
                               () => _peaks = (_peaks - 1).clamp(0, 10)),
                         ),
                         Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
                             '$_peaks',
                             style: TT.numStyle(size: 20, color: TT.text),
@@ -270,8 +264,7 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
                         ),
                         _StepperButton(
                           icon: Icons.add,
-                          onTap: () =>
-                              setState(() => _peaks = _peaks + 1),
+                          onTap: () => setState(() => _peaks = _peaks + 1),
                         ),
                       ],
                     ),
@@ -375,9 +368,8 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
       peaksClimbed: peaks,
     );
 
-    final result = await ctx
-        .read<HikeHistoryProvider>()
-        .add(finalHike, userId: auth.uid);
+    final result =
+        await ctx.read<HikeHistoryProvider>().add(finalHike, userId: auth.uid);
 
     if (!mounted || !ctx.mounted) return;
 
@@ -473,8 +465,8 @@ class _SheetField extends StatelessWidget {
             style: TT.body(size: 14, color: TT.text),
             decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               hintText: 'Untitled activity',
               hintStyle: TT.body(size: 14, color: TT.text3),
             ),
@@ -511,8 +503,7 @@ class _TypeButton extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Icon(icon,
-                    color: active ? TT.ember : TT.text3, size: 18),
+                Icon(icon, color: active ? TT.ember : TT.text3, size: 18),
                 const SizedBox(height: 6),
                 Text(
                   label,
@@ -625,11 +616,13 @@ class _PrimaryButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TT.body(
-            size: 13,
-            w: FontWeight.w900,
-            color: TT.emberInk,
-          ).copyWith(letterSpacing: 0.16 * 13),
+          style: TT
+              .body(
+                size: 13,
+                w: FontWeight.w900,
+                color: TT.emberInk,
+              )
+              .copyWith(letterSpacing: 0.16 * 13),
         ),
       ),
     );
@@ -665,11 +658,13 @@ class _DangerButton extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               label,
-              style: TT.body(
-                size: 13,
-                w: FontWeight.w900,
-                color: TT.red,
-              ).copyWith(letterSpacing: 0.16 * 13),
+              style: TT
+                  .body(
+                    size: 13,
+                    w: FontWeight.w900,
+                    color: TT.red,
+                  )
+                  .copyWith(letterSpacing: 0.16 * 13),
             ),
           ],
         ),

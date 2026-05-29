@@ -42,7 +42,7 @@ import '../widgets/weather_warnings_banner.dart';
 import 'create_hike_plan_screen.dart';
 import 'hike_history_screen.dart' show HikeDetailScreen, HikeHistoryScreen;
 import 'hike_plan_detail_screen.dart';
-import 'incident_detail_sheet.dart';
+import '../widgets/incident_detail_sheet.dart';
 import 'sos_screen.dart';
 
 class TTHomeScreen extends StatefulWidget {
@@ -154,16 +154,14 @@ class _TTHomeScreenState extends State<TTHomeScreen> {
                       fit: BoxFit.fitWidth,
                       alignment: Alignment.topCenter,
                       filterQuality: FilterQuality.medium,
-                      errorBuilder: (_, __, ___) =>
-                          const SizedBox(height: 720),
+                      errorBuilder: (_, __, ___) => const SizedBox(height: 720),
                     ),
                     secondChild: Image.asset(
                       'assets/icon/hero_snow.jpg',
                       fit: BoxFit.fitWidth,
                       alignment: Alignment.topCenter,
                       filterQuality: FilterQuality.medium,
-                      errorBuilder: (_, __, ___) =>
-                          const SizedBox(height: 720),
+                      errorBuilder: (_, __, ___) => const SizedBox(height: 720),
                     ),
                   ),
                   // Local bottom-fade INSIDE the hero zone so it
@@ -248,7 +246,8 @@ class _HomeHero extends StatefulWidget {
   State<_HomeHero> createState() => _HomeHeroState();
 }
 
-class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixin {
+class _HomeHeroState extends State<_HomeHero>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _starCtl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 3000),
@@ -322,17 +321,17 @@ class _HomeHeroState extends State<_HomeHero> with SingleTickerProviderStateMixi
                   Text(
                     'WELCOME BACK,',
                     style: TT.mono(size: 11, color: TT.ember).copyWith(
-                      letterSpacing: 0.2 * 11,
-                      fontWeight: FontWeight.w800,
-                    ),
+                          letterSpacing: 0.2 * 11,
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     firstName,
                     style: TT.title(32, letterSpacing: -0.025 * 32).copyWith(
-                      fontWeight: FontWeight.w900,
-                      height: 1.0,
-                    ),
+                          fontWeight: FontWeight.w900,
+                          height: 1.0,
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -374,7 +373,9 @@ String _avatarInitials(ap.AuthProvider auth) {
     if (parts.length >= 2) {
       return (parts.first[0] + parts.last[0]).toUpperCase();
     }
-    return parts.first.substring(0, math.min(2, parts.first.length)).toUpperCase();
+    return parts.first
+        .substring(0, math.min(2, parts.first.length))
+        .toUpperCase();
   }
   final email = auth.email;
   if (email != null && email.isNotEmpty) {
@@ -468,7 +469,6 @@ class _HeroBrandRow extends StatelessWidget {
   }
 }
 
-
 // ─────────────────────────── QUICK ACTION TILES ─────────────────────────────
 
 class _HomeQuickActions extends StatelessWidget {
@@ -523,7 +523,8 @@ class _HomeQuickActions extends StatelessWidget {
           if (!ok) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Location permission required to start recording.'),
+                content:
+                    Text('Location permission required to start recording.'),
               ),
             );
             return;
@@ -567,7 +568,9 @@ class _HomeQuickActions extends StatelessWidget {
         base: const Duration(milliseconds: 350),
         step: const Duration(milliseconds: 70),
         gap: 8,
-        children: actions.map((a) => Expanded(child: _QuickActionTile(action: a))).toList(),
+        children: actions
+            .map((a) => Expanded(child: _QuickActionTile(action: a)))
+            .toList(),
       ),
     );
   }
@@ -654,11 +657,13 @@ class _QuickActionTileState extends State<_QuickActionTile> {
               const SizedBox(height: 7),
               Text(
                 a.label.toUpperCase(),
-                style: TT.body(
-                  size: 9.5,
-                  w: FontWeight.w800,
-                  color: primary ? TT.ember : TT.text,
-                ).copyWith(letterSpacing: 0.1 * 9.5),
+                style: TT
+                    .body(
+                      size: 9.5,
+                      w: FontWeight.w800,
+                      color: primary ? TT.ember : TT.text,
+                    )
+                    .copyWith(letterSpacing: 0.1 * 9.5),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -773,7 +778,8 @@ class _UpcomingHikeCardState extends State<_UpcomingHikeCard>
             final now = DateTime.now();
             // First future plan, sorted by date (the future itself sorts them).
             final next = all
-                .where((p) => p.hikeDate.isAfter(now) && p.status != 'completed')
+                .where(
+                    (p) => p.hikeDate.isAfter(now) && p.status != 'completed')
                 .toList();
             final plan = next.isNotEmpty ? next.first : null;
             return TTCard(
@@ -824,9 +830,9 @@ class _UpcomingEmptyContent extends StatelessWidget {
                 Text(
                   'NO UPCOMING HIKES',
                   style: TT.mono(size: 10, color: TT.ember).copyWith(
-                    letterSpacing: 0.18 * 10,
-                    fontWeight: FontWeight.w800,
-                  ),
+                        letterSpacing: 0.18 * 10,
+                        fontWeight: FontWeight.w800,
+                      ),
                 ),
               ],
             ),
@@ -838,7 +844,8 @@ class _UpcomingEmptyContent extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               'TAP TO PLAN A ROUTE · DRAKENSBERG',
-              style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
+              style: TT
+                  .mono(size: 11, color: TT.text3, w: FontWeight.w600)
                   .copyWith(letterSpacing: 0.04 * 11),
             ),
             const SizedBox(height: 14),
@@ -849,8 +856,8 @@ class _UpcomingEmptyContent extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: onTap,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: TT.emberDim,
                       border:
@@ -945,9 +952,9 @@ class _UpcomingPlanContent extends StatelessWidget {
                     Text(
                       headerLabel,
                       style: TT.mono(size: 10, color: TT.ember).copyWith(
-                        letterSpacing: 0.18 * 10,
-                        fontWeight: FontWeight.w800,
-                      ),
+                            letterSpacing: 0.18 * 10,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
                   ],
                 ),
@@ -965,7 +972,8 @@ class _UpcomingPlanContent extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               subtitle,
-              style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
+              style: TT
+                  .mono(size: 11, color: TT.text3, w: FontWeight.w600)
                   .copyWith(letterSpacing: 0.04 * 11),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -983,15 +991,16 @@ class _UpcomingPlanContent extends StatelessWidget {
                       children: [
                         Text(
                           'STARTS IN',
-                          style: TT.body(
+                          style: TT
+                              .body(
                                   size: 9, w: FontWeight.w700, color: TT.text3)
                               .copyWith(letterSpacing: 0.16 * 9),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           countdownLabel,
-                          style: TT.numStyle(
-                              size: 17, letterSpacing: -0.02 * 17),
+                          style:
+                              TT.numStyle(size: 17, letterSpacing: -0.02 * 17),
                         ),
                       ],
                     ),
@@ -1088,7 +1097,8 @@ class _AvatarStack extends StatelessWidget {
               alignment: Alignment.center,
               child: Text(
                 e.initial,
-                style: TT.body(size: 11, w: FontWeight.w800, color: Colors.white),
+                style:
+                    TT.body(size: 11, w: FontWeight.w800, color: Colors.white),
               ),
             ),
           );
@@ -1106,7 +1116,8 @@ class _PulseDot extends StatefulWidget {
   State<_PulseDot> createState() => _PulseDotState();
 }
 
-class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixin {
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1400),
@@ -1144,7 +1155,8 @@ class _WeatherCard extends StatefulWidget {
   State<_WeatherCard> createState() => _WeatherCardState();
 }
 
-class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixin {
+class _WeatherCardState extends State<_WeatherCard>
+    with TickerProviderStateMixin {
   late final AnimationController _sunCtl = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 18),
@@ -1221,8 +1233,7 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dCtx, false),
-            child:
-                Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
+            child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dCtx, true),
@@ -1259,8 +1270,7 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
         : 'DRAKENSBERG';
 
     if (weather != null) {
-      if (_selectedDayIndex < 0 ||
-          _selectedDayIndex >= weather.daily.length) {
+      if (_selectedDayIndex < 0 || _selectedDayIndex >= weather.daily.length) {
         _selectedDayIndex = 0;
       }
     }
@@ -1317,8 +1327,8 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
                   Expanded(
                     child: RichText(
                       text: TextSpan(
-                        style: TT.body(
-                                size: 11, w: FontWeight.w700, color: TT.text2)
+                        style: TT
+                            .body(size: 11, w: FontWeight.w700, color: TT.text2)
                             .copyWith(letterSpacing: 0.16 * 11),
                         children: [
                           const TextSpan(text: 'CONDITIONS · '),
@@ -1373,8 +1383,7 @@ class _WeatherCardState extends State<_WeatherCard> with TickerProviderStateMixi
                       day: weather.daily[i],
                       isToday: i == 0,
                       selected: i == _selectedDayIndex,
-                      onTap: () =>
-                          setState(() => _selectedDayIndex = i),
+                      onTap: () => setState(() => _selectedDayIndex = i),
                     ),
                   ),
                 ),
@@ -1436,8 +1445,7 @@ class _LocationChipsStrip extends StatelessWidget {
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => onSelect(i),
-            onLongPress:
-                locations.length > 1 ? () => onRemove(i) : null,
+            onLongPress: locations.length > 1 ? () => onRemove(i) : null,
             child: AnimatedContainer(
               duration: TT.dFast,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -1549,12 +1557,16 @@ class _TTDayCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              isToday ? 'TODAY' : DateFormat('EEE').format(day.date).toUpperCase(),
-              style: TT.mono(
-                size: 10,
-                color: isToday ? TT.ember : TT.text2,
-                w: FontWeight.w800,
-              ).copyWith(letterSpacing: 0.08 * 10),
+              isToday
+                  ? 'TODAY'
+                  : DateFormat('EEE').format(day.date).toUpperCase(),
+              style: TT
+                  .mono(
+                    size: 10,
+                    color: isToday ? TT.ember : TT.text2,
+                    w: FontWeight.w800,
+                  )
+                  .copyWith(letterSpacing: 0.08 * 10),
             ),
             Text(weatherEmoji(day.weatherCode),
                 style: const TextStyle(fontSize: 22)),
@@ -1565,8 +1577,7 @@ class _TTDayCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.water_drop,
-                    color: Color(0xFF6FB6FF), size: 9),
+                const Icon(Icons.water_drop, color: Color(0xFF6FB6FF), size: 9),
                 const SizedBox(width: 2),
                 Text(
                   '${day.precipProbability}%',
@@ -1582,11 +1593,13 @@ class _TTDayCard extends StatelessWidget {
               ),
               child: Text(
                 cond.label.toUpperCase(),
-                style: TT.mono(
-                  size: 8.5,
-                  color: accent,
-                  w: FontWeight.w800,
-                ).copyWith(letterSpacing: 0.1 * 8.5),
+                style: TT
+                    .mono(
+                      size: 8.5,
+                      color: accent,
+                      w: FontWeight.w800,
+                    )
+                    .copyWith(letterSpacing: 0.1 * 8.5),
               ),
             ),
           ],
@@ -1674,13 +1687,12 @@ class _AddWeatherLocationDialogState extends State<_AddWeatherLocationDialog> {
                 hintStyle: TT.body(size: 13, color: TT.text3),
                 filled: true,
                 fillColor: TT.bg3,
-                prefixIcon: const Icon(Icons.search,
-                    color: TT.text3, size: 18),
+                prefixIcon: const Icon(Icons.search, color: TT.text3, size: 18),
                 suffixIcon: _ctrl.text.isEmpty
                     ? null
                     : IconButton(
-                        icon: const Icon(Icons.close,
-                            color: TT.text3, size: 16),
+                        icon:
+                            const Icon(Icons.close, color: TT.text3, size: 16),
                         onPressed: () {
                           _ctrl.clear();
                           setState(() {
@@ -1739,8 +1751,7 @@ class _AddWeatherLocationDialogState extends State<_AddWeatherLocationDialog> {
                               dense: true,
                               title: Text(
                                 name,
-                                style: TT.body(
-                                    size: 13.5, w: FontWeight.w800),
+                                style: TT.body(size: 13.5, w: FontWeight.w800),
                               ),
                               subtitle: Text(
                                 '${lat.toStringAsFixed(3)}, ${lon.toStringAsFixed(3)}',
@@ -1762,8 +1773,7 @@ class _AddWeatherLocationDialogState extends State<_AddWeatherLocationDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child:
-              Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
+          child: Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
         ),
       ],
     );
@@ -1805,8 +1815,9 @@ class _WeatherSkeleton extends StatelessWidget {
             children: [
               Text(
                 loading ? 'Fetching…' : 'Tap to load weather',
-                style:
-                    TT.title(20, letterSpacing: -0.02 * 20).copyWith(height: 1.1),
+                style: TT
+                    .title(20, letterSpacing: -0.02 * 20)
+                    .copyWith(height: 1.1),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1815,7 +1826,8 @@ class _WeatherSkeleton extends StatelessWidget {
                     : (error != null
                         ? 'NO RECENT DATA · TAP TO RETRY'
                         : 'PICK A LOCATION IN WEATHER TAB'),
-                style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
+                style: TT
+                    .mono(size: 11, color: TT.text3, w: FontWeight.w600)
                     .copyWith(letterSpacing: 0.05 * 11),
               ),
             ],
@@ -1848,9 +1860,7 @@ class _WeatherBody extends StatelessWidget {
     final wind = units.speedFromKmh(cur.windSpeed).round();
     final windUnit = units.speedUnit;
     final score = _hikeScore(weather);
-    final scoreColor = score >= 7
-        ? TT.green
-        : (score >= 4 ? TT.amber : TT.red);
+    final scoreColor = score >= 7 ? TT.green : (score >= 4 ? TT.amber : TT.red);
     final scoreBg = score >= 7
         ? const Color(0x244CC38A)
         : (score >= 4 ? const Color(0x24F2A93B) : const Color(0x24E63D2E));
@@ -1884,10 +1894,12 @@ class _WeatherBody extends StatelessWidget {
                 children: [
                   Text(
                     '$tempInt°',
-                    style: TT.numStyle(
-                      size: 32,
-                      letterSpacing: -0.025 * 32,
-                    ).copyWith(height: 1.0),
+                    style: TT
+                        .numStyle(
+                          size: 32,
+                          letterSpacing: -0.025 * 32,
+                        )
+                        .copyWith(height: 1.0),
                   ),
                   const SizedBox(width: 4),
                   Padding(
@@ -1906,7 +1918,8 @@ class _WeatherBody extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 '$condition · WIND $wind $windUnit',
-                style: TT.mono(size: 11, color: TT.text3, w: FontWeight.w600)
+                style: TT
+                    .mono(size: 11, color: TT.text3, w: FontWeight.w600)
                     .copyWith(letterSpacing: 0.05 * 11),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1936,9 +1949,9 @@ class _WeatherBody extends StatelessWidget {
                   const SizedBox(width: 2),
                   Text(
                     '/10',
-                    style:
-                        TT.body(size: 9.5, color: scoreColor, w: FontWeight.w600)
-                            .copyWith(letterSpacing: 0.08 * 9.5),
+                    style: TT
+                        .body(size: 9.5, color: scoreColor, w: FontWeight.w600)
+                        .copyWith(letterSpacing: 0.08 * 9.5),
                   ),
                 ],
               ),
@@ -1946,7 +1959,8 @@ class _WeatherBody extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'HIKE SCORE',
-              style: TT.body(size: 9, color: scoreColor, w: FontWeight.w700)
+              style: TT
+                  .body(size: 9, color: scoreColor, w: FontWeight.w700)
                   .copyWith(letterSpacing: 0.14 * 9),
             ),
           ],
@@ -1989,7 +2003,8 @@ class _HourStrip extends StatelessWidget {
             children: [
               Text(
                 h.hour,
-                style: TT.mono(size: 9, color: TT.text3, w: FontWeight.w700)
+                style: TT
+                    .mono(size: 9, color: TT.text3, w: FontWeight.w700)
                     .copyWith(letterSpacing: 0.06 * 9),
               ),
               const SizedBox(height: 5),
@@ -2114,9 +2129,17 @@ class _WxMiniIconPainter extends CustomPainter {
         break;
       case _WxKind.cloud:
         final c = Paint()..color = const Color(0xFF5A6470);
-        canvas.drawOval(Rect.fromCenter(center: Offset(cx - 3, cy + 2), width: 10, height: 6), c);
-        canvas.drawOval(Rect.fromCenter(center: Offset(cx + 3, cy + 2), width: 8, height: 5), c);
-        canvas.drawOval(Rect.fromCenter(center: Offset(cx, cy - 1), width: 7, height: 5), c);
+        canvas.drawOval(
+            Rect.fromCenter(
+                center: Offset(cx - 3, cy + 2), width: 10, height: 6),
+            c);
+        canvas.drawOval(
+            Rect.fromCenter(
+                center: Offset(cx + 3, cy + 2), width: 8, height: 5),
+            c);
+        canvas.drawOval(
+            Rect.fromCenter(center: Offset(cx, cy - 1), width: 7, height: 5),
+            c);
         break;
       case _WxKind.moon:
         final m = Paint()..color = const Color(0xFF98A1AC);
@@ -2177,8 +2200,10 @@ class _WeatherIconPainter extends CustomPainter {
         ..strokeWidth = 1.6
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(
-        Offset(sunCenter.dx + math.cos(a) * 18, sunCenter.dy + math.sin(a) * 18),
-        Offset(sunCenter.dx + math.cos(a) * 24, sunCenter.dy + math.sin(a) * 24),
+        Offset(
+            sunCenter.dx + math.cos(a) * 18, sunCenter.dy + math.sin(a) * 18),
+        Offset(
+            sunCenter.dx + math.cos(a) * 24, sunCenter.dy + math.sin(a) * 24),
         ray,
       );
     }
@@ -2217,7 +2242,8 @@ class _LastHikeCard extends StatefulWidget {
   State<_LastHikeCard> createState() => _LastHikeCardState();
 }
 
-class _LastHikeCardState extends State<_LastHikeCard> with SingleTickerProviderStateMixin {
+class _LastHikeCardState extends State<_LastHikeCard>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctl =
       AnimationController(vsync: this, duration: TT.dSlow);
 
@@ -2272,7 +2298,8 @@ class _LastHikeCardState extends State<_LastHikeCard> with SingleTickerProviderS
               children: [
                 Text(
                   'LAST HIKE',
-                  style: TT.body(size: 11, w: FontWeight.w700, color: TT.text2)
+                  style: TT
+                      .body(size: 11, w: FontWeight.w700, color: TT.text2)
                       .copyWith(letterSpacing: 0.16 * 11),
                 ),
                 GestureDetector(
@@ -2338,8 +2365,7 @@ class _LastHikeEmpty extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.flag_outlined,
-                  size: 18, color: TT.ember),
+              child: const Icon(Icons.flag_outlined, size: 18, color: TT.ember),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -2353,7 +2379,8 @@ class _LastHikeEmpty extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     'START YOUR FIRST · TAP TO BEGIN',
-                    style: TT.mono(size: 10.5, color: TT.text3, w: FontWeight.w600)
+                    style: TT
+                        .mono(size: 10.5, color: TT.text3, w: FontWeight.w600)
                         .copyWith(letterSpacing: 0.04 * 10.5),
                   ),
                 ],
@@ -2363,7 +2390,8 @@ class _LastHikeEmpty extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        TTBigElevChart(peakLabel: 'No data yet', elevationUnit: units.elevationUnit),
+        TTBigElevChart(
+            peakLabel: 'No data yet', elevationUnit: units.elevationUnit),
       ],
     );
   }
@@ -2388,11 +2416,11 @@ class _LastHikeContent extends StatelessWidget {
     final peakLabel = '$distStr $distUnit · $ascentVal $elevUnit';
 
     // Calories: ~117 kcal per mile (rough but matches activity screen heuristic).
-    final kcal = NumberFormat.decimalPattern()
-        .format((hike.distanceKm * 116.7).round());
+    final kcal =
+        NumberFormat.decimalPattern().format((hike.distanceKm * 116.7).round());
     // Steps: ~1312 steps per km (rough hiking cadence).
-    final steps = NumberFormat.decimalPattern()
-        .format((hike.distanceKm * 1312).round());
+    final steps =
+        NumberFormat.decimalPattern().format((hike.distanceKm * 1312).round());
 
     final samples = hike.points.length > 4
         ? hike.points.map((p) => p.altitude).toList()
@@ -2417,9 +2445,9 @@ class _LastHikeContent extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     '$dateStr · $distStr $distUnit · $durText',
-                    style:
-                        TT.mono(size: 10.5, color: TT.text3, w: FontWeight.w600)
-                            .copyWith(letterSpacing: 0.04 * 10.5),
+                    style: TT
+                        .mono(size: 10.5, color: TT.text3, w: FontWeight.w600)
+                        .copyWith(letterSpacing: 0.04 * 10.5),
                   ),
                 ],
               ),
@@ -2433,7 +2461,8 @@ class _LastHikeContent extends StatelessWidget {
               ),
               child: Text(
                 'SYNCED',
-                style: TT.mono(size: 9, color: TT.green, w: FontWeight.w800)
+                style: TT
+                    .mono(size: 9, color: TT.green, w: FontWeight.w800)
                     .copyWith(letterSpacing: 0.12 * 9),
               ),
             ),
@@ -2442,7 +2471,8 @@ class _LastHikeContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        TTBigElevChart(samples: samples, peakLabel: peakLabel, elevationUnit: elevUnit),
+        TTBigElevChart(
+            samples: samples, peakLabel: peakLabel, elevationUnit: elevUnit),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -2493,11 +2523,13 @@ class _StatChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           value,
-          style: TT.numStyle(size: 11, color: valueColor ?? TT.text, w: FontWeight.w800),
+          style: TT.numStyle(
+              size: 11, color: valueColor ?? TT.text, w: FontWeight.w800),
         ),
         if (unit.isNotEmpty) ...[
           const SizedBox(width: 3),
-          Text(unit, style: TT.mono(size: 10, color: TT.text2, w: FontWeight.w700)),
+          Text(unit,
+              style: TT.mono(size: 10, color: TT.text2, w: FontWeight.w700)),
         ],
       ],
     );
@@ -2536,7 +2568,8 @@ class _FieldIntelStrip extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(
               'FIELD INTEL',
-              style: TT.body(size: 11, w: FontWeight.w700, color: TT.text2)
+              style: TT
+                  .body(size: 11, w: FontWeight.w700, color: TT.text2)
                   .copyWith(letterSpacing: 0.16 * 11),
             ),
           ),
@@ -2576,8 +2609,8 @@ class _FieldIntelStrip extends StatelessWidget {
     }
   }
 
-  List<_IntelEntry> _buildRows(SafetyProvider safety, TeamProvider teams,
-      RecordingProvider recording) {
+  List<_IntelEntry> _buildRows(
+      SafetyProvider safety, TeamProvider teams, RecordingProvider recording) {
     final rows = <_IntelEntry>[];
 
     // 1) If recording is active and the user has drifted off-trail, surface
@@ -2608,8 +2641,7 @@ class _FieldIntelStrip extends StatelessWidget {
         icon: _iconForIncident(h.type),
         color: _colorForSeverity(h.severity),
         title: _shortTitle(h),
-        sub:
-            '${h.trailName ?? "Drakensberg"} · reported ${_ago(h.reportedAt)}',
+        sub: '${h.trailName ?? "Drakensberg"} · reported ${_ago(h.reportedAt)}',
         dest: _IntelDest.incident,
         incident: h,
       ));
@@ -2755,7 +2787,8 @@ class _IntelRow extends StatelessWidget {
               height: 30,
               decoration: BoxDecoration(
                 color: entry.color.withOpacity(0.12),
-                border: Border.all(color: entry.color.withOpacity(0.25), width: 1),
+                border:
+                    Border.all(color: entry.color.withOpacity(0.25), width: 1),
                 borderRadius: BorderRadius.circular(9),
               ),
               alignment: Alignment.center,
@@ -2775,7 +2808,8 @@ class _IntelRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     entry.sub,
-                    style: TT.mono(size: 10, color: TT.text3, w: FontWeight.w500)
+                    style: TT
+                        .mono(size: 10, color: TT.text3, w: FontWeight.w500)
                         .copyWith(letterSpacing: 0.02 * 10),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

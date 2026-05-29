@@ -150,7 +150,9 @@ class _TTAchievementMedallionState extends State<TTAchievementMedallion>
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: widget.unlocked ? const Color(0xFF0A0C0F) : Colors.transparent,
+                color: widget.unlocked
+                    ? const Color(0xFF0A0C0F)
+                    : Colors.transparent,
                 border: widget.unlocked
                     ? Border.all(color: widget.color, width: 1.5)
                     : null,
@@ -296,7 +298,8 @@ class _MedallionPainter extends CustomPainter {
       final magmaTop = 100 - progress * 92;
       // Flicker the opacity 0.55-0.85 over the loop.
       final t = animation.value;
-      final flicker = 0.55 + 0.30 * (0.5 + 0.5 * math.sin(t * math.pi * 2 * 2.5));
+      final flicker =
+          0.55 + 0.30 * (0.5 + 0.5 * math.sin(t * math.pi * 2 * 2.5));
       final magmaPaint = Paint()
         ..shader = LinearGradient(
           begin: Alignment.bottomCenter,
@@ -447,9 +450,7 @@ class _MedallionPainter extends CustomPainter {
     final borderPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = large ? 1.6 : 1.4
-      ..color = unlocked
-          ? ringColor
-          : Colors.white.withOpacity(0.16);
+      ..color = unlocked ? ringColor : Colors.white.withOpacity(0.16);
     canvas.drawPath(_hexPath, borderPaint);
 
     // ── Drop glow around the whole hex on unlocked hero medallions ─

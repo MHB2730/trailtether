@@ -7,7 +7,7 @@ import '../../core/design_tokens.dart';
 import '../../models/accommodation.dart';
 import '../../providers/static_data_provider.dart';
 import '../../providers/app_state_provider.dart';
-import '../../screens/accommodation_detail_sheet.dart';
+import '../accommodation_detail_sheet.dart';
 
 class AccommodationMarkerLayer extends StatelessWidget {
   /// Optional override — when not supplied, tapping a pin opens the standard

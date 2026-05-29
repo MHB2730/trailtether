@@ -7,7 +7,8 @@ import '../../core/design_tokens.dart';
 class TTBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
-  const TTBottomNav({super.key, required this.currentIndex, required this.onTap});
+  const TTBottomNav(
+      {super.key, required this.currentIndex, required this.onTap});
 
   static const _items = <_NavItem>[
     _NavItem('Home', Icons.home_outlined, Icons.home_rounded),
@@ -39,11 +40,13 @@ class TTBottomNav extends StatelessWidget {
                   onTap: () => onTap(i),
                   child: AnimatedDefaultTextStyle(
                     duration: TT.dFast,
-                    style: TT.body(
-                      size: 9.5,
-                      w: FontWeight.w700,
-                      color: active ? TT.ember : TT.text3,
-                    ).copyWith(letterSpacing: 0.12 * 9.5),
+                    style: TT
+                        .body(
+                          size: 9.5,
+                          w: FontWeight.w700,
+                          color: active ? TT.ember : TT.text3,
+                        )
+                        .copyWith(letterSpacing: 0.12 * 9.5),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -57,7 +60,11 @@ class TTBottomNav extends StatelessWidget {
                             color: active ? TT.ember : Colors.transparent,
                             borderRadius: BorderRadius.circular(2),
                             boxShadow: active
-                                ? const [BoxShadow(color: Color(0xB3FF6A2C), blurRadius: 12)]
+                                ? const [
+                                    BoxShadow(
+                                        color: Color(0xB3FF6A2C),
+                                        blurRadius: 12)
+                                  ]
                                 : null,
                           ),
                         ),
@@ -67,7 +74,8 @@ class TTBottomNav extends StatelessWidget {
                           color: active ? TT.ember : TT.text3,
                         ),
                         const SizedBox(height: 4),
-                        Text(item.label.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(item.label.toUpperCase(),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
