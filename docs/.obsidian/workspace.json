@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "4466365640332955",
+        "id": "fc8dd543bd779b93",
         "type": "tabs",
         "children": [
           {
-            "id": "6d074cc1838ec4b9",
+            "id": "5864ef8782e1f382",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -49,7 +49,7 @@
             "state": {
               "type": "search",
               "state": {
-                "query": "flutter",
+                "query": "",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -159,16 +159,29 @@
               "icon": "lucide-list",
               "title": "Outline"
             }
+          },
+          {
+            "id": "f0fc2c867d7ba443",
+            "type": "leaf",
+            "state": {
+              "type": "git-view",
+              "state": {},
+              "icon": "git-pull-request",
+              "title": "Source Control"
+            }
           }
         ],
-        "currentTab": 4
+        "currentTab": 5
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "left-ribbon": {
     "hiddenItems": {
+      "obsidian-excalidraw-plugin:New drawing": false,
+      "obsidian-git:Open Git source control": false,
       "switcher:Open quick switcher": false,
       "graph:Open graph view": false,
       "canvas:Create new canvas": false,
@@ -178,45 +191,45 @@
       "bases:Create new base": false
     }
   },
-  "active": "6d074cc1838ec4b9",
+  "active": "5864ef8782e1f382",
   "lastOpenFiles": [
-    "04 - Workflows & Releases/Workflow - Release.md",
-    "04 - Workflows & Releases/Workflow - Off-Trail Alert.md",
-    "06 - Code Reference/Source Files/offline_incident_queue.dart.md",
-    "02 - System & Backend/Build & Deploy.md",
-    "02 - System & Backend/3D WebView Bridge.md",
-    "05 - Risk & Decisions/Troubleshooting & Fixes.md",
+    "2026-05-29.md.tmp.13340.5fd4480675e0",
+    "Excalidraw/Drawing 2026-05-29 15.53.09.excalidraw.md",
+    "Excalidraw/Drawing 2026-05-29 15.53.02.excalidraw.md",
+    "Excalidraw/Drawing 2026-05-29 15.33.50.excalidraw.md",
     "Untitled 1.canvas",
+    "02 - System & Backend/Data Models/posts.md",
+    "03 - App & UI Design/Hilltrek Admin Module.md",
+    "06 - Code Reference/Components/TTMapScreen.md",
+    "excalibrain.md",
+    "Untitled.base",
+    "2026-05-29.md",
     "Untitled.canvas",
-    "06 - Code Reference/Source Files/weather_service.dart.md",
-    "06 - Code Reference/Source Files/weather_provider.dart.md",
-    "06 - Code Reference/Source Files/weather_alert_service.dart.md",
-    "06 - Code Reference/Source Files/weather.js.md",
-    "06 - Code Reference/Source Files/utils.dart.md",
-    "06 - Code Reference/Source Files/update_service.dart.md",
-    "06 - Code Reference/Source Files/update_banner.dart.md",
-    "06 - Code Reference/Source Files/trail_service.dart.md",
-    "06 - Code Reference/Source Files/units_provider.dart.md",
-    "06 - Code Reference/Source Files/trail_repository.dart.md",
-    "06 - Code Reference/Source Files/theme.dart.md",
-    "06 - Code Reference/Source Files/team_tracking_provider.dart.md",
-    "06 - Code Reference/Source Files/team_provider.dart.md",
-    "06 - Code Reference/Source Files/supabase_options.dart.md",
-    "06 - Code Reference/Source Files/sun_utils.dart.md",
-    "06 - Code Reference/Source Files/subscribe.js.md",
-    "06 - Code Reference/Source Files/site.js.md",
-    "06 - Code Reference/Source Files/static_data_provider.dart.md",
-    "06 - Code Reference/Source Files/safety_provider.dart.md",
-    "06 - Code Reference/Source Files/runtime_config.dart.md",
-    "06 - Code Reference/Source Files",
-    "06 - Code Reference/Dependencies",
-    "06 - Code Reference/Components",
-    "04 - Workflows & Releases/Configuration",
-    "02 - System & Backend/Data Models",
-    "06 - Code Reference",
-    "05 - Risk & Decisions",
-    "04 - Workflows & Releases",
-    "03 - App & UI Design",
-    "02 - System & Backend"
+    "02 - System & Backend/Architecture Index.md.tmp.18800.b1186a6bbc73",
+    "Home.md.tmp.18800.5037e23a6abb",
+    "02 - System & Backend/Feature Map.md",
+    "Excalidraw/Drawing 2026-05-29 14.53.14.excalidraw.md",
+    "Excalidraw/Drawing 2026-05-29 14.51.11.excalidraw.md",
+    "Excalidraw",
+    "Home.md.tmp.18800.17384044ac40",
+    "04 - Workflows & Releases/Release Runbook.md",
+    "99 - Archive/Loose Notes/Empty - Known Issues.md",
+    "02 - System & Backend/Build & Deploy.md.tmp.3496.836cfa671f81",
+    "02 - System & Backend/Data Models/chat_messages.md.tmp.12188.380a918f3b6f",
+    "06 - Code Reference/Source Files/app_messenger.dart.md",
+    "02 - System & Backend/Folder Structure.md.tmp.12188.09180937d6fc",
+    "06 - Code Reference/Code Index.md.tmp.12188.cade59fa7bb2",
+    "06 - Code Reference/Source Files/weather_aggregator_service.dart.md",
+    "06 - Code Reference/Source Files/team_service.dart.md",
+    "06 - Code Reference/Source Files/local_map_server.dart.md",
+    "06 - Code Reference/Source Files/health_connect_service.dart.md",
+    "06 - Code Reference/Source Files/device_service.dart.md",
+    "06 - Code Reference/Source Files/community_service.dart.md",
+    "06 - Code Reference/Source Files/chat_service.dart.md",
+    "06 - Code Reference/Source Files/auth_service.dart.md",
+    "03 - App & UI Design/Flutter Widgets Module.md.tmp.12188.21590b594c0d",
+    "05 - Risk & Decisions/Troubleshooting & Fixes.md",
+    "05 - Risk & Decisions/Fragile Areas.md",
+    "02 - System & Backend/Tech Stack.md"
   ]
 }

@@ -1,22 +1,65 @@
 {
   "collapse-filter": false,
   "search": "",
-  "showTags": true,
-  "showAttachments": true,
+  "showTags": false,
+  "showAttachments": false,
   "hideUnresolved": false,
-  "showOrphans": true,
-  "collapse-color-groups": false,
-  "colorGroups": [],
+  "showOrphans": false,
+  "collapse-color-groups": true,
+  "colorGroups": [
+    {
+      "query": "tag:#domain/recording OR tag:#domain/map OR tag:#domain/trails OR tag:#domain/teams OR tag:#domain/safety OR tag:#domain/realtime OR tag:#domain/pairing OR tag:#domain/weather OR tag:#domain/auth OR tag:#domain/navigation",
+      "color": {
+        "a": 1,
+        "rgb": 16738860
+      }
+    },
+    {
+      "query": "tag:#domain/commerce OR tag:#domain/newsletter OR tag:#domain/admin OR tag:#domain/analytics OR tag:#domain/content OR tag:#domain/web OR tag:#domain/social OR tag:#domain/community",
+      "color": {
+        "a": 1,
+        "rgb": 5030794
+      }
+    },
+    {
+      "query": "tag:#type/model OR tag:#type/endpoint OR tag:#type/rpc OR tag:#type/dep OR tag:#layer/db",
+      "color": {
+        "a": 1,
+        "rgb": 5934280
+      }
+    },
+    {
+      "query": "tag:#type/component OR tag:#type/module OR tag:#domain/ui OR tag:#domain/design OR tag:#domain/desktop OR tag:#domain/mobile",
+      "color": {
+        "a": 1,
+        "rgb": 10980346
+      }
+    },
+    {
+      "query": "tag:#type/workflow OR tag:#type/source OR tag:#type/config OR tag:#type/architecture OR tag:#domain/release OR tag:#domain/ops OR tag:#domain/backend OR tag:#domain/state",
+      "color": {
+        "a": 1,
+        "rgb": 13214247
+      }
+    },
+    {
+      "query": "tag:#type/issue OR tag:#status/fragile OR tag:#status/wip OR tag:#domain/notifications OR tag:#domain/tools",
+      "color": {
+        "a": 1,
+        "rgb": 15029067
+      }
+    }
+  ],
   "collapse-display": false,
   "showArrow": true,
-  "textFadeMultiplier": 0,
-  "nodeSizeMultiplier": 0.738020833333333,
-  "lineSizeMultiplier": 0.380729166666667,
+  "textFadeMultiplier": -0.7,
+  "nodeSizeMultiplier": 1.05,
+  "lineSizeMultiplier": 0.5,
   "collapse-forces": false,
-  "centerStrength": 0.473958333333333,
-  "repelStrength": 13.2291666666667,
+  "centerStrength": 0,
+  "repelStrength": 20,
   "linkStrength": 1,
-  "linkDistance": 260,
-  "scale": 0.09895430218637112,
-  "close": false
+  "linkDistance": 500,
+  "scale": 0.05932617187499995,
+  "close": true
 }
