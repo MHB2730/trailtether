@@ -16,6 +16,12 @@ All 15 edge functions report `verify_jwt: true`, including the provider webhooks
 ### Auth leaked-password protection disabled (advisor)
 Enable in Supabase Dashboard → Authentication → Password (checks against HaveIBeenPwned). Dashboard toggle; doesn't affect existing users or signups.
 
+### Google sign-in needs the release keystore's SHA-1 in Google Cloud Console
+The code is correct (native idToken via `google_sign_in` → `signInWithIdToken`). But the published/sideload APK is signed with the release keystore, whose SHA-1 must be registered on the Android OAuth client in Google Cloud Console — otherwise Google returns no idToken and sign-in fails *only in the released build*. **Action: sign in with Google once on the published APK.**
+
+### On-device QA of core flows not yet run
+Code + backend wiring is verified and the app smoke-launches clean, but the interactive flows haven't been tapped end-to-end (no tool drives the physical UI). Before public ship: sign-up, create + join a team, record + save a hike, and confirm it streams live to the PC watcher.
+
 ## Resolved in v4.0.0+62 ✅
 - Live mobile map marker froze at start (now advances; directional dot).
 - Solo hike/walk save failed on `community_activities` NOT-NULL `team_id`/`team_name` (now nullable; duplicate client insert removed).
