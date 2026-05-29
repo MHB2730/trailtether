@@ -57,6 +57,7 @@ This vault is the working memory for the Hilltrek product and the Trailtether ap
 
 ## Build, Release, And Risk
 
+- [[Release Runbook]] — how to build, version & ship all 3 surfaces; verified state + gotchas
 - [[Build & Release Index]]
 - [[Issues & Decisions Index]]
 - [[Known Issues]]
