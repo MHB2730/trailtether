@@ -28,7 +28,7 @@ cd trailtether_app && flutter test       # 23 tests (offline incident queue, mod
 | Output | Tool | Where it goes |
 |---|---|---|
 | Android APK | `flutter build apk --release` | Self-hosted in Supabase Storage `app-releases` bucket; row in [[app_releases]] |
-| Windows MSIX | `flutter pub run msix:create` (via [[publish_windows.ps1]]) | Same storage bucket, separate `platform='windows'` row |
+| Windows MSIX | `flutter pub run msix:create` (via [[publish_windows.ps1]]) | **GitHub Release** (tag `v<ver>-<code>`) — signed `.msix` + public `.cer` assets (separate channel from Android) |
 | Hilltrek site | (no build — static) | cPanel docroot at `/home/hilltro7a4x5/public_html` |
 | Edge function | Single `.ts` file | Supabase via MCP or `supabase functions deploy` |
 
@@ -52,7 +52,7 @@ sequenceDiagram
     Note over SB: In-app updater polls app_releases<br/>on next launch; downloads + sha verify
 ```
 
-The in-app updater (see [[update_service.dart]]) reads from [[app_releases]] on cold start. Users on the previous version get an in-app prompt to update. Web users hitting `/trailtether/` go through [[Workflow - APK Download]].
+The in-app updater (see [[update_service.dart]]) checks on cold start — **Android** reads the latest [[app_releases]] row (Supabase), **Windows** reads the GitHub `/releases/latest` API. Either way the user gets an in-app prompt and a SHA/cert-verified download. Web users hitting `/trailtether/` go through [[Workflow - APK Download]].
 
 ## Per-script summary
 
@@ -67,10 +67,9 @@ The in-app updater (see [[update_service.dart]]) reads from [[app_releases]] on 
 
 ### [[publish_windows.ps1]]
 - Runs `flutter build windows --release`
-- Calls `msix:create` to package
-- Signs with `.pfx` from `%USERPROFILE%\.trailtether-signing\trailtether.pfx`
-- Uploads MSIX to Supabase Storage with `platform='windows'` row in [[app_releases]]
-- Pre-flight check: `gh` must be on PATH
+- Calls `msix:create` to package + sign (cert **thumbprint** from the CurrentUser store if installed, else `.pfx` at `%USERPROFILE%\.trailtether-signing\trailtether.pfx`)
+- **Creates a GitHub Release** (tag `v<ver>-<code>`) with the signed `.msix` + public `.cer` as assets — Windows updates ship via **GitHub, not Supabase**; the Windows half of [[update_service.dart]] polls `/releases/latest`
+- Pre-flight check: `gh` must be authenticated (`gh auth login`)
 
 ### [[publish_site.ps1]]
 - Pushes `hilltrek-site/` (`-Target public`) or `hilltrek-admin/` (`-Target admin`) files via cPanel UAPI
