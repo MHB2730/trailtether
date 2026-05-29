@@ -26,6 +26,11 @@ class Trail {
   final int minEle;
   final int maxEle;
   final String description;
+
+  /// Whether the trail is visible in the public catalogue. Mirrors the
+  /// `published` column and is admin-editable from the PC Trails screen.
+  final bool published;
+
   final List<TrailCoord> coords;
   final List<ElevationPoint> profile;
 
@@ -49,6 +54,7 @@ class Trail {
     required this.description,
     required this.coords,
     required this.profile,
+    this.published = true,
   })  : minLat = coords.isEmpty
             ? 0
             : coords.fold(coords.first.lat, (a, c) => math.min(a, c.lat)),
@@ -226,7 +232,7 @@ class Trail {
 
     // ── Elevation stats — always computed from smoothed 3D coords ────────
     // Threshold of 1.0 m filters residual noise after smoothing.
-    int elevGain = 0;
+    int coordGain = 0; // gain derived from smoothed 3D coords (0 if no 3D data)
     int elevDescent = 0;
     int minEleVal =
         (json['minEle'] is num) ? (json['minEle'] as num).toInt() : 0;
@@ -253,16 +259,23 @@ class Trail {
           hi = smoothedEle[i];
         }
       }
-      elevGain = gain.round();
+      coordGain = gain.round();
       elevDescent = descent.round();
       minEleVal = lo.round();
       maxEleVal = hi.round();
-    } else {
-      // Fall back to JSON values when no 3D coords. Default to 0 when the
-      // upstream row omits elevationGainM entirely so we never explode here.
-      final rawGain = json['elevationGainM'];
-      elevGain = (rawGain is num) ? rawGain.toInt() : 0;
-      elevDescent = elevGain; // best estimate when no coord data
+    }
+
+    // A stored elevation gain (admin override / catalogue figure) is
+    // authoritative so PC Trails edits actually persist; only derive from the
+    // coords when the row carries no stored figure. Previously every edit was
+    // silently overwritten by the coord-derived value on reload.
+    final storedGain = (json['elevationGainM'] is num)
+        ? (json['elevationGainM'] as num).toInt()
+        : null;
+    final int elevGain =
+        (storedGain != null && storedGain > 0) ? storedGain : coordGain;
+    if (!has3d) {
+      elevDescent = elevGain; // best estimate when there's no coord data
     }
 
     // ── Compute difficulty from objective metrics ─────────────────────────
@@ -287,7 +300,15 @@ class Trail {
     final estTime = (json['estTimeHours'] is num)
         ? (json['estTimeHours'] as num).toDouble()
         : 0.0;
-    final difficulty = _computeDifficulty(distKm, elevGain);
+    // Stored difficulty (admin-set in PC Trails) wins; fall back to deriving
+    // it from the metrics only when the row carries no valid label. Without
+    // this, difficulty edits never stuck because the value was always
+    // recomputed on reload.
+    final storedDifficulty = json['difficulty']?.toString();
+    final difficulty = (storedDifficulty != null &&
+            _kDifficultyLabels.contains(storedDifficulty))
+        ? storedDifficulty
+        : _computeDifficulty(distKm, elevGain);
 
     return Trail(
       // id / name are required to render the row at all; we still default
@@ -303,12 +324,24 @@ class Trail {
       minEle: minEleVal,
       maxEle: maxEleVal,
       description: json['description']?.toString() ?? '',
+      published: (json['published'] is bool) ? json['published'] as bool : true,
       coords: processedCoords,
       profile: profile,
     );
   }
 
   // ── Difficulty formula ─────────────────────────────────────────────────
+
+  /// Valid stored difficulty labels (matches the `trails.difficulty` CHECK
+  /// constraint). A row carrying one of these is treated as authoritative.
+  static const _kDifficultyLabels = {
+    'Easy',
+    'Moderate',
+    'Challenging',
+    'Hard',
+    'Extreme',
+  };
+
   /// Computes a difficulty label from objective GPS-derived metrics.
   /// Two independent factors are scored and the harder of the two wins,
   /// so a short but brutally steep pass and a long grinding distance hike

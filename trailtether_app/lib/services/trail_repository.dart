@@ -117,7 +117,17 @@ class TrailRepository {
       if (published != null) patch['published'] = published;
       if (patch.isEmpty) return true;
 
-      await _db.from('trails').update(patch).eq('id', id);
+      // Chain .select() so PostgREST returns the affected rows. Without it,
+      // an UPDATE that RLS filters to zero rows (e.g. a non-admin) succeeds
+      // silently — we'd report "Saved" over a no-op. An empty result means
+      // nothing matched / the write was blocked.
+      final rows = await _db.from('trails').update(patch).eq('id', id).select('id');
+      final changed = (rows as List).isNotEmpty;
+      if (!changed) {
+        LoggerService.error('TRAILS_REPO',
+            'updateMeta($id) changed 0 rows — RLS/permission block or unknown id');
+        return false;
+      }
       LoggerService.log('TRAILS_REPO', 'Updated $id (${patch.keys.join(",")})');
       return true;
     } catch (e, stack) {
@@ -129,7 +139,15 @@ class TrailRepository {
   /// Hard-delete. RLS already scopes to admin.
   static Future<bool> delete(String id) async {
     try {
-      await _db.from('trails').delete().eq('id', id);
+      // .select() returns the deleted rows; an empty result means RLS blocked
+      // the delete or the id didn't exist, so we don't claim a false success.
+      final rows = await _db.from('trails').delete().eq('id', id).select('id');
+      final deleted = (rows as List).isNotEmpty;
+      if (!deleted) {
+        LoggerService.error('TRAILS_REPO',
+            'delete($id) removed 0 rows — RLS/permission block or unknown id');
+        return false;
+      }
       LoggerService.log('TRAILS_REPO', 'Deleted $id');
       return true;
     } catch (e, stack) {

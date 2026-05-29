@@ -137,7 +137,9 @@ class _PcTrailsScreenState extends State<PcTrailsScreen> {
       'category': result.category,
       'distanceKm': picked.track.distanceKm,
       'elevationGainM': result.elevationGainM,
-      'elevationLossM': result.elevationGainM,
+      // Descent isn't parsed from the GPX; leave it 0 rather than mirroring
+      // gain. Trail.fromJson recomputes it from the 3D coords on load.
+      'elevationLossM': 0,
       'estTimeHours': 0,
       'minEle': 0,
       'maxEle': 0,
@@ -163,7 +165,7 @@ class _PcTrailsScreenState extends State<PcTrailsScreen> {
         initialCategory: t.isCave ? 'cave' : 'hike',
         initialDescription: t.description,
         initialElevationGainM: t.elevationGainM,
-        initialPublished: true,
+        initialPublished: t.published,
       ),
     );
     if (result == null || !mounted) return;
