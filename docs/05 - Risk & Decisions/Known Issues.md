@@ -6,7 +6,23 @@ source_paths: []
 
 # Known Issues
 
-Open bugs + tech debt as of 2026-05-28.
+Open bugs + tech debt as of 2026-05-29 (v4.0 pre-ship).
+
+## ⚠️ Verify before v4.0 goes public
+
+### verify_jwt = true on payment webhooks (HIGH — confirm payments finalize)
+All 15 edge functions report `verify_jwt: true`, including the provider webhooks ([[payfast-itn]], [[yoco-webhook]], [[zapper-webhook]]) and email-tracking ([[newsletter-track-open]], [[newsletter-track-click]]). External callers (payment providers, email clients) send no Supabase JWT, so a truly-enforced `verify_jwt` would 401 them at the gateway and orders would never finalize. The webhook *code* verifies provider signatures correctly, so the fix is config: set `verify_jwt = false` on those functions (commit a `supabase/config.toml`, or set per-function on redeploy). **Action: run one real test payment end-to-end; if the order doesn't flip to paid, turn verify_jwt off on the webhooks.**
+
+### Auth leaked-password protection disabled (advisor)
+Enable in Supabase Dashboard → Authentication → Password (checks against HaveIBeenPwned). Dashboard toggle; doesn't affect existing users or signups.
+
+## Resolved in v4.0.0+62 ✅
+- Live mobile map marker froze at start (now advances; directional dot).
+- Solo hike/walk save failed on `community_activities` NOT-NULL `team_id`/`team_name` (now nullable; duplicate client insert removed).
+- [[TTWelcomeScreen]] RenderFlex overflow + missing `feature_graphic.png` asset crash on launch.
+- PII (email + GPS) streamed to [[app_logs]] in release builds — gated to debug + email dropped.
+- `increment_recorded_trail_downloads` mutable search_path (advisor 0011).
+- App-wide stale UX copy ("Tap PLAY", "Start Hike on the Map", PC-pairing instructions, "Hilltrek" brand leak, achievement label mismatches).
 
 ## Resolved in v3.7.6+61 ✅
 

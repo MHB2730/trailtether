@@ -8,6 +8,13 @@ source_paths: []
 
 Non-bug planned work and decisions.
 
+## v4.0 follow-ups (lower priority)
+- **Commit `supabase/config.toml`** pinning `verify_jwt = false` for the webhook + email-tracking functions so the setting is reproducible (currently only in the live project; see [[Known Issues]]).
+- **Narrow the [[zapper-webhook]] signature check** — it accepts multiple header names + hex/base64 ("unconfirmed"); narrow to the single correct form once verified against a real Zapper delivery. Fails closed when the secret is unset, so not a hole.
+- **Confirm `team_add_member` / `team_remove_member` verify caller-owns-team** internally (authenticated-callable SECURITY DEFINER; should reject editing a team you don't own).
+- **Routing is start/end-node only** ([[routing_service.dart]]) — trails crossing mid-segment aren't connected. Intersection-aware routing is a feature, not a bug; track if multi-trail routing matters.
+- **Off-trail/incident queue drains only on a connectivity *change*** — launching already-online with a backlog won't drain until connectivity flaps. Consider draining once on startup.
+
 ## Hilltrek admin SPA modularisation
 
 [[Hilltrek Admin Module]] — `app.js` is 4,500 LOC monolithic. Worth carving into modules per view (newsletters, orders, hikers, trailtether tab). Lower priority while it works; refactor when adding a major new feature.

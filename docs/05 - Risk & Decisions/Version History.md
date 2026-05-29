@@ -8,6 +8,25 @@ aliases:
 
 # 🗒️ Version History
 
+## v4.0.0+62 — Cleanup, Hardening & On-Device Verification
+Pre-release pass; app built + launched + smoke-verified on a physical Samsung S24 (Android 16) via `flutter run --flavor sideload`.
+
+**Bug fixes**
+- Live "you" map marker now advances while recording — [[recording_provider.dart]] never updated `_currentPosition` after the start fix, so the marker froze at the start while the route grew. Start point is now a directional dot, not a square.
+- Hike/walk save no longer fails — `community_activities.team_id`/`team_name` made nullable so the `on_hike_saved` trigger succeeds for solo activities; removed the duplicate client-side feed insert (DB trigger is the single source of truth).
+- [[TTWelcomeScreen]] `RenderFlex` overflow fixed (responsive hero height) and the deleted `feature_graphic.png` reference removed (was throwing "Unable to load asset" on every launch).
+
+**UX copy** — fixed stale/misleading strings app-wide: "Tap PLAY"→"Ready to record"; "Start Hike on the Map"→"START RECORDING"; safety-centre PC-pairing text (pointed at a non-existent mobile "Tools tab"); "Hilltrek" brand leak in sync toasts; achievement label mismatches (4K→3K, X12→X10); removed "FREE / NO ADS".
+
+**Security**
+- Stopped persisting PII to [[app_logs]]: dropped email from the auth log line and gated remote log sync to debug builds (was hardcoded on, streaming GPS every line — battery + POPIA fix). Enable in release with `--dart-define=TRAILTETHER_REMOTE_LOGS=true`.
+- Pinned `search_path` on [[increment_recorded_trail_downloads]] (advisor 0011 fix, applied to prod).
+- Verified: all 44 tables RLS-enabled with policies; `admin_*` SECURITY DEFINER functions are `is_admin()`-gated; all 15 edge functions deployed ACTIVE.
+
+**Codebase** — removed 9 dead Dart files (emptied `lib/tools/`); relocated 4 `*_detail_sheet` widgets `screens/`→`widgets/`; removed 22 committed debug screenshots; added `.gitattributes` (LF). `dart format` clean · `flutter analyze` 0 issues · 23 tests pass.
+
+**Open before public ship** (see [[Known Issues]]): verify a real payment finalizes (`verify_jwt` is `true` on all functions incl. webhooks); enable Auth leaked-password protection.
+
 ## v3.7.6+61 — Production Hardening
 - **Telemetry**: Integrated `sentry_flutter` with GDPR/POPIA-compliant PII scrubbing via [[telemetry_service.dart]].
 - **CI/CD**: Added GitHub Actions pipeline (analyze, test, format, dry-run APK build).

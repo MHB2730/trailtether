@@ -226,7 +226,7 @@ class _FeaturedHike extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Tap Start Hike on the Map to record one',
+              'Tap START RECORDING on the Map to record one',
               textAlign: TextAlign.center,
               style: TT.body(size: 12.5, color: TT.text3),
             ),

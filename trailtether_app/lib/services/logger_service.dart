@@ -13,7 +13,13 @@ class LoggerService {
   static List<String> get memoryLogs => List.unmodifiable(_memoryLogs);
 
   static final List<void Function(String)> _listeners = [];
-  static const bool _remoteLoggingEnabled = true;
+  // Remote log sync is opt-in. It defaults to debug-only so production devices
+  // never stream logs — which can carry GPS coordinates — to app_logs on every
+  // line (a battery/data drain plus a privacy concern). Local file + in-memory
+  // logging and the "share logs" export still work in release; enable remote
+  // sync explicitly with --dart-define=TRAILTETHER_REMOTE_LOGS=true.
+  static const bool _remoteLoggingEnabled =
+      bool.fromEnvironment('TRAILTETHER_REMOTE_LOGS', defaultValue: kDebugMode);
   static String? currentTeamId;
 
   /// Initialize the logger and open the log file.

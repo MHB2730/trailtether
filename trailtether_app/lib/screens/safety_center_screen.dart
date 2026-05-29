@@ -1368,7 +1368,7 @@ class _BaseCampTetherScreen extends StatelessWidget {
                         icon: Icons.qr_code_2_rounded,
                         title: 'Pair once with a QR',
                         body:
-                            'Open the desktop watcher and scan the code shown in the Tools tab. Pairing is end-to-end on a single Trailtether account.',
+                            'Open Pair Device on the desktop watcher and follow its QR prompt. Pairing is end-to-end on a single Trailtether account.',
                       ),
                       const _TetherBullet(
                         icon: Icons.location_on_outlined,
@@ -1404,7 +1404,7 @@ class _BaseCampTetherScreen extends StatelessWidget {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Pair from the Tools tab on this device once the desktop watcher is running.',
+                                'Set up pairing from the desktop watcher once it is running and signed into your account.',
                                 style: TT
                                     .body(
                                         size: 12,

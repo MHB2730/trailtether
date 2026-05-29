@@ -152,33 +152,15 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
             child: Column(
               children: [
                 _BrandBar(onSkip: widget.onDone, enterCtl: _enterCtl),
-                // Hero illustration zone - fixed height, color-tinted radial glow.
+                // Hero illustration zone — responsive height so the body below
+                // (tagline, rotating copy, dots, CTAs) always fits without a
+                // RenderFlex overflow on shorter screens.
                 SizedBox(
-                  height: 340,
+                  height: (MediaQuery.sizeOf(context).height * 0.34)
+                      .clamp(240.0, 340.0),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      // v3.0 feature graphic — keeps original logo in app_icon,
-                      // adds photographic depth behind the animated scenes.
-                      Positioned.fill(
-                        child: Opacity(
-                          opacity: 0.32,
-                          child: ShaderMask(
-                            shaderCallback: (rect) => const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.white, Colors.transparent],
-                              stops: [0.5, 1.0],
-                            ).createShader(rect),
-                            blendMode: BlendMode.dstIn,
-                            child: Image.asset(
-                              'assets/icon/feature_graphic.png',
-                              fit: BoxFit.cover,
-                              alignment: const Alignment(0, -0.2),
-                            ),
-                          ),
-                        ),
-                      ),
                       const Positioned.fill(
                         child: Opacity(opacity: 0.25, child: TTTopoBackdrop()),
                       ),
@@ -304,16 +286,6 @@ class _TTWelcomeScreenState extends State<TTWelcomeScreen>
                               _GetStartedButton(onTap: widget.onDone),
                               const SizedBox(height: 14),
                               _SignInRow(onTap: widget.onDone),
-                              const SizedBox(height: 16),
-                              Text(
-                                'FREE   NO ADS',
-                                textAlign: TextAlign.center,
-                                style: TT.mono(
-                                  size: 9.5,
-                                  color: TT.text4,
-                                  letterSpacing: 0.16 * 9.5,
-                                ),
-                              ),
                             ],
                           ),
                         ),

@@ -383,13 +383,13 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
       _showSaveSnack(
         ctx,
         message:
-            'Saved on device only — sign in to sync your hikes to Hilltrek.',
+            'Saved on device only — sign in to sync your hikes to the cloud.',
         color: const Color(0xFFE0A847),
       );
     } else if (result.isFullSuccess) {
       _showSaveSnack(
         ctx,
-        message: 'Hike saved & synced to Hilltrek.',
+        message: 'Hike saved & synced.',
         color: const Color(0xFF5AC26D),
       );
     } else if (result.supabaseSynced && !result.trailUploaded) {

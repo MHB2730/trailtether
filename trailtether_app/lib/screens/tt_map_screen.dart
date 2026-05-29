@@ -1912,7 +1912,7 @@ class _RecordingPanel extends StatelessWidget {
     if (rec.isRecording || rec.isPaused) {
       return rec.targetTrail?.name ?? rec.customName ?? 'Free-form recording';
     }
-    return 'Tap PLAY to start recording';
+    return 'Ready to record';
   }
 }
 

@@ -127,7 +127,7 @@ class _EmptyHistory extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Tap Start Hike on the Map to begin a recording — '
+                'Tap START RECORDING on the Map to begin a recording — '
                 'it will land here when you finish.',
                 textAlign: TextAlign.center,
                 style: TT.body(size: 12.5, color: TT.text3),

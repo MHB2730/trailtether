@@ -75,7 +75,8 @@ class AuthProvider extends ChangeNotifier {
     _status =
         user != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
     if (user != null) {
-      LoggerService.log('AUTH', 'Authenticated as ${user.email} (${user.id})');
+      // Log the uid only — never the email — so we don't persist PII to logs.
+      LoggerService.log('AUTH', 'Authenticated (${user.id})');
       unawaited(_refreshAdminFlag());
     } else {
       LoggerService.log('AUTH', 'Unauthenticated');

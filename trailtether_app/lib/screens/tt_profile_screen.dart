@@ -1049,7 +1049,7 @@ class _AchievementsSection extends StatelessWidget {
     _AchievementData(
       id: 'peak_1',
       icon: Icons.terrain,
-      label: '4K Club',
+      label: '3K Club',
       description: 'Reach an altitude of 3,000m or higher.',
       requirement: 'Summit any 3,000m+ peak.',
       date: 'LOCKED',
@@ -1089,7 +1089,7 @@ class _AchievementsSection extends StatelessWidget {
     _AchievementData(
       id: 'peak_10',
       icon: Icons.flag_outlined,
-      label: 'Summit X12',
+      label: 'Summit X10',
       description: 'Summit 10 different peaks.',
       requirement: 'Log 10 unique peaks in the Drakensberg.',
       date: 'LOCKED',
