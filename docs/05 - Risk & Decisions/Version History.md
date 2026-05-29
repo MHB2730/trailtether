@@ -25,9 +25,11 @@ Pre-release pass; app built + launched + smoke-verified on a physical Samsung S2
 
 **Codebase** — removed 9 dead Dart files (emptied `lib/tools/`); relocated 4 `*_detail_sheet` widgets `screens/`→`widgets/`; removed 22 committed debug screenshots; added `.gitattributes` (LF). `dart format` clean · `flutter analyze` 0 issues · 23 tests pass.
 
-**Release builds verified** — `flutter build apk --release --flavor sideload --split-per-abi` (3 signed APKs: arm64-v8a / armeabi-v7a / x86_64) and `flutter build windows --release` (`trailtether_app.exe`) both compile clean. Publish via [[publish_release.ps1]] (Android → Supabase [[app_releases]]) and [[publish_windows.ps1]] (Windows → GitHub Releases).
+**Release builds verified** — `flutter build apk --release --flavor sideload --split-per-abi` (3 signed APKs: arm64-v8a / armeabi-v7a / x86_64) and `flutter build windows --release` (`trailtether_app.exe`) both compile clean.
 
-**Open before public ship** (see [[Known Issues]]): verify a real payment finalizes (`verify_jwt` is `true` on all functions incl. webhooks); confirm Google sign-in on the release-signed APK; enable Auth leaked-password protection; run on-device QA of the core flows.
+**Shipped 2026-05-29** ✅ — Android OTA live ([[app_releases]] 4.0.0 / versionCode **2062**, supersedes 3.7.6/2061 so existing phones get the update prompt); Windows live (GitHub release `v4.0.0-62`, signed `.msix` + `.cer`); website current (`analytics.js`/`subscribe.js` verified HTTP 200 + byte-identical to repo). Git `origin/main` @ `3143a27`. Advisor `function_search_path_mutable` cleared.
+
+**Still to verify post-ship** (see [[Known Issues]]): a real payment finalizes (`verify_jwt` is `true` on webhooks); Google sign-in on the published APK; **enable Auth leaked-password protection** (still disabled per advisor); on-device QA of the core flows.
 
 ## v3.7.6+61 — Production Hardening
 - **Telemetry**: Integrated `sentry_flutter` with GDPR/POPIA-compliant PII scrubbing via [[telemetry_service.dart]].
