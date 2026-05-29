@@ -20,6 +20,7 @@ class Trail {
   final String difficulty;
   final int minEle, maxEle;
   final String description;
+  final bool published;                 // mirrors trails.published (added 2026-05-29)
   final List<TrailCoord> coords;        // smoothed at parse time
   final List<ElevationPoint> profile;
   final double minLat, maxLat, minLon, maxLon;  // pre-computed bbox
@@ -45,7 +46,10 @@ Not a simple deserialiser. On parse:
 4. Compute distance, gain, descent, min/max ele, difficulty (objective formula based on gradient + total effort)
 5. Build downsampled elevation profile (≤200 points)
 
-Difficulty is **derived**, not stored — flatness rule (`<50m gain → Easy`), then `max(gradeLevel, effortLevel)`.
+> [!note] Stored values now win (2026-05-29)
+> `difficulty` and `elevation_gain_m` are taken from the stored [[trails]] row when present, so PC Trails admin edits to those fields **persist**. The gradient/effort formula (difficulty) and coord-derived gain are only a **fallback** when the row carries no value. Previously both were *always* recomputed on parse, so admin edits to difficulty/gain never stuck. `published` is read from the row too.
+
+Fallback difficulty (when no stored label): flatness rule (`<50m gain → Easy`), then `max(gradeLevel, effortLevel)`.
 
 ## isCave
 

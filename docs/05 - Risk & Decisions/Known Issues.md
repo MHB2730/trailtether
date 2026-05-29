@@ -22,6 +22,10 @@ The code is correct (native idToken via `google_sign_in` → `signInWithIdToken`
 ### On-device QA of core flows not yet run
 Code + backend wiring is verified and the app smoke-launches clean, but the interactive flows haven't been tapped end-to-end (no tool drives the physical UI). Before public ship: sign-up, create + join a team, record + save a hike, and confirm it streams live to the PC watcher.
 
+## Resolved 2026-05-29 (post-ship) ✅
+- **PC Trails edit/delete did nothing** ("Saved" but no change). Three overlapping causes: (1) [[trails]] was never seeded, so [[trail_service.dart]] served the read-only bundle and writes hit nonexistent rows; (2) `bremnermail@gmail.com` had `profiles.is_admin=true` but no [[admin_users]] row, so [[is_admin]]() was false and RLS silently filtered writes to 0 rows (split-brain admin); (3) [[trail_repository.dart]] didn't check affected rows, so it reported false success. Fixed: added the admin_users row (verified `is_admin()=true`), seeded the catalogue, and the repo now `.select()`s affected rows. [[Trail Model]] now treats stored difficulty + elevation-gain as authoritative (those edits used to be recomputed away) and reads `published`.
+- **Catalogue duplicates** — the bundle seeds ~29 routes twice (hyphen-id + underscore-id twins). Removed the redundant twins: 233 → **197 unique routes**. ⚠️ Re-seeding reintroduces them until `routes_cleaned.json` is cleaned.
+
 ## Resolved in v4.0.0+62 ✅
 - Live mobile map marker froze at start (now advances; directional dot).
 - Solo hike/walk save failed on `community_activities` NOT-NULL `team_id`/`team_name` (now nullable; duplicate client insert removed).

@@ -13,13 +13,13 @@ The gate function used by virtually every admin-protected RLS policy + edge func
 ## Definition
 
 ```sql
--- Conceptually:
-create function public.is_admin() returns boolean
-language sql security definer
+create or replace function public.is_admin() returns boolean
+language sql stable security definer
+set search_path to 'public'
 as $$
   select exists(
     select 1 from public.admin_users
-    where email = (auth.jwt() ->> 'email')
+    where user_id = auth.uid()
   );
 $$;
 ```
@@ -34,10 +34,18 @@ $$;
 
 ## Admin allowlist
 
-Backed by [[admin_users]]. To add an admin: insert a row with their auth email.
+Backed by [[admin_users]]. To add an admin, insert a row keyed on their **`user_id`** (`auth.users.id`):
 
-> [!note] Email-based, not uid-based
-> If a user signs in with a different OAuth identity provider, they need a separate row (matching email).
+```sql
+insert into public.admin_users (user_id, email, notes)
+select id, email, '<why>' from auth.users where email = '<their email>'
+on conflict (user_id) do nothing;
+```
+
+> [!warning] uid-based, not email-based — and separate from `profiles.is_admin`
+> `is_admin()` matches `admin_users.user_id = auth.uid()`; the `email` column is informational only. A user under a different identity (different `auth.users.id`) needs a new row.
+>
+> The PC app gates **tab visibility** on a *different* flag — `profiles.is_admin` (cached in [[auth_provider.dart]], used by [[MainPcShell]]). These two admin signals are independent and **both** must be set for a working PC Trails admin. (2026-05-29: `bremnermail@gmail.com` had `profiles.is_admin=true` but no `admin_users` row, so the Trails editor showed yet every write was silently filtered by RLS to 0 rows.)
 
 ## See also
 

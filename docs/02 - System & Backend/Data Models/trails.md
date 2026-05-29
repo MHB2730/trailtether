@@ -52,6 +52,11 @@ The curated trail catalogue. Hilltrek-authored trails (vs. user-recorded routes 
 
 `touch_trails_updated_at()` — bumps `updated_at` on every UPDATE. Locked search_path.
 
+## Operational state (2026-05-29)
+
+- **Seeded + deduped to 197 unique routes.** The table sat *empty* after the migration; while empty, [[trail_service.dart]] silently falls back to the read-only bundled JSON, so the app showed trails but edits/deletes hit nonexistent DB rows and appeared to do nothing. Seed first (PC → "Seed from bundle"), then edits persist.
+- **Duplicate gotcha:** `routes_cleaned.json` carries ~29 routes *twice* — a clean underscore-id entry (`hc_to_caracal_cave` → "Caracal Cave via Highmoor") and a raw hyphen-id twin (`hc-to-caracal-cave` → "Caracal Cave via Hc"). Distinct ids → the idempotent seed inserts both. The redundant twins were deleted (233 → 197), but **re-running "Seed from bundle" reintroduces them** until the bundle asset is cleaned.
+
 ## Relationships
 
 - Referenced by [[hike_history]].trail_id, [[recorded_trails]].benchmark_route_id (when a recorded hike matches a curated trail)
