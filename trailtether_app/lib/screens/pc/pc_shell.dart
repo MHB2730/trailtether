@@ -38,9 +38,10 @@ import '../../core/design_tokens.dart';
 import '../../providers/auth_provider.dart' as ap;
 import '../../providers/team_provider.dart';
 import '../admin/admin_settings_tab.dart';
-import '../admin/mission_control_tab.dart';
 import '../hike_history_screen.dart';
 import '../team_detail_screen.dart';
+import 'pc_kit.dart';
+import 'pc_mission_control.dart';
 import 'pc_trails_screen.dart';
 
 // ─────────────────────────── tokens (pc-local) ──────────────────────────────
@@ -92,6 +93,9 @@ class _NavSpec {
   });
 }
 
+// WATCH group first (adminOnly == false), then ADMIN group. Pair Device is
+// intentionally not a sidebar entry — it's reached via the "Pair device"
+// action on the Hikers screen (the _PcSection.pair route still exists).
 const _kNav = [
   _NavSpec(
       id: _PcSection.dashboard, icon: Icons.public, label: 'Mission Control'),
@@ -103,16 +107,14 @@ const _kNav = [
   _NavSpec(id: _PcSection.hikers, icon: Icons.people_outline, label: 'Hikers'),
   _NavSpec(id: _PcSection.history, icon: Icons.history, label: 'History'),
   _NavSpec(
-      id: _PcSection.trails,
-      icon: Icons.alt_route_outlined,
-      label: 'Trails',
-      adminOnly: true),
-  _NavSpec(
       id: _PcSection.alerts,
       icon: Icons.notifications_none_rounded,
       label: 'Alerts'),
   _NavSpec(
-      id: _PcSection.pair, icon: Icons.qr_code_2_rounded, label: 'Pair Device'),
+      id: _PcSection.trails,
+      icon: Icons.alt_route_outlined,
+      label: 'Trails',
+      adminOnly: true),
   _NavSpec(
       id: _PcSection.settings,
       icon: Icons.settings_outlined,
@@ -187,7 +189,10 @@ class _PcContent extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (section) {
       case _PcSection.dashboard:
-        return _PcDashboard(onNavigate: onNavigate);
+        return PcMissionControl(
+          onOpenAlerts: () => onNavigate(_PcSection.alerts),
+          onWatchHike: () => onNavigate(_PcSection.watch),
+        );
       case _PcSection.watch:
         return _PcHikeWatch(onNavigate: onNavigate);
       case _PcSection.hikers:
@@ -356,8 +361,8 @@ class _PCSidebar extends StatelessWidget {
     // gates writes server-side, but showing tabs that error on use is a
     // worse UX than just hiding them.
     final isAdmin = context.watch<ap.AuthProvider>().isAdmin;
-    final visibleNav =
-        _kNav.where((n) => isAdmin || !n.adminOnly).toList(growable: false);
+    final watchNav = _kNav.where((n) => !n.adminOnly).toList(growable: false);
+    final adminNav = _kNav.where((n) => n.adminOnly).toList(growable: false);
     final hikerCount = teams.fold<int>(0, (sum, t) => sum + t.members.length);
 
     return Container(
@@ -427,20 +432,37 @@ class _PCSidebar extends StatelessWidget {
             ),
           ),
 
-          // Nav.
+          // Nav — grouped into WATCH / ADMIN sections.
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final n in visibleNav)
+                const _NavSectionLabel('Watch'),
+                for (final n in watchNav)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),
                     child: _PCSidebarItem(
                       spec: n,
                       active: n.id == active,
+                      badge: n.id == _PcSection.hikers && hikerCount > 0
+                          ? hikerCount
+                          : null,
                       onTap: () => onSelect(n.id),
                     ),
                   ),
+                if (isAdmin) ...[
+                  const SizedBox(height: 12),
+                  const _NavSectionLabel('Admin'),
+                  for (final n in adminNav)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: _PCSidebarItem(
+                        spec: n,
+                        active: n.id == active,
+                        onTap: () => onSelect(n.id),
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -470,14 +492,34 @@ class _PCSidebar extends StatelessWidget {
   }
 }
 
+class _NavSectionLabel extends StatelessWidget {
+  final String text;
+  const _NavSectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 7),
+      child: Text(
+        text.toUpperCase(),
+        style: TT
+            .mono(size: 8.5, color: TT.text4, letterSpacing: 0.2 * 8.5)
+            .copyWith(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
 class _PCSidebarItem extends StatelessWidget {
   final _NavSpec spec;
   final bool active;
+  final int? badge;
   final VoidCallback onTap;
   const _PCSidebarItem({
     required this.spec,
     required this.active,
     required this.onTap,
+    this.badge,
   });
 
   @override
@@ -508,7 +550,28 @@ class _PCSidebarItem extends StatelessWidget {
                   style: TT.body(size: 12.5, w: FontWeight.w700, color: color),
                 ),
               ),
-              if (spec.live) const _PulseDot(color: TT.ember),
+              if (spec.live) const PcPulseDot(color: TT.ember),
+              if (badge != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 18),
+                  height: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: active ? TT.ember : const Color(0x0FFFFFFF),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    '$badge',
+                    style: TT
+                        .mono(
+                            size: 10,
+                            color: active ? TT.emberInk : TT.text2)
+                        .copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -599,7 +662,7 @@ class _AccountFooter extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    const _PulseDot(),
+                    const PcPulseDot(),
                     const SizedBox(width: 4),
                     Text(
                       'WATCHING · ${hikerCount > 0 ? hikerCount : 0} HIKERS',
@@ -658,53 +721,7 @@ class _AccountFooter extends StatelessWidget {
   }
 }
 
-class _PulseDot extends StatefulWidget {
-  final Color color;
-  // ignore: unused_element_parameter
-  const _PulseDot({this.color = TT.green});
-  @override
-  State<_PulseDot> createState() => _PulseDotState();
-}
-
-class _PulseDotState extends State<_PulseDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1400),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctl,
-      builder: (_, __) {
-        final t = _ctl.value;
-        // Mirrors the JSX `pulse` keyframes: 1 → 0.35 → 1 over 1.4 s.
-        final opacity = 0.35 + 0.65 * (0.5 + 0.5 * math.cos(t * math.pi * 2));
-        return Opacity(
-          opacity: opacity,
-          child: Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: widget.color,
-              boxShadow: [
-                BoxShadow(color: widget.color.withOpacity(0.55), blurRadius: 6),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
+// _PulseDot now lives in pc_kit.dart as PcPulseDot.
 
 // ──────────────────────────── primitives ────────────────────────────────────
 
@@ -895,6 +912,8 @@ class PCStat extends StatelessWidget {
   final IconData icon;
   final bool ember;
   final bool danger;
+  final bool success;
+  final bool warning;
   const PCStat({
     super.key,
     required this.label,
@@ -904,20 +923,30 @@ class PCStat extends StatelessWidget {
     this.sub,
     this.ember = false,
     this.danger = false,
+    this.success = false,
+    this.warning = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final tint = danger
         ? TT.red
-        : ember
-            ? TT.ember
-            : TT.text;
+        : warning
+            ? TT.amber
+            : success
+                ? TT.green
+                : ember
+                    ? TT.ember
+                    : TT.text;
     final iconTint = danger
         ? TT.red
-        : ember
-            ? TT.ember
-            : TT.text3;
+        : warning
+            ? TT.amber
+            : success
+                ? TT.green
+                : ember
+                    ? TT.ember
+                    : TT.text3;
     return PCCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -977,6 +1006,7 @@ class PCPill extends StatelessWidget {
   final bool ember;
   final bool success;
   final bool danger;
+  final bool warning;
   const PCPill({
     super.key,
     required this.label,
@@ -984,6 +1014,7 @@ class PCPill extends StatelessWidget {
     this.ember = false,
     this.success = false,
     this.danger = false,
+    this.warning = false,
   });
 
   @override
@@ -997,6 +1028,10 @@ class PCPill extends StatelessWidget {
       bg = const Color(0x214CC38A);
       border = const Color(0x5C4CC38A);
       color = TT.green;
+    } else if (warning) {
+      bg = const Color(0x21F2A93B);
+      border = const Color(0x5CF2A93B);
+      color = TT.amber;
     } else if (danger) {
       bg = const Color(0x21E63D2E);
       border = const Color(0x5CE63D2E);
@@ -1019,7 +1054,7 @@ class PCPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (live) ...[
-            _PulseDot(color: color),
+            PcPulseDot(color: color),
             const SizedBox(width: 5),
           ],
           Text(
@@ -1036,46 +1071,8 @@ class PCPill extends StatelessWidget {
 
 // ─────────────────────────── section: Dashboard ─────────────────────────────
 
-class _PcDashboard extends StatelessWidget {
-  final ValueChanged<_PcSection> onNavigate;
-  const _PcDashboard({required this.onNavigate});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        PCPageHeader(
-          eyebrow: 'OVERVIEW',
-          title: 'Mission Control',
-          sub: const Text(
-            'Live team map + hazard reports · updated each fix',
-          ),
-          actions: [
-            PCBtn(
-              label: 'ALERTS',
-              leftIcon: Icons.notifications_none_rounded,
-              onTap: () => onNavigate(_PcSection.alerts),
-            ),
-            PCBtn(
-              label: 'WATCH HIKE',
-              leftIcon: Icons.visibility_outlined,
-              primary: true,
-              onTap: () => onNavigate(_PcSection.watch),
-            ),
-          ],
-        ),
-        const Expanded(
-          // The existing MissionControlTab already renders the full
-          // team-tracking map + incident overlay. Reusing it keeps the
-          // PC Dashboard wired to live realtime data without
-          // duplicating the channel subscription code.
-          child: MissionControlTab(),
-        ),
-      ],
-    );
-  }
-}
+// _PcDashboard moved to pc_mission_control.dart as PcMissionControl
+// (wraps the live MissionControlTab in the v3 dashboard layout).
 
 // ─────────────────────────── section: Hike Watch ────────────────────────────
 
@@ -1235,7 +1232,7 @@ class _PcHikersList extends StatelessWidget {
                           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                           child: Row(
                             children: [
-                              _AvatarCircle(name: r.member.displayName),
+                              PcAvatar(name: r.member.displayName),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -1272,49 +1269,7 @@ class _PcHikersList extends StatelessWidget {
   }
 }
 
-class _AvatarCircle extends StatelessWidget {
-  final String name;
-  const _AvatarCircle({required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    final initials = parts.length >= 2
-        ? (parts.first[0] + parts.last[0]).toUpperCase()
-        : (parts.first.isEmpty
-            ? '?'
-            : parts.first
-                .substring(0, parts.first.length >= 2 ? 2 : 1)
-                .toUpperCase());
-    // Cycle through the design's avatar palette by hashing the name.
-    const palette = [
-      Color(0xFFFF6A2C),
-      Color(0xFF4CC38A),
-      Color(0xFFF2A93B),
-      Color(0xFF5AA1D6),
-      Color(0xFFE63D2E),
-    ];
-    final c = palette[name.hashCode.abs() % palette.length];
-    return Container(
-      width: 38,
-      height: 38,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: c, width: 2),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [c, c.withOpacity(0.66)],
-        ),
-      ),
-      child: Text(
-        initials,
-        style: TT.body(size: 13, w: FontWeight.w800, color: Colors.white),
-      ),
-    );
-  }
-}
+// _AvatarCircle now lives in pc_kit.dart as PcAvatar.
 
 // ─────────────────────────── section: History ───────────────────────────────
 
