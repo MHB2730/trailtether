@@ -11,6 +11,7 @@ aliases:
 
 ## Build Notes
 
+- [[Release Runbook]] — how to build, version & ship all surfaces
 - [[Build & Deploy]]
 - [[Android Build Steps]]
 - [[Windows Build Steps]]

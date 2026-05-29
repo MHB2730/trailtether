@@ -34,6 +34,7 @@ This vault is the working memory for the Hilltrek product and the Trailtether ap
 
 - [[Architecture Index]]
 - [[System Overview]]
+- [[Feature Map]] — structured top-down tree (vs the force-graph nest)
 - [[Tech Stack]]
 - [[Folder Structure]]
 - [[Build & Deploy]]
