@@ -39,7 +39,8 @@ import '../../providers/auth_provider.dart' as ap;
 import '../../providers/team_provider.dart';
 import '../admin/admin_settings_tab.dart';
 import '../hike_history_screen.dart';
-import '../team_detail_screen.dart';
+import 'pc_hike_watch_screen.dart';
+import 'pc_hikers_screen.dart';
 import 'pc_kit.dart';
 import 'pc_mission_control.dart';
 import 'pc_trails_screen.dart';
@@ -194,9 +195,15 @@ class _PcContent extends StatelessWidget {
           onWatchHike: () => onNavigate(_PcSection.watch),
         );
       case _PcSection.watch:
-        return _PcHikeWatch(onNavigate: onNavigate);
+        return PcHikeWatchScreen(
+          onOpenPair: () => onNavigate(_PcSection.pair),
+          onOpenMissionControl: () => onNavigate(_PcSection.dashboard),
+          onOpenHikers: () => onNavigate(_PcSection.hikers),
+        );
       case _PcSection.hikers:
-        return _PcHikersList(onNavigate: onNavigate);
+        return PcHikersScreen(
+          onOpenPair: () => onNavigate(_PcSection.pair),
+        );
       case _PcSection.history:
         return const _PcHistory();
       case _PcSection.trails:
@@ -1074,200 +1081,9 @@ class PCPill extends StatelessWidget {
 // _PcDashboard moved to pc_mission_control.dart as PcMissionControl
 // (wraps the live MissionControlTab in the v3 dashboard layout).
 
-// ─────────────────────────── section: Hike Watch ────────────────────────────
-
-class _PcHikeWatch extends StatelessWidget {
-  final ValueChanged<_PcSection> onNavigate;
-  const _PcHikeWatch({required this.onNavigate});
-
-  @override
-  Widget build(BuildContext context) {
-    final teams = context.watch<TeamProvider>().teams;
-    final hasPaired = teams.any((t) => t.members.isNotEmpty);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        PCPageHeader(
-          eyebrow: 'LIVE',
-          title: 'Hike Watch',
-          sub: const Text(
-              'Per-hike deep-dive · elevation profile + alerts + timeline'),
-          actions: hasPaired
-              ? [
-                  PCBtn(
-                    label: 'VIEW HIKERS',
-                    leftIcon: Icons.people_outline,
-                    onTap: () => onNavigate(_PcSection.hikers),
-                  ),
-                ]
-              : const [],
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(26),
-            child: PCCard(
-              padding: const EdgeInsets.all(40),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.visibility_outlined,
-                      size: 48, color: TT.text3),
-                  const SizedBox(height: 16),
-                  Text('No active hike to watch',
-                      style: TT.title(18, letterSpacing: -0.01 * 18)),
-                  const SizedBox(height: 8),
-                  Text(
-                    hasPaired
-                        ? 'A hiker is paired but isn’t recording yet. Start a hike on their mobile app to see live position, elevation, pace, and incident overlay here.'
-                        : 'Pair a phone first, then start a hike on the mobile app to see live position, elevation, pace, and incident overlay here.',
-                    textAlign: TextAlign.center,
-                    style: TT
-                        .body(size: 12, color: TT.text2)
-                        .copyWith(height: 1.5),
-                  ),
-                  const SizedBox(height: 20),
-                  PCBtn(
-                    label: hasPaired ? 'OPEN MISSION CONTROL' : 'PAIR A DEVICE',
-                    leftIcon:
-                        hasPaired ? Icons.public : Icons.qr_code_2_rounded,
-                    primary: true,
-                    onTap: () => onNavigate(
-                        hasPaired ? _PcSection.dashboard : _PcSection.pair),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────── section: Hikers ────────────────────────────────
-
-class _PcHikersList extends StatelessWidget {
-  final ValueChanged<_PcSection> onNavigate;
-  const _PcHikersList({required this.onNavigate});
-
-  @override
-  Widget build(BuildContext context) {
-    final teamProv = context.watch<TeamProvider>();
-    final teams = teamProv.teams;
-    final members = [
-      for (final t in teams)
-        for (final m in t.members) (team: t, member: m),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        PCPageHeader(
-          eyebrow: 'PAIRED HIKERS',
-          title: 'Hikers',
-          sub: Text(
-            members.isEmpty
-                ? 'No paired hikers yet · pair a device to start watching'
-                : '${members.length} hikers across ${teams.length} teams',
-          ),
-          actions: [
-            PCBtn(
-              label: 'PAIR DEVICE',
-              leftIcon: Icons.qr_code_2_rounded,
-              primary: true,
-              onTap: () => onNavigate(_PcSection.pair),
-            ),
-          ],
-        ),
-        Expanded(
-          child: members.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(26),
-                  child: PCCard(
-                    padding: const EdgeInsets.all(40),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.people_outline,
-                            size: 48, color: TT.text3),
-                        const SizedBox(height: 16),
-                        Text('No hikers paired yet',
-                            style: TT.title(18, letterSpacing: -0.01 * 18)),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Open Pair Device, show the QR on this screen, and scan it from the mobile app to attach a phone.',
-                          textAlign: TextAlign.center,
-                          style: TT
-                              .body(size: 12, color: TT.text2)
-                              .copyWith(height: 1.5),
-                        ),
-                        const SizedBox(height: 20),
-                        PCBtn(
-                          label: 'OPEN PAIR DEVICE',
-                          leftIcon: Icons.qr_code_2_rounded,
-                          primary: true,
-                          onTap: () => onNavigate(_PcSection.pair),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(26),
-                  itemCount: members.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) {
-                    final r = members[i];
-                    return MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => TeamDetailScreen(team: r.team),
-                          ));
-                        },
-                        child: PCCard(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                          child: Row(
-                            children: [
-                              PcAvatar(name: r.member.displayName),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(r.member.displayName,
-                                        style: TT.body(
-                                            size: 13, w: FontWeight.w800)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'TEAM · ${r.team.name.toUpperCase()}',
-                                      style: TT.mono(
-                                          size: 9.5,
-                                          color: TT.text3,
-                                          letterSpacing: 0.06 * 9.5),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const PCPill(label: 'TETHERED', success: true),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.chevron_right,
-                                  size: 18, color: TT.text3),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-}
+// _PcHikeWatch and _PcHikersList were superseded by the standalone
+// pc_hike_watch_screen.dart (PcHikeWatchScreen) and pc_hikers_screen.dart
+// (PcHikersScreen) during the Base Camp nav regroup. Removed here as dead code.
 
 // _AvatarCircle now lives in pc_kit.dart as PcAvatar.
 

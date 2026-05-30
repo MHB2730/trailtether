@@ -52,6 +52,15 @@ class DeepLinkService {
     // — AuthGate listens for that and renders SetNewPasswordScreen.
     const exchangeHosts = {'login-callback', 'reset-password', 'confirm'};
     if (exchangeHosts.contains(uri.host)) {
+      // Defense-in-depth: only attempt the session exchange when the URI
+      // actually carries an auth payload. PKCE puts `code` in the query;
+      // the implicit/recovery flow puts `access_token`/`token_hash` (or an
+      // `error`) in the fragment. A bare `trailtether://reset-password` with
+      // no payload is ignored rather than handed to the auth client.
+      if (!_carriesAuthPayload(uri)) {
+        LoggerService.log('DEEP_LINK', 'ignored ${uri.host}: no auth payload');
+        return;
+      }
       try {
         await Supabase.instance.client.auth.getSessionFromUrl(uri);
         LoggerService.log('DEEP_LINK', 'session exchanged (${uri.host})');
@@ -59,6 +68,23 @@ class DeepLinkService {
         LoggerService.error('DEEP_LINK', 'getSessionFromUrl failed: $e', stack);
       }
     }
+  }
+
+  /// True when [uri] carries a Supabase auth payload in either the query or
+  /// the fragment (PKCE `code`, implicit `access_token`/`token_hash`, or an
+  /// `error`). Guards against acting on payload-less inbound links.
+  static bool _carriesAuthPayload(Uri uri) {
+    const keys = ['code', 'access_token', 'token_hash', 'error', 'error_code'];
+    for (final k in keys) {
+      if (uri.queryParameters.containsKey(k)) return true;
+    }
+    final frag = uri.fragment;
+    if (frag.isNotEmpty) {
+      for (final k in keys) {
+        if (frag.contains('$k=')) return true;
+      }
+    }
+    return false;
   }
 
   static Future<void> dispose() async {
