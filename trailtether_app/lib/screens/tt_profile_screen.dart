@@ -9,11 +9,14 @@
 // detail or "how-to-unlock" dialogs, and all four preference toggles persist
 // to SharedPreferences (live tracking, trail weather, off-trail alerts, haptic).
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../core/design_tokens.dart';
 import '../models/achievement.dart';
@@ -354,6 +357,134 @@ class _TTProfileScreenState extends State<TTProfileScreen>
     );
   }
 
+  // ── Delete account (POPIA erasure) ─────────────────────────────────────
+  Future<void> _confirmDeleteAccount() async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final ready = controller.text.trim().toUpperCase() == 'DELETE';
+          return AlertDialog(
+            backgroundColor: TT.surf,
+            title: Text('Delete your account?', style: TT.title(17)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This permanently erases your account and all your data — '
+                  'recorded trails, hike history, locations, incidents, watch '
+                  'pairings and uploads. It cannot be undone.',
+                  style: TT.body(size: 13, color: TT.text2),
+                ),
+                const SizedBox(height: 16),
+                Text('Type DELETE to confirm',
+                    style:
+                        TT.body(size: 11, color: TT.text3, w: FontWeight.w700)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.characters,
+                  style: TT.body(size: 14, color: TT.text),
+                  onChanged: (_) => setLocal(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'DELETE',
+                    hintStyle: TT.body(size: 14, color: TT.text3),
+                    filled: true,
+                    fillColor: TT.bg,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: TT.line2),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: TT.red),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text('Cancel',
+                    style: TT.body(size: 13, color: TT.text2)),
+              ),
+              TextButton(
+                onPressed: ready ? () => Navigator.of(ctx).pop(true) : null,
+                child: Text('Delete account',
+                    style: TT.body(
+                        size: 13,
+                        color: ready ? TT.red : TT.text3,
+                        w: FontWeight.w800)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    controller.dispose();
+    if (confirmed != true || !mounted) return;
+
+    // We sign out mid-flow, which unmounts this screen — capture the
+    // context-bound objects we need before the async gap.
+    final nav = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    unawaited(showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _DeletingDialog(),
+    ));
+
+    String? error;
+    try {
+      await AuthService.deleteAccount();
+    } catch (e) {
+      error = e is AuthException
+          ? e.message
+          : 'Could not delete your account. Please try again, or email info@hilltrek.co.za.';
+    }
+
+    nav.pop(); // dismiss the progress dialog
+
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(error, style: TT.body(size: 13, color: TT.text)),
+        backgroundColor: TT.surf,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
+    // Success: AuthService.deleteAccount() signed us out, so AuthGate now shows
+    // the login screen. Confirm over it via the (still-mounted) root navigator.
+    if (!nav.mounted) return;
+    unawaited(showDialog(
+      context: nav.context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TT.surf,
+        title: Text('Account deleted', style: TT.title(17)),
+        content: Text(
+          'Your account and data have been permanently erased. '
+          'Thanks for hiking with us.',
+          style: TT.body(size: 13, color: TT.text2),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('OK',
+                style: TT.body(size: 13, color: TT.ember, w: FontWeight.w800)),
+          ),
+        ],
+      ),
+    ));
+  }
+
   // ── Avatar photo picker ────────────────────────────────────────────────
   Future<void> _pickAvatarPhoto() async {
     final pp = context.read<ProfileProvider>();
@@ -636,6 +767,14 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           onTap: _confirmDeleteHistory,
                         ),
                         _SettingRowData(
+                          icon: Icons.delete_forever_outlined,
+                          label: 'Delete account',
+                          sub: 'Permanently erase your account & data',
+                          danger: true,
+                          trailing: _SettingTrailing.chevron(),
+                          onTap: _confirmDeleteAccount,
+                        ),
+                        _SettingRowData(
                           icon: Icons.logout,
                           label: 'Sign out',
                           sub: context.watch<ap.AuthProvider>().email ??
@@ -675,6 +814,34 @@ class _TTProfileScreenState extends State<TTProfileScreen>
     final n = context.watch<HikeHistoryProvider>().hikes.length;
     if (n == 0) return 'No hikes recorded yet';
     return n == 1 ? '1 hike' : '$n hikes';
+  }
+}
+
+/// Non-dismissible progress shown while the account is being erased server-side.
+class _DeletingDialog extends StatelessWidget {
+  const _DeletingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: TT.surf,
+      content: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 22,
+            height: 22,
+            child:
+                CircularProgressIndicator(strokeWidth: 2.5, color: TT.ember),
+          ),
+          const SizedBox(width: 16),
+          Flexible(
+            child: Text('Deleting your account…',
+                style: TT.body(size: 14, color: TT.text)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

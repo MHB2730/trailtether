@@ -105,6 +105,56 @@ class AuthService {
     await _supabase.auth.signOut();
   }
 
+  // â”€â”€ Delete account (POPIA erasure) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  /// Permanently deletes the signed-in user's account and all their personal
+  /// data via the `account-delete` edge function, then signs out. The function
+  /// authenticates the caller from their JWT and requires them to echo their
+  /// own email back as confirmation, so this is the same thorough erasure the
+  /// hilltrek.co.za/account web portal performs — recorded trails, hike
+  /// history, locations, incidents, watch pairings and uploads are all removed.
+  ///
+  /// The local session is only cleared once the server confirms success.
+  /// Throws an [AuthException] with a friendly message otherwise; on failure
+  /// nothing was deleted, so it is safe to retry.
+  static Future<void> deleteAccount() async {
+    final email = currentUser?.email;
+    if (email == null || email.isEmpty) {
+      throw const AuthException(
+          'You need to be signed in to delete your account.');
+    }
+    try {
+      final res = await _supabase.functions.invoke(
+        'account-delete',
+        body: {'confirm_email': email},
+      );
+      final data = res.data;
+      final ok = data is Map && data['ok'] == true;
+      if (!ok) {
+        throw const AuthException(
+            'Your account could not be fully deleted. Nothing was changed — please try again, or email info@hilltrek.co.za.');
+      }
+    } on FunctionException catch (e) {
+      // Non-2xx from the edge function (auth, confirm mismatch, partial failure).
+      throw AuthException(_deleteErrorMessage(e));
+    }
+    // Server-side erasure is done — clear the now-orphaned local session.
+    await signOut();
+  }
+
+  static String _deleteErrorMessage(FunctionException e) {
+    final details = e.details;
+    if (details is Map) {
+      final errs = details['errors'];
+      if (errs is List && errs.isNotEmpty) return errs.first.toString();
+      final err = details['error'];
+      if (err == 'confirm_email_mismatch') {
+        return 'Could not confirm your account. Please sign out, sign back in, then try again.';
+      }
+      if (err is String && err.isNotEmpty) return err;
+    }
+    return 'Your account could not be deleted right now. Please try again, or email info@hilltrek.co.za.';
+  }
+
   // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   /// Display-friendly error messages for Supabase AuthException.
   static String friendlyError(AuthException e) {
