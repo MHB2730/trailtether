@@ -157,9 +157,12 @@ async function bootstrap() {
   // root cause of an old routing bug: when renderAuth threw, nav clicks
   // stopped updating the view because `hashchange` was never bound.
   $('#login-form').addEventListener('submit', onLoginSubmit);
-  $('#mfa-form').addEventListener('submit', onMfaSubmit);
-  $('#mfa-cancel').addEventListener('click', onMfaCancel);
-  $('#btn-logout').addEventListener('click', onLogout);
+  // Null-safe (?.) so a missing element from a partial/cached deploy can't
+  // throw at bootstrap and blank the whole app.
+  $('#forgot-link')?.addEventListener('click', onForgotPassword);
+  $('#mfa-form')?.addEventListener('submit', onMfaSubmit);
+  $('#mfa-cancel')?.addEventListener('click', onMfaCancel);
+  $('#btn-logout')?.addEventListener('click', onLogout);
   window.addEventListener('hashchange', route);
 
   // Smart same-hash handler. Browsers (and iOS Safari especially) do NOT
@@ -382,6 +385,35 @@ async function onLoginSubmit(e) {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Sign in';
+  }
+}
+
+// Forgot-password: email a reset link. The Reset Password email template
+// hard-codes the hosted web reset page (hilltrek.co.za/account/reset) via
+// {{ .TokenHash }}. That page only lets the user set a new password and then
+// signs them out — it NEVER grants admin access (admin still requires
+// is_admin + MFA on a fresh sign-in). So this is safe to expose pre-auth.
+async function onForgotPassword(e) {
+  e.preventDefault();
+  const email = $('#login-email').value.trim();
+  if (!email || !email.includes('@')) {
+    toast('Enter your email', 'error',
+      'Type your email in the field above, then click Forgot password.');
+    return;
+  }
+  const link = $('#forgot-link');
+  if (link) { link.style.pointerEvents = 'none'; link.textContent = 'Sending…'; }
+  try {
+    const { error } = await withTimeout(
+      supabase.auth.resetPasswordForEmail(email), QUERY_TIMEOUT_MS, 'Password reset'
+    );
+    if (error) throw error;
+    toast('Reset link sent', 'ok',
+      `Check ${email} (and spam). The link opens a page to set a new password.`);
+  } catch (err) {
+    toast('Could not send reset', 'error', explainError(err));
+  } finally {
+    if (link) { link.style.pointerEvents = ''; link.textContent = 'Forgot your password?'; }
   }
 }
 
