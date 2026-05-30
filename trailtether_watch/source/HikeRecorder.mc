@@ -4,6 +4,7 @@ import Toybox.Position;
 import Toybox.Lang;
 import Toybox.Time;
 import Toybox.Math;
+import Toybox.Communications;
 
 enum HikeState {
     STATE_PICKING,
@@ -19,6 +20,18 @@ enum HikeState {
 // Activity picker rows (Hike / Trail Run / Walk / Climb). Index also feeds the
 // Garmin sport mapping and the activity_type string we send to Supabase.
 const ACTIVITY_COUNT = 4;
+
+// Best-effort send listener for the live phone link. We don't act on the
+// result — if the phone app isn't listening the transmit simply fails.
+class _LiveTxListener extends Communications.ConnectionListener {
+    function initialize() {
+        Communications.ConnectionListener.initialize();
+    }
+
+    function onComplete() as Void {}
+
+    function onError() as Void {}
+}
 
 class HikeRecorder {
     public var state as Number = STATE_PICKING;
@@ -205,6 +218,46 @@ class HikeRecorder {
                 }
             }
         }
+        transmitLive(); // self-guards on STATE_RECORDING
+    }
+
+    // ── Live link to the phone app (Connect IQ messaging) ──────────────────
+    // While recording, push live metrics to the paired Trailtether phone app
+    // (received there via the Connect IQ Mobile SDK) so it can mirror the hike
+    // in real time — no sensor pairing, uses the device already known to Garmin
+    // Connect Mobile. Throttled to ~1 Hz; best-effort (silent if the phone app
+    // isn't listening). Protocol mirrored on the phone side; see
+    // trailtether_watch/HANDOFF_live_link.md.
+    private var _liveListener as Communications.ConnectionListener?;
+    private var _lastTxSec as Number = -1;
+
+    function transmitLive() as Void {
+        if (state != STATE_RECORDING) { return; }
+        var now = Time.now().value();
+        if (now == _lastTxSec) { return; } // at most one send per second
+        _lastTxSec = now;
+
+        var msg = {
+            "t"    => "live",
+            "hr"   => heartRate,
+            "ahr"  => avgHeartRate,
+            "dur"  => elapsedSec,
+            "dist" => distanceM,
+            "spd"  => speedMps,
+            "alt"  => altitudeM,
+            "asc"  => ascentM,
+            "cal"  => calories,
+            "act"  => activityType()
+        } as Dictionary;
+        if (_lastLoc != null) {
+            var deg = _lastLoc.toDegrees();
+            msg.put("lat", deg[0]);
+            msg.put("lon", deg[1]);
+        }
+        if (_liveListener == null) {
+            _liveListener = new _LiveTxListener();
+        }
+        Communications.transmit(msg, null, _liveListener);
     }
 
     // GPS noise filtering — the Instinct's fix jitters a few metres even when

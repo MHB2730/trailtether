@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../core/design_tokens.dart';
 import '../providers/heart_rate_provider.dart';
 import '../services/watch_service.dart';
+import 'watch_live_screen.dart';
 
 /// Issues a pairing token for the Garmin Instinct companion app. The user pastes
 /// it into the watch app's settings in Garmin Connect Mobile, after which the
@@ -55,6 +56,14 @@ class _PairWatchScreenState extends State<PairWatchScreen> {
         padding: const EdgeInsets.all(TT.s4),
         children: [
           const _LiveHeartRateCard(),
+          const SizedBox(height: TT.s3),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WatchLiveScreen()),
+            ),
+            icon: const Icon(Icons.sensors, size: 18),
+            label: const Text('Watch live — mirror a hike from your watch'),
+          ),
           const SizedBox(height: TT.s5),
           const Divider(color: TT.line2, height: 1),
           const SizedBox(height: TT.s5),
