@@ -25,7 +25,6 @@ import '../widgets/design/tt_pill.dart';
 import '../widgets/design/tt_topo.dart';
 import 'create_team_screen.dart';
 import 'join_team_screen.dart';
-import 'live_tracking_screen.dart';
 import 'team_chat_screen.dart';
 import 'team_detail_screen.dart';
 
@@ -232,10 +231,19 @@ class _TTTeamScreenState extends State<TTTeamScreen> {
     ));
   }
 
+  // Consolidated 2026-05-30: the live team map IS the Map tab (the single
+  // recording + tracking surface). Route there instead of opening a second,
+  // standalone recorder — there must be exactly one place hikes are recorded.
   void _openLiveMap(BuildContext ctx) {
-    Navigator.of(ctx).push(MaterialPageRoute(
-      builder: (_) => const LiveTrackingScreen(),
-    ));
+    final cb = widget.onNavigate;
+    if (cb != null) {
+      cb(1); // Map tab — see app_shell.dart tab order.
+    } else {
+      ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+        content: Text('Open the Map tab to see the live team map.'),
+        duration: Duration(seconds: 2),
+      ));
+    }
   }
 
   void _showMemberSheet(BuildContext ctx, _TeamMemberVM m) {
