@@ -28,6 +28,7 @@ import '../providers/safety_provider.dart';
 import '../providers/static_data_provider.dart';
 import '../providers/team_provider.dart';
 import '../providers/units_provider.dart';
+import '../providers/heart_rate_provider.dart';
 import '../services/offline_map_service.dart';
 import '../services/weather_service.dart';
 import '../widgets/design/tt_app_bar.dart';
@@ -276,6 +277,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   Widget build(BuildContext context) {
     final rec = context.watch<RecordingProvider>();
     final units = context.watch<UnitsProvider>();
+    final hr = context.watch<HeartRateProvider>();
     // Floor the inset so floating controls don't crash into the very
     // top of the screen under immersiveSticky (status bar hidden ⇒
     // padding.top reads 0). 24 dp keeps them out of the swipe-down
@@ -499,6 +501,14 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                     ),
                   ],
                 ),
+                if (hr.isConnected) ...[
+                  const SizedBox(height: 10),
+                  _LiveHrStrip(
+                    bpm: hr.bpm,
+                    live: !hr.isStale && hr.bpm != null,
+                    battery: hr.battery,
+                  ),
+                ],
                 if (rec.remainingDist > 0) ...[
                   const SizedBox(height: 10),
                   _TargetCard(rec: rec),
@@ -580,6 +590,54 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Live heart rate strip ──────────────────────────────────────────────────
+
+/// Slim full-width live heart-rate readout, shown only when a BLE HR sensor
+/// (the watch's broadcast or a chest strap) is connected.
+class _LiveHrStrip extends StatelessWidget {
+  final int? bpm;
+  final bool live;
+  final int? battery;
+  const _LiveHrStrip({this.bpm, required this.live, this.battery});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xCC131820),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: TT.line2),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.favorite, size: 18, color: live ? TT.red : TT.text2),
+          const SizedBox(width: 10),
+          Text('HEART RATE', style: TT.label()),
+          if (battery != null) ...[
+            const SizedBox(width: 8),
+            Text('· $battery%', style: TT.body(size: 11, color: TT.text2)),
+          ],
+          const Spacer(),
+          Text(
+            live ? '$bpm' : '--',
+            style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: TT.text,
+                height: 1.0),
+          ),
+          const SizedBox(width: 5),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text('BPM', style: TT.label()),
           ),
         ],
       ),
