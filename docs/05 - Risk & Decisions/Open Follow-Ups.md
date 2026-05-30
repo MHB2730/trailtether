@@ -8,6 +8,17 @@ source_paths: []
 
 Non-bug planned work and decisions.
 
+## ⏳ Live-watch link — blocked on the Garmin SDK download (user action)
+The "start a hike on the watch → phone mirrors it live" link is **scaffolded both ends** (watch `HikeRecorder.transmitLive()` ~1 Hz over `Communications.transmit`; phone `WatchLiveService`/`WatchLiveProvider`/`WatchLiveScreen` waiting for native events) but **not connected** — there's no Flutter plugin for the Connect IQ **Mobile** SDK and the `.aar` is **not on Maven**.
+- **User**: download the Connect IQ Mobile SDK from developer.garmin.com → drop the `.aar` at `trailtether_app/android/app/libs/connectiq.aar`.
+- **Then me**: add it to `app/build.gradle`, write the Android Kotlin plugin binding channels `trailtether/watch_live` + `…/events` to the watch app UUID `a3f5c8e1b2d4476e9a0c1f3e5d7b8c2a`, and verify the Monkey C `transmitLive()` compiles in a Connect IQ build (no toolchain in CI). Full contract: `trailtether_watch/HANDOFF_live_link.md`. See [[phone-watch-live-hr]] memory + [[garmin-watch-app-plan]].
+
+## ⏳ Social media planner — blocked on Meta setup (user action)
+DB foundation shipped (`social_posts` table + `social-media` bucket, `is_admin()`-gated, migration `20260530_social_posts_planner`). Build is the [[Hilltrek Admin Module]] composer + a `social-publish` edge fn + a scheduler cron. **Blocked until the user completes Meta setup**:
+- Confirm the Hilltrek **Facebook is a Page** (not a personal profile) and the **Instagram is a Business/Creator account linked to that Page**.
+- Create a Meta app (developers.facebook.com), get a **long-lived / System-User Page access token**, the **IG Business Account ID**, and the **FB Page ID** → hand me those (store as Supabase secrets, never in git).
+- Constraints to design around: IG content-publish is a 2-step container→publish, ~25 posts/24 h, **no native scheduling** (our cron drives scheduled_at); Stories + Reels have their own endpoints. Build into `hilltrek-admin/` (LIVE — the [[hilltrek-admin-two-folders]] one), never the `hilltrek-ADMIN-app/` draft.
+
 ## v4.0 follow-ups (lower priority)
 - **Commit `supabase/config.toml`** pinning `verify_jwt = false` for the webhook + email-tracking functions so the setting is reproducible (currently only in the live project; see [[Known Issues]]).
 - **Narrow the [[zapper-webhook]] signature check** — it accepts multiple header names + hex/base64 ("unconfirmed"); narrow to the single correct form once verified against a real Zapper delivery. Fails closed when the secret is unset, so not a hole.

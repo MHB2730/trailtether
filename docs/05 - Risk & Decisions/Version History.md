@@ -8,6 +8,25 @@ aliases:
 
 # 🗒️ Version History
 
+## v4.0.5+69 — Live heart rate, single-recorder lockdown & live-watch scaffold (2026-05-30)
+App-side session; built `--flavor sideload --split-per-abi` (arm64 43.0 MB, under the 50 MB OTA cap), installed + smoke-verified on the physical S24 (Android 16). Ships the in-app **Delete account** from the earlier same-day web session.
+
+**Live heart rate (BLE)** — new [[HeartRateProvider]] (`flutter_blue_plus`) scans the standard **Heart Rate Profile** (service `0x180D` / char `0x2A37`, 8- & 16-bit decode), reads battery (`0x2A19`) once, persists the chosen device and silently auto-reconnects on adapter-on with a >10 s stale-signal guard. **The BLE link itself is the connected/disconnected indicator.** Runtime perms `BLUETOOTH_SCAN`(neverForLocation)/`BLUETOOTH_CONNECT` added to the manifest. Surfaced as a "Live heart rate" card in [[PairWatchScreen]] (scan sheet → connect → big BPM/battery/disconnect) and a "♥ N bpm · live" line on the [[TTProfileScreen]] watch tile. Works with the Instinct in **Broadcast Heart Rate** mode or any BLE chest strap. HR-only by design. (commit `b0ca413`)
+
+**HR written onto the route** — [[RecordingPoint]] gained an optional `hr`; [[recording_provider.dart]] samples the live BPM into every point while recording and exposes `avgHr`/`maxHr`; a slim live-HR strip shows in the **Map-tab recorder** ([[TTMapScreen]]). Wired via a `ChangeNotifierProxyProvider<HeartRateProvider, RecordingProvider>` in `main.dart` so the recorder reads the live source. Covers both phone- and (future) watch-recorded hikes.
+
+**One recorder, locked down** — there were **two** ways to record: the canonical Map-tab recorder and a duplicate [[LiveTrackingScreen]] reachable from the Teams-tab "trek-watch" map gesture. **Deleted `LiveTrackingScreen`** (1,403 LOC, commit `eb7b7d0`); the Teams gesture now routes to the Map tab (`onNavigate(1)`), not a second recorder. No auto-start — routing only shows the map.
+
+**Team vs individual attribution hardened** — [[FinishHikeSheet]] now passes `teamId` **only when the save context is explicitly `team`** (was leaking the last-selected team onto solo saves); context defaults to *personal*, team dropdown shows only in team context. Team hikes populate the Teams tab; solo hikes the hiker's individual history — no erroneous/mis-attributed records.
+
+**Live-watch link — scaffolded, gated on the Garmin SDK** — the chosen "truly instant/live" path (start on the watch → phone mirrors live, no sensor pairing). Done: watch `HikeRecorder.transmitLive()` streams full live metrics ~1 Hz via `Communications.transmit`; phone-side `WatchLiveService` + `WatchLiveProvider` + `WatchLiveScreen` (reachable from Pair Watch). **Remaining = the Android Kotlin plugin wrapping the Connect IQ *Mobile* SDK** (the `.aar` isn't on Maven — user downloads it → `android/app/libs/connectiq.aar`). Spec in `trailtether_watch/HANDOFF_live_link.md`; see [[Open Follow-Ups]].
+
+**Social planner — foundation only, gated on Meta setup** — applied migration `20260530_social_posts_planner`: `social_posts` table (caption, media_urls[], platforms[], post_type, status, scheduled_at, results jsonb…) with `is_admin()`-gated RLS + a public `social-media` storage bucket. The composer UI + `social-publish` edge fn + scheduler cron come once the user completes Meta setup (FB Page, IG Business/Creator, long-lived token). See [[Open Follow-Ups]].
+
+**Community feed cleaned** — purged **9 test-artifact** entries from [[community_activities]] (watch-ingest tests the user never actually saved); 3 real hikes kept.
+
+**CI** — fixed two red checks (see [[Troubleshooting & Fixes]]): the new PC screens were imported but never committed (`uri_does_not_exist`), and a hardcoded `org.gradle.java.home` broke the runner's APK build. Green after both. Project-wide `flutter analyze`: 0 issues.
+
 ## 2026-05-30 — Account self-service, shop add-to-cart, Play prep & publish fix
 Web + backend session (no app version bump; the in-app delete lands with the next Android publish).
 

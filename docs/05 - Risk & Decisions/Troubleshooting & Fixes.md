@@ -44,6 +44,21 @@ This log tracks technical hurdles encountered during the development of Trailtet
 
 ## 📦 Build & Environment
 
+### ❌ CI "Static Code Analysis" red — `uri_does_not_exist` on PC screens (2026-05-30)
+- **Problem**: `flutter analyze` failed on the runner: `pc_shell.dart` imported `pc_hike_watch_screen.dart` + `pc_hikers_screen.dart`, which analyze couldn't resolve.
+- **Cause**: those two screens existed **locally but were never committed** — they were untracked, so the runner's clean checkout didn't have them. (A browser assistant suggested creating *stub* files to satisfy the import — **wrong**: that would have overwritten the real 364- + 257-LOC screens with empty shells. Don't do that.)
+- **Fix**: committed the real files (+ one curly-brace lint fix), commit `6b56d94`. Lesson: after adding a new screen, `git status` for untracked files an import depends on **before** pushing — local analyze passes because the file is on disk; CI's fresh checkout won't have it.
+
+### ❌ CI "Dry-Run Sideload APK Build" red — hardcoded JDK path (2026-05-30)
+- **Problem**: the APK-build check failed only on the runner; the local build was fine.
+- **Cause**: `trailtether_app/android/gradle.properties` pinned `org.gradle.java.home=C:\Program Files\Java\jdk-17` — a path that exists on the dev machine but **not** on the GitHub runner.
+- **Fix**: removed the line (let Gradle find the JDK from the environment), commit `d19c423`; verified the local build still works. Don't commit machine-specific absolute paths to `gradle.properties`.
+
+### ❌ Lost changes — `git add` of a just-`git rm`-ed path aborts the whole stage (2026-05-30)
+- **Problem**: the HR + Teams-tab edits silently didn't make it into the `LiveTrackingScreen` deletion commit (`eb7b7d0`) — only the deletion landed.
+- **Cause**: the same `git add` listed the path that had just been `git rm`-ed; the pathspec no longer matched a working-tree file, so git treated the **entire** `add` as fatal and staged nothing else.
+- **Fix**: follow-up commit `ead77be` staging only the two modified files. Stage deletions (`git rm`) and modifications in **separate** commands, or don't re-list a removed path in `git add`.
+
 ### ❌ WebView2 Missing on Windows
 - **Problem**: The Electron app would launch to a white screen if the Microsoft Edge WebView2 runtime was missing.
 - **Fix**: Added a check in the main process to prompt the user for a runtime installation and documented it in the [[Windows Build Steps|Build Guide]].

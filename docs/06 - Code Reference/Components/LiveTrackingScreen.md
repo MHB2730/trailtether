@@ -1,12 +1,15 @@
 ---
-tags: [type/component, layer/frontend, status/stable, domain/recording, domain/teams]
+tags: [type/component, layer/frontend, status/removed, domain/recording, domain/teams]
 aliases: [live_tracking_screen]
-source_paths: [trailtether_app/lib/screens/live_tracking_screen.dart]
+source_paths: []
 ---
 
 # LiveTrackingScreen
 
-Full-screen recording UI. Originally the only recording UX; after the Strava-style refactor, it lives on as the "View Live Map" entry from [[TTTeamScreen]] but no longer the primary recording surface (that's now on [[TTMapScreen]]).
+> [!warning] DELETED 2026-05-30 (commit `eb7b7d0`)
+> This screen was the **second** way to record a hike — a duplicate recorder reachable from the [[TTTeamScreen]] "trek-watch" map gesture. To lock recording down to a single tool, it was **deleted** (1,403 LOC) and the Teams gesture now routes to the Map tab (`onNavigate(1)`). **[[TTMapScreen]] is the sole recorder.** Doc kept as a tombstone; the notes below describe the removed screen for historical context only.
+
+Full-screen recording UI. Originally the only recording UX; after the Strava-style refactor, it lived on as the "View Live Map" entry from [[TTTeamScreen]] but was no longer the primary recording surface (that's now on [[TTMapScreen]]) — and is now removed entirely.
 
 ## Composition
 
