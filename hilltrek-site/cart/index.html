@@ -296,7 +296,7 @@
         </div>
         <div class="foot-col"><h5>Explore</h5><ul><li><a href="/">Mission Control</a></li><li><a href="/hikes/">Hikes</a></li><li><a href="/reviews/">Reviews</a></li><li><a href="/merch/">Merch</a></li></ul></div>
         <div class="foot-col"><h5>Product</h5><ul><li><a href="/trailtether/">Trailtether app</a></li><li><a href="/trailtether/#download">Download APK</a></li><li><a href="/trailtether/#faq">FAQ</a></li></ul></div>
-        <div class="foot-col"><h5>Company</h5><ul><li><a href="/reach-out/">Reach Out</a></li><li><a href="/legal-notice/">Legal Notice</a></li><li><a href="/privacy/">Privacy Policy</a></li></ul></div>
+        <div class="foot-col"><h5>Company</h5><ul><li><a href="/reach-out/">Reach Out</a></li><li><a href="/legal-notice/">Legal Notice</a></li><li><a href="/privacy/">Privacy Policy</a></li><li><a href="/merch/returns-policy/">Returns &amp; refunds</a></li><li><a href="/merch/shipping-policy/">Shipping</a></li><li><a href="/account/">Your account</a></li></ul></div>
       </div>
       <div class="foot-bottom"><span>© <span id="year"></span> Hilltrek (Pty) Ltd · All rights reserved.</span><span class="dim">Made in the Drakensberg.</span></div>
     </div>
@@ -317,8 +317,20 @@
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // Fetch shipping rate with a 5s ceiling — never block the cart UI on a
-    // slow network. Falls back to R150 if unavailable.
+    // slow network. Falls back to R150 if unavailable. Caches for 5 minutes.
     async function fetchShippingCents() {
+      const cacheKey = 'hk_shipping_cents';
+      const cacheTtl = 300000; // 5 minutes
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Date.now() - parsed.timestamp < cacheTtl) {
+            return parsed.value;
+          }
+        }
+      } catch (_) {}
+
       try {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 5000);
@@ -331,7 +343,14 @@
         clearTimeout(t);
         if (error || !data) return 15000;
         const n = parseInt(data.value, 10);
-        return Number.isFinite(n) ? n : 15000;
+        const val = Number.isFinite(n) ? n : 15000;
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            timestamp: Date.now(),
+            value: val
+          }));
+        } catch (_) {}
+        return val;
       } catch {
         return 15000;
       }
