@@ -507,6 +507,8 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                     bpm: hr.bpm,
                     live: !hr.isStale && hr.bpm != null,
                     battery: hr.battery,
+                    avg: rec.avgHr,
+                    max: rec.maxHr,
                   ),
                 ],
                 if (rec.remainingDist > 0) ...[
@@ -605,10 +607,18 @@ class _LiveHrStrip extends StatelessWidget {
   final int? bpm;
   final bool live;
   final int? battery;
-  const _LiveHrStrip({this.bpm, required this.live, this.battery});
+  final int? avg;
+  final int? max;
+  const _LiveHrStrip(
+      {this.bpm, required this.live, this.battery, this.avg, this.max});
 
   @override
   Widget build(BuildContext context) {
+    final sub = [
+      if (avg != null) 'avg $avg',
+      if (max != null) 'max $max',
+      if (battery != null) 'batt $battery%',
+    ].join('  ·  ');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -620,23 +630,30 @@ class _LiveHrStrip extends StatelessWidget {
         children: [
           Icon(Icons.favorite, size: 18, color: live ? TT.red : TT.text2),
           const SizedBox(width: 10),
-          Text('HEART RATE', style: TT.label()),
-          if (battery != null) ...[
-            const SizedBox(width: 8),
-            Text('· $battery%', style: TT.body(size: 11, color: TT.text2)),
-          ],
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('HEART RATE', style: TT.label()),
+              if (sub.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(sub, style: TT.body(size: 11, color: TT.text2)),
+                ),
+            ],
+          ),
           const Spacer(),
           Text(
             live ? '$bpm' : '--',
             style: const TextStyle(
-                fontSize: 24,
+                fontSize: 26,
                 fontWeight: FontWeight.w800,
                 color: TT.text,
                 height: 1.0),
           ),
           const SizedBox(width: 5),
           Padding(
-            padding: const EdgeInsets.only(top: 6),
+            padding: const EdgeInsets.only(top: 7),
             child: Text('BPM', style: TT.label()),
           ),
         ],

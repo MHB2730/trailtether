@@ -7,6 +7,7 @@ class RecordingPoint {
   final DateTime timestamp;
   final double speed; // m/s
   final double accuracy; // m
+  final int? hr; // heart rate (bpm) from a connected BLE sensor, if any
 
   RecordingPoint({
     required this.latitude,
@@ -15,6 +16,7 @@ class RecordingPoint {
     required this.timestamp,
     this.speed = 0.0,
     this.accuracy = 0.0,
+    this.hr,
   });
 
   LatLng get toLatLng => LatLng(latitude, longitude);
@@ -26,6 +28,8 @@ class RecordingPoint {
         'ts': timestamp.toIso8601String(),
         'spd': speed,
         'acc': accuracy,
+        // Only present when an HR sensor was connected — keeps old points small.
+        if (hr != null) 'hr': hr,
       };
 
   factory RecordingPoint.fromJson(Map<String, dynamic> json) {
@@ -50,6 +54,7 @@ class RecordingPoint {
           DateTime.tryParse(json['ts'] as String? ?? '') ?? DateTime.now(),
       speed: (json['spd'] as num?)?.toDouble() ?? 0.0,
       accuracy: (json['acc'] as num?)?.toDouble() ?? 0.0,
+      hr: (json['hr'] as num?)?.toInt(),
     );
   }
 }

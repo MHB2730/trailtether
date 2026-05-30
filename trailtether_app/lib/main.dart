@@ -121,7 +121,15 @@ class TrailtetherRoot extends StatelessWidget {
           create: (_) => GpxProvider(),
           lazy: false,
         ),
-        ChangeNotifierProvider(create: (_) => RecordingProvider()),
+        // Live heart rate over BLE (Garmin broadcast / chest strap), declared
+        // before RecordingProvider so it can be injected as the HR source.
+        ChangeNotifierProvider(create: (_) => HeartRateProvider()..init()),
+        // RecordingProvider receives the HR source so each recorded GPS point
+        // can carry the live BPM (heart-rate trace on the route).
+        ChangeNotifierProxyProvider<HeartRateProvider, RecordingProvider>(
+          create: (_) => RecordingProvider(),
+          update: (_, hr, rec) => (rec ?? RecordingProvider())..hrSource = hr,
+        ),
         ChangeNotifierProvider(create: (_) => RoutingProvider()..init()),
         ChangeNotifierProvider(create: (_) => TeamProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
@@ -132,9 +140,6 @@ class TrailtetherRoot extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
         ChangeNotifierProvider(create: (_) => WeatherProvider()),
-        // Live heart rate over BLE (Garmin broadcast / chest strap). init()
-        // listens for the adapter + silently reconnects the saved sensor.
-        ChangeNotifierProvider(create: (_) => HeartRateProvider()..init()),
         ChangeNotifierProxyProvider2<RecordingProvider, TeamProvider,
             TeamTrackingProvider>(
           create: (context) => TeamTrackingProvider(),

@@ -13,6 +13,7 @@ import '../models/recording_point.dart';
 import '../models/saved_hike.dart';
 import '../models/trail.dart';
 import '../models/incident.dart';
+import 'heart_rate_provider.dart';
 import '../services/location_service.dart';
 import '../services/logger_service.dart';
 import '../services/weather_alert_service.dart';
@@ -44,6 +45,29 @@ class RecordingProvider extends ChangeNotifier {
   final List<RecordingPoint> _points = [];
   late final UnmodifiableListView<RecordingPoint> _pointsView =
       UnmodifiableListView(_points);
+
+  /// Optional live heart-rate source (wired via ProxyProvider in main.dart).
+  /// When it's connected + sending fresh beats, each recorded point is stamped
+  /// with the current BPM so the hike carries a heart-rate trace.
+  HeartRateProvider? hrSource;
+
+  int? get _currentHr =>
+      (hrSource != null && hrSource!.isConnected && !hrSource!.isStale)
+          ? hrSource!.bpm
+          : null;
+
+  /// Average heart rate across recorded points that carried HR (null if none).
+  int? get avgHr {
+    final hrs = _points.map((p) => p.hr).whereType<int>().toList();
+    if (hrs.isEmpty) return null;
+    return (hrs.reduce((a, b) => a + b) / hrs.length).round();
+  }
+
+  /// Peak heart rate across recorded points (null if none carried HR).
+  int? get maxHr {
+    final hrs = _points.map((p) => p.hr).whereType<int>();
+    return hrs.isEmpty ? null : hrs.reduce((a, b) => a > b ? a : b);
+  }
 
   Trail? _targetTrail;
   List<LatLng> _targetPath = [];
@@ -540,6 +564,7 @@ class RecordingProvider extends ChangeNotifier {
       timestamp: pos.timestamp,
       speed: pos.speed,
       accuracy: pos.accuracy,
+      hr: _currentHr,
     );
 
     double distanceFromPrev = 0.0;
