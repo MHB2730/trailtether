@@ -47,6 +47,8 @@ All 15 deployed Deno edge functions live in `supabase/functions/`. See [[Supabas
 | [[flag_incident]] | Pre-migration | Flag hazard for moderation |
 | [[ping_safety_plan]] | Pre-migration | Ping emergency contact for safety check-in |
 | [[claim_tether_token]] | Pre-migration | Claim PC↔mobile pairing token |
+| [[mint_watch_token]] | Pre-migration | Issue Garmin watch pairing token |
+| [[set_watch_active_route]] | Pre-migration | Push planned route to the watch |
 | [[mark_notification_read]] | Pre-migration | Mark notification read |
 | [[handle_new_user]] | Pre-migration | Auto-create profile on signup (trigger) |
 | [[place_order]] | `20260524_phase_b_orders.sql` | Create merch order |
@@ -74,6 +76,8 @@ All 15 deployed Deno edge functions live in `supabase/functions/`. See [[Supabas
 | [[publish-site]] | JWT + is_admin | cPanel UAPI site publisher |
 | [[health-pinger]] | Cron secret | pg_cron uptime checker |
 | [[finalize-orphan-hikes]] | Cron secret | Recover unsaved hike sessions |
+| [[watch-ingest]] | x-device-token | Garmin watch hike upload (writes hike_history + recorded_trails + GPX) |
+| [[watch-route]] | x-device-token | Garmin watch route picker + by-id course fetch |
 
 ## Related
 

@@ -14,6 +14,7 @@ This note is the short operational state of the project. Update it when a major 
 ## What Exists
 
 - Flutter app for Android and Windows: [[Trailtether App Module]]
+- Connect IQ companion app for the Garmin Instinct 3 watch (sideload, cloud-mediated sync): [[Watch App Module]]
 - Supabase backend with tables, RPCs, edge functions, auth, realtime, and storage: [[Data & Supabase Index]]
 - Hilltrek public site and admin SPA: [[Hilltrek Site Module]], [[Hilltrek Admin Module]]
 - Map, recording, team tracking, weather, incident, and release workflows: [[Workflows Index]]
