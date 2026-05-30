@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Your account — Trailtether</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07090c; --surf:#0f1318; --surf2:#131820; --line:rgba(255,255,255,0.08);
+    --text:#eef1f4; --text2:#98a1ac; --text3:#5a6470;
+    --ember:#ff6a2c; --ember2:#ff8a4d; --emberink:#1a0d04;
+    --green:#4cc38a; --red:#e63d2e;
+    --font:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#070a0d;background-image:radial-gradient(120% 120% at 50% 0%,#11161d 0%,#0a0d12 55%,#06080b 100%);min-height:100%}
+  body{font-family:var(--font);color:var(--text);-webkit-font-smoothing:antialiased;display:grid;place-items:center;padding:24px}
+  .card{width:100%;max-width:480px;background:var(--surf);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 30px 80px -30px rgba(0,0,0,.7)}
+  .head{background:#1a0c04;background-image:linear-gradient(135deg,#1a0c04 0,#0f1318 100%);padding:24px 26px;border-bottom:1px solid rgba(255,106,44,.18);display:flex;align-items:center;gap:14px}
+  .head img{width:42px;height:42px;display:block}
+  .eyebrow{font:800 10.5px var(--mono);letter-spacing:.22em;color:var(--ember)}
+  .head h1{margin:3px 0 0;font:800 20px var(--font);color:var(--text)}
+  .body{padding:26px}
+  p{margin:0 0 14px;font:400 14px/1.55 var(--font);color:var(--text2)}
+  label{display:block;font:700 11px var(--mono);letter-spacing:.12em;color:var(--text3);margin:0 0 6px}
+  .field{margin:0 0 16px}
+  input[type=email],input[type=password]{width:100%;padding:13px 14px;border-radius:11px;border:1px solid var(--line);background:var(--surf2);color:var(--text);font:600 15px var(--font);outline:none}
+  input[type=email]:focus,input[type=password]:focus{border-color:var(--ember)}
+  button{width:100%;padding:14px;border:0;border-radius:999px;background:var(--ember);color:var(--emberink);font:800 14px var(--font);letter-spacing:.02em;cursor:pointer}
+  button:disabled{opacity:.55;cursor:default}
+  button.ghost{background:transparent;color:var(--text2);border:1px solid var(--line)}
+  button.danger{background:var(--red);color:#fff}
+  button.link{background:none;border:0;color:var(--ember2);font:700 13px var(--font);width:auto;padding:0;cursor:pointer}
+  .msg{margin-top:12px;font:600 13px var(--font);min-height:18px}
+  .msg.err{color:var(--red)} .msg.ok{color:var(--green)}
+  .hide{display:none}
+  .center{text-align:center}
+  .spin{width:26px;height:26px;border:3px solid rgba(255,106,44,.25);border-top-color:var(--ember);border-radius:50%;animation:s .8s linear infinite;margin:18px auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+  a{color:var(--ember2);text-decoration:none;font-weight:700}
+  .foot{padding:14px 26px 20px;background:#0a0c0f;border-top:1px solid rgba(255,255,255,.05);font:400 11px var(--font);color:var(--text3)}
+  .divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--text3);font:700 10px var(--mono);letter-spacing:.2em}
+  .divider::before,.divider::after{content:"";height:1px;flex:1;background:var(--line)}
+  /* account sections */
+  .who{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 16px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+  .who .em{font:700 14px var(--font);color:var(--text);word-break:break-all}
+  .who .sub{font:600 11px var(--mono);letter-spacing:.1em;color:var(--text3);margin-top:2px}
+  .sec{padding:16px 0;border-bottom:1px solid var(--line)}
+  .sec:last-of-type{border-bottom:0}
+  .sec h2{margin:0 0 4px;font:800 13px var(--mono);letter-spacing:.14em;color:var(--text2);text-transform:uppercase}
+  .sec .hint{margin:0 0 12px;font:400 12.5px/1.5 var(--font);color:var(--text3)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0}
+  .row .rl{font:600 13.5px var(--font);color:var(--text)}
+  .row .rd{font:400 11.5px var(--font);color:var(--text3);margin-top:1px}
+  /* switch */
+  .sw{position:relative;width:44px;height:26px;flex:0 0 auto}
+  .sw input{opacity:0;width:0;height:0;position:absolute}
+  .sw .sl{position:absolute;inset:0;background:#2a313b;border-radius:999px;transition:.2s;cursor:pointer}
+  .sw .sl::before{content:"";position:absolute;height:20px;width:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+  .sw input:checked + .sl{background:var(--ember)}
+  .sw input:checked + .sl::before{transform:translateX(18px)}
+  .sw input:disabled + .sl{opacity:.5;cursor:default}
+  .danger-zone{margin-top:8px;border:1px solid rgba(230,61,46,.35);border-radius:12px;padding:14px;background:rgba(230,61,46,.05)}
+  .danger-zone h2{color:#f08a80}
+  .btnrow{display:flex;gap:10px;margin-top:10px}
+  .btnrow button{flex:1}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <img src="https://hilltrek.co.za/assets/img/trailtether-logo.png" alt="Trailtether">
+      <div>
+        <div class="eyebrow">// TRAILTETHER · ACCOUNT</div>
+        <h1 id="title">Your account</h1>
+      </div>
+    </div>
+    <div class="body">
+
+      <!-- loading -->
+      <div id="v-loading"><div class="spin"></div><p class="center">Loading…</p></div>
+
+      <!-- ===================== SIGN IN ===================== -->
+      <div id="v-signin" class="hide">
+        <p>Sign in to manage <strong>your own account</strong> — change your password,
+           your email preferences, or delete your account. This page only ever touches
+           your account; it is not the admin dashboard.</p>
+        <form id="signin-form" autocomplete="on">
+          <div class="field">
+            <label for="si-email">Email</label>
+            <input id="si-email" type="email" autocomplete="email" placeholder="you@example.co.za" required>
+          </div>
+          <div class="field">
+            <label for="si-pw">Password</label>
+            <input id="si-pw" type="password" autocomplete="current-password" placeholder="Your password">
+          </div>
+          <button id="si-submit" type="submit">Sign in</button>
+          <div id="si-msg" class="msg"></div>
+        </form>
+        <div style="text-align:center;margin-top:10px">
+          <button class="link" id="si-forgot" type="button">Forgot your password?</button>
+        </div>
+        <div class="divider">OR</div>
+        <p class="center" style="font-size:12.5px">Signed up with Google, or no password set?</p>
+        <button class="ghost" id="si-magic" type="button">Email me a sign-in link</button>
+      </div>
+
+      <!-- ===================== ACCOUNT ===================== -->
+      <div id="v-account" class="hide">
+        <div class="who">
+          <div>
+            <div class="em" id="acc-email">—</div>
+            <div class="sub">SIGNED IN</div>
+          </div>
+          <button class="ghost" id="acc-signout" style="width:auto;padding:9px 16px">Sign out</button>
+        </div>
+
+        <!-- Password -->
+        <div class="sec">
+          <h2>Password</h2>
+          <p class="hint">Set a new password. It applies everywhere you sign in — the app and the admin site.</p>
+          <div class="field">
+            <label for="np">New password</label>
+            <input id="np" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters">
+          </div>
+          <div class="field">
+            <label for="np2">Confirm password</label>
+            <input id="np2" type="password" autocomplete="new-password" placeholder="Re-enter password">
+          </div>
+          <button id="np-save">Save new password</button>
+          <div id="np-msg" class="msg"></div>
+        </div>
+
+        <!-- Email / newsletter -->
+        <div class="sec">
+          <h2>Emails &amp; Newsletter</h2>
+          <p class="hint">Control marketing emails from Hilltrek. (Essential account emails — like password resets — are always sent.)</p>
+          <div class="row">
+            <div>
+              <div class="rl">Hilltrek newsletter</div>
+              <div class="rd">Trip ideas, gear drops and updates</div>
+            </div>
+            <label class="sw"><input type="checkbox" id="tg-news"><span class="sl"></span></label>
+          </div>
+          <div id="news-msg" class="msg"></div>
+        </div>
+
+        <!-- App notifications -->
+        <div class="sec">
+          <h2>App Notifications</h2>
+          <p class="hint">Push alerts the Trailtether app sends to your phone.</p>
+          <div class="row">
+            <div><div class="rl">Push notifications</div><div class="rd">Master switch for all app push</div></div>
+            <label class="sw"><input type="checkbox" id="tg-push"><span class="sl"></span></label>
+          </div>
+          <div class="row">
+            <div><div class="rl">Chat messages</div><div class="rd">When a hiking partner messages you</div></div>
+            <label class="sw"><input type="checkbox" id="tg-chat"><span class="sl"></span></label>
+          </div>
+          <div class="row">
+            <div><div class="rl">Community feed</div><div class="rd">Likes and activity on your posts</div></div>
+            <label class="sw"><input type="checkbox" id="tg-feed"><span class="sl"></span></label>
+          </div>
+          <div id="notif-msg" class="msg"></div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="sec">
+          <div class="danger-zone">
+            <h2>Delete account</h2>
+            <p class="hint" style="color:#e8b4ae">This permanently erases your account and all your data —
+               recorded trails, hike history, locations, incidents, watch pairings and uploads.
+               <strong>It cannot be undone.</strong></p>
+            <div id="del-step1">
+              <button class="danger" id="del-start">Delete my account</button>
+            </div>
+            <div id="del-step2" class="hide">
+              <div class="field" style="margin-top:8px">
+                <label for="del-confirm">Type your email to confirm</label>
+                <input id="del-confirm" type="email" autocomplete="off" placeholder="Confirm your email">
+              </div>
+              <div class="btnrow">
+                <button class="ghost" id="del-cancel">Cancel</button>
+                <button class="danger" id="del-final" disabled>Permanently delete</button>
+              </div>
+            </div>
+            <div id="del-msg" class="msg"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================== DELETED ===================== -->
+      <div id="v-deleted" class="hide center">
+        <p class="ok" style="font-weight:800;font-size:16px">✓ Your account has been deleted.</p>
+        <p>All your personal data has been erased. Thanks for hiking with us.</p>
+        <p><a href="https://hilltrek.co.za">Return to hilltrek.co.za</a></p>
+      </div>
+
+    </div>
+    <div class="foot">
+      Need a hand? Reach a human at <a href="mailto:info@hilltrek.co.za">info@hilltrek.co.za</a>.
+    </div>
+  </div>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm';
+
+  const SUPABASE_URL = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
+
+  // Normal session here (persisted) so the magic-link redirect lands logged in
+  // and prefs/delete calls carry the user's JWT. This is a USER session — it
+  // grants the user access to THEIR OWN data via RLS + auth.uid()-gated RPCs.
+  // It is NOT admin: admin still requires is_admin + MFA on admin.hilltrek.co.za.
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { detectSessionInUrl: true, persistSession: true, autoRefreshToken: true, flowType: 'pkce' },
+  });
+
+  const $ = (id) => document.getElementById(id);
+  const VIEWS = ['v-loading','v-signin','v-account','v-deleted'];
+  const show = (id) => { VIEWS.forEach(x => $(x).classList.add('hide')); $(id).classList.remove('hide'); };
+  const setMsg = (el, kind, text) => { el.className = 'msg' + (kind ? ' ' + kind : ''); el.textContent = text || ''; };
+  const emsg = (e) => (e && e.message) ? e.message : 'Something went wrong. Try again.';
+
+  let currentEmail = null;
+
+  // ---------- routing on auth state ----------
+  async function render() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && session.user) {
+      currentEmail = session.user.email || '';
+      $('acc-email').textContent = currentEmail;
+      $('title').textContent = 'Your account';
+      show('v-account');
+      loadPrefs();
+    } else {
+      show('v-signin');
+    }
+  }
+
+  supabase.auth.onAuthStateChange((_evt, _session) => { render(); });
+  render();
+
+  // ---------- sign in ----------
+  $('signin-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('si-email').value.trim();
+    const pw = $('si-pw').value;
+    if (!email) return;
+    if (!pw) { setMsg($('si-msg'), 'err', 'Enter your password, or use the email sign-in link below.'); return; }
+    $('si-submit').disabled = true; $('si-submit').textContent = 'Signing in…';
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
+      if (error) throw error;
+      // onAuthStateChange -> render()
+    } catch (err) {
+      setMsg($('si-msg'), 'err', emsg(err));
+      $('si-submit').disabled = false; $('si-submit').textContent = 'Sign in';
+    }
+  });
+
+  // ---------- magic link (Google / passwordless users) ----------
+  $('si-magic').addEventListener('click', async () => {
+    const email = $('si-email').value.trim();
+    if (!email || !email.includes('@')) { setMsg($('si-msg'), 'err', 'Enter your email above first.'); return; }
+    $('si-magic').disabled = true; $('si-magic').textContent = 'Sending…';
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: location.origin + '/account/', shouldCreateUser: false },
+      });
+      if (error) throw error;
+      setMsg($('si-msg'), 'ok', 'Check your email for a sign-in link (and your spam folder).');
+    } catch (err) {
+      setMsg($('si-msg'), 'err', emsg(err));
+    } finally {
+      $('si-magic').disabled = false; $('si-magic').textContent = 'Email me a sign-in link';
+    }
+  });
+
+  // ---------- forgot password ----------
+  $('si-forgot').addEventListener('click', async () => {
+    const email = $('si-email').value.trim();
+    if (!email || !email.includes('@')) { setMsg($('si-msg'), 'err', 'Enter your email above first.'); return; }
+    $('si-forgot').disabled = true; $('si-forgot').textContent = 'Sending…';
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      setMsg($('si-msg'), 'ok', 'Reset link sent. Check your email (and spam).');
+    } catch (err) {
+      setMsg($('si-msg'), 'err', emsg(err));
+    } finally {
+      $('si-forgot').disabled = false; $('si-forgot').textContent = 'Forgot your password?';
+    }
+  });
+
+  // ---------- load prefs ----------
+  async function loadPrefs() {
+    try {
+      const { data, error } = await supabase.rpc('account_prefs');
+      if (error) throw error;
+      $('tg-news').checked  = !!data.newsletter_subscribed;
+      $('tg-push').checked  = data.push_enabled !== false;
+      $('tg-chat').checked  = data.chat_notifications !== false;
+      $('tg-feed').checked  = data.feed_notifications !== false;
+    } catch (err) {
+      setMsg($('notif-msg'), 'err', 'Could not load your settings: ' + emsg(err));
+    }
+  }
+
+  // ---------- change password ----------
+  $('np-save').addEventListener('click', async () => {
+    const pw = $('np').value, pw2 = $('np2').value;
+    setMsg($('np-msg'), '', '');
+    if (pw.length < 8) { setMsg($('np-msg'), 'err', 'Password must be at least 8 characters.'); return; }
+    if (pw !== pw2) { setMsg($('np-msg'), 'err', "Passwords don't match."); return; }
+    $('np-save').disabled = true; $('np-save').textContent = 'Saving…';
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pw });
+      if (error) throw error;
+      $('np').value = ''; $('np2').value = '';
+      setMsg($('np-msg'), 'ok', '✓ Password updated.');
+    } catch (err) {
+      setMsg($('np-msg'), 'err', emsg(err));
+    } finally {
+      $('np-save').disabled = false; $('np-save').textContent = 'Save new password';
+    }
+  });
+
+  // ---------- newsletter toggle ----------
+  $('tg-news').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    e.target.disabled = true;
+    try {
+      const { error } = await supabase.rpc('account_set_newsletter', { p_subscribed: on });
+      if (error) throw error;
+      setMsg($('news-msg'), 'ok', on ? 'Subscribed.' : 'Unsubscribed.');
+    } catch (err) {
+      e.target.checked = !on;
+      setMsg($('news-msg'), 'err', emsg(err));
+    } finally { e.target.disabled = false; }
+  });
+
+  // ---------- notification toggles ----------
+  async function saveNotif() {
+    setMsg($('notif-msg'), '', '');
+    try {
+      const { error } = await supabase.rpc('account_set_notifications', {
+        p_push: $('tg-push').checked, p_chat: $('tg-chat').checked, p_feed: $('tg-feed').checked,
+      });
+      if (error) throw error;
+      setMsg($('notif-msg'), 'ok', 'Saved.');
+    } catch (err) {
+      setMsg($('notif-msg'), 'err', emsg(err));
+    }
+  }
+  ['tg-push','tg-chat','tg-feed'].forEach(id => $(id).addEventListener('change', saveNotif));
+
+  // ---------- sign out ----------
+  $('acc-signout').addEventListener('click', async () => {
+    await supabase.auth.signOut().catch(() => {});
+    // onAuthStateChange -> render() -> signin
+  });
+
+  // ---------- delete account ----------
+  $('del-start').addEventListener('click', () => {
+    $('del-step1').classList.add('hide');
+    $('del-step2').classList.remove('hide');
+    setMsg($('del-msg'), '', '');
+    $('del-confirm').focus();
+  });
+  $('del-cancel').addEventListener('click', () => {
+    $('del-step2').classList.add('hide');
+    $('del-step1').classList.remove('hide');
+    $('del-confirm').value = ''; $('del-final').disabled = true;
+    setMsg($('del-msg'), '', '');
+  });
+  $('del-confirm').addEventListener('input', (e) => {
+    $('del-final').disabled = e.target.value.trim().toLowerCase() !== (currentEmail || '').toLowerCase();
+  });
+  $('del-final').addEventListener('click', async () => {
+    const confirm_email = $('del-confirm').value.trim();
+    if (confirm_email.toLowerCase() !== (currentEmail || '').toLowerCase()) return;
+    $('del-final').disabled = true; $('del-cancel').disabled = true;
+    $('del-final').textContent = 'Deleting…';
+    try {
+      const { data, error } = await supabase.functions.invoke('account-delete', { body: { confirm_email } });
+      if (error) throw error;
+      if (data && data.ok === false) throw new Error((data.errors && data.errors[0]) || 'Deletion failed.');
+      await supabase.auth.signOut().catch(() => {});
+      show('v-deleted');
+    } catch (err) {
+      setMsg($('del-msg'), 'err', emsg(err));
+      $('del-final').disabled = false; $('del-cancel').disabled = false;
+      $('del-final').textContent = 'Permanently delete';
+    }
+  });
+</script>
+</body>
+</html>
