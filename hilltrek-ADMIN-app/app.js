@@ -60,10 +60,13 @@ async function bootstrap() {
   supabase.auth.onAuthStateChange(async (_event, sess) => { await renderAuth(sess); });
 
   $('#login-form').addEventListener('submit', onLoginSubmit);
-  $('#forgot-link').addEventListener('click', onForgotPassword);
-  $('#mfa-form').addEventListener('submit', onMfaSubmit);
-  $('#mfa-cancel').addEventListener('click', onMfaCancel);
-  $('#btn-logout').addEventListener('click', onLogout);
+  // Null-safe: if an element is missing (e.g. a partial/cached deploy where
+  // index.html and app.js are out of sync) the optional-chain skips the bind
+  // instead of throwing and taking down the whole app at bootstrap.
+  $('#forgot-link')?.addEventListener('click', onForgotPassword);
+  $('#mfa-form')?.addEventListener('submit', onMfaSubmit);
+  $('#mfa-cancel')?.addEventListener('click', onMfaCancel);
+  $('#btn-logout')?.addEventListener('click', onLogout);
   window.addEventListener('hashchange', route);
 }
 
