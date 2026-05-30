@@ -6,51 +6,42 @@ source_paths: [docs/email-templates/confirm-signup.html, docs/email-templates/re
 
 # Trailtether auth email setup
 
-End-to-end runbook for the welcome (confirm-signup) + password-reset emails. Outbound via cPanel SMTP on `no-reply@trailtether.co.za`, branded HTML templates, deep-link back into the Flutter app.
+End-to-end runbook for the welcome (confirm-signup) + password-reset emails. Outbound via cPanel SMTP on `reply@hilltrek.co.za` (the parent Hilltrek domain — re-uses its established SMTP + DNS rather than warming up a fresh sender on trailtether.co.za), branded HTML templates, deep-link back into the Flutter app.
 
-The Flutter side is already wired in `4.0.2+65+` — this doc covers the parts I can't do for you: cPanel mailbox creation, Supabase Dashboard config, DNS records.
+The Flutter side is already wired in `4.0.3+66+` — this doc covers the parts I can't do for you: cPanel mailbox creation, Supabase Dashboard config, DNS records.
 
-## 1. Create the sender mailbox in cPanel
+## 1. Sender mailbox — already created
 
-In cPanel → Email Accounts → **Create**:
-
-| Field | Value |
-|---|---|
-| Username | `no-reply` |
-| Domain | `trailtether.co.za` |
-| Password | (generate a strong one — store in your password manager) |
-| Storage Space | 100 MB (we never read this inbox; replies go to `info@`) |
-
-Once created, click **Connect Devices** on the mailbox row. Copy these — you'll paste them into Supabase:
+You've already set up `reply@hilltrek.co.za` in cPanel. Grab the SMTP creds from cPanel → Email Accounts → row → **Connect Devices**:
 
 | Setting | Typical cPanel value |
 |---|---|
-| Outgoing Server | `mail.trailtether.co.za` |
+| Outgoing Server | `mail.hilltrek.co.za` |
 | SMTP Port | `465` (SSL) — preferred. Fallback `587` (STARTTLS). |
-| Username | `no-reply@trailtether.co.za` (full address, NOT just `no-reply`) |
-| Password | the one you just set |
+| Username | `reply@hilltrek.co.za` (full address, NOT just `reply`) |
+| Password | the one you set when creating the mailbox |
 
 ## 2. Set the Reply-To routing in cPanel
 
-So replies to `no-reply@` land in `info@` (rather than a black hole):
+So replies to `reply@hilltrek.co.za` land in `info@hilltrek.co.za` (rather than an inbox no human reads):
 
 cPanel → Forwarders → **Add Forwarder**:
-- Address to forward: `no-reply@trailtether.co.za`
-- Destination: `info@trailtether.co.za`
+- Address to forward: `reply@hilltrek.co.za`
+- Destination: `info@hilltrek.co.za`
 
-(Optional but recommended — auto-replies that explain not to reply are spammy. Forwarding is cleaner.)
+(Optional but recommended — auto-replies that explain "do not reply" are spammy. Forwarding is cleaner.)
 
 ## 3. DNS — make Gmail/Outlook trust the sender
 
-Without these, large mailbox providers drop your mail or send it straight to spam.
+Without these, large mailbox providers drop your mail or send it straight to spam. Since you already send some mail from hilltrek.co.za (e.g. the merch order receipts), these are probably already in place — confirm:
 
-In cPanel → Email Deliverability for `trailtether.co.za`:
+In cPanel → Email Deliverability for `hilltrek.co.za`:
 
-- **SPF**: ensure the record exists and includes your cPanel server. Typical:
+- **SPF**: confirm the record exists and includes your cPanel server. Typical:
   `v=spf1 +a +mx +ip4:<your-cpanel-IP> ~all`
-- **DKIM**: cPanel's Email Deliverability page generates the public key — click **Manage** and ensure it's published in your DNS. (If you use Cloudflare for DNS, copy the TXT record there.)
-- **DMARC**: add a TXT record on `_dmarc.trailtether.co.za`:
-  `v=DMARC1; p=none; rua=mailto:info@trailtether.co.za`
+- **DKIM**: cPanel's Email Deliverability page shows green if it's published. If not, click **Manage** → copy the TXT record into your DNS (Cloudflare or whatever's authoritative).
+- **DMARC**: add a TXT record on `_dmarc.hilltrek.co.za` if missing:
+  `v=DMARC1; p=none; rua=mailto:info@hilltrek.co.za`
 
 Allow up to an hour for DNS propagation before sending the first test.
 
@@ -61,12 +52,12 @@ Supabase Dashboard → **Authentication → SMTP Settings**:
 | Field | Value |
 |---|---|
 | Enable Custom SMTP | ✅ |
-| Sender email | `no-reply@trailtether.co.za` |
+| Sender email | `reply@hilltrek.co.za` |
 | Sender name | `Trailtether` |
-| Host | `mail.trailtether.co.za` |
+| Host | `mail.hilltrek.co.za` |
 | Port | `465` |
-| Username | `no-reply@trailtether.co.za` |
-| Password | from step 1 |
+| Username | `reply@hilltrek.co.za` |
+| Password | the mailbox password |
 | Minimum interval between emails per address | `60` (seconds — keeps automated abuse manageable) |
 
 Save and click **Send Test Email** to your own address. If it lands in your inbox (not spam) → SMTP is good.
