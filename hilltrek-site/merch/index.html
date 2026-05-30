@@ -65,15 +65,42 @@
     .product-meta { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ember); margin-bottom: 8px; }
     .product-card h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; line-height: 1.15; }
     .product-blurb { color: var(--muted); font-size: 14px; line-height: 1.5; margin-bottom: 18px; flex: 1; }
+
+    /* Variant selectors (Size / Colour / Style) */
+    .product-options { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+    .product-options .opt { display: flex; flex-direction: column; gap: 5px; }
+    .product-options .opt > span {
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--dim);
+    }
+    .product-options select {
+      font-family: inherit; font-size: 13.5px; color: var(--text);
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-radius: 9px; padding: 8px 11px; cursor: pointer; min-width: 96px;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px;
+    }
+    .product-options select:focus { outline: none; border-color: var(--ember); }
+    .product-options .one-size {
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--dim); align-self: center;
+    }
+
     .product-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 4px; }
     .product-price { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
     .product-price .cur { font-size: 13px; color: var(--muted); font-weight: 500; margin-right: 2px; }
-    .product-price .compare { font-size: 13px; color: var(--dim); text-decoration: line-through; margin-left: 8px; font-weight: 500; }
-    .product-buy { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: var(--r-pill); background: var(--ember); color: #110a04; font-weight: 600; font-size: 13.5px; transition: transform 0.15s ease, box-shadow 0.2s ease; box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 6px 20px -8px var(--glow); }
-    .product-buy:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 12px 28px -8px var(--glow); }
-    .product-buy svg { width: 13px; height: 13px; }
-    .product-options { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--dim); margin-bottom: 10px; text-transform: uppercase; }
-    .product-stock-out { background: rgba(220,38,38,0.15); color: #fca5a5; border: 1px solid rgba(220,38,38,0.4); padding: 5px 11px; border-radius: var(--r-pill); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; }
+    button.product-buy {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px;
+      border: 0; cursor: pointer; font-family: inherit;
+      border-radius: var(--r-pill); background: var(--ember); color: #110a04;
+      font-weight: 600; font-size: 13.5px;
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 6px 20px -8px var(--glow);
+    }
+    button.product-buy:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 12px 28px -8px var(--glow); }
+    button.product-buy:active { transform: translateY(0); }
+    button.product-buy svg { width: 13px; height: 13px; }
 
     .info-strip {
       display: grid; grid-template-columns: repeat(3, 1fr);
@@ -83,6 +110,7 @@
     .info svg { width: 22px; height: 22px; color: var(--ember); flex-shrink: 0; margin-top: 2px; }
     .info h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; letter-spacing: -0.01em; }
     .info p { font-size: 13px; color: var(--muted); margin: 0; }
+    .info a { color: var(--ember); text-decoration: none; }
     @media (max-width: 760px) { .info-strip { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -122,7 +150,9 @@
     <div class="container">
 
       <div class="product-grid">
-        <a class="product-card" href="mailto:info@hilltrek.co.za?subject=Order%3A%20%22The%20Ninja%22%20%E2%80%94%20Lightweight%20Hiking%20Hoodie%20%28R399%29&body=Hi%20Hilltrek%2C%0A%0AI%27d%20like%20to%20order%3A%0A%0AProduct%3A%20%22The%20Ninja%22%20%E2%80%94%20Lightweight%20Hiking%20Hoodie%20%E2%80%94%20R399%0ASize%3A%20%5BS%20/%20M%20/%20L%20/%20XL%20/%20XXL%5D%0AQuantity%3A%201%0A%0AName%3A%20%0ADelivery%20address%3A%20%0A%0AThanks%21">
+
+        <!-- 1 · The Ninja Hoodie -->
+        <div class="product-card">
           <div class="product-media">
             <span class="product-tag featured"><span class="pill"></span> Featured</span>
             <img src="/assets/img/products/ninja.jpg" alt="&quot;The Ninja&quot; — Lightweight Hiking Hoodie" loading="lazy" />
@@ -131,15 +161,24 @@
             <div class="product-meta">TECH LAYER</div>
             <h3>&quot;The Ninja&quot; — Lightweight Hiking Hoodie</h3>
             <p class="product-blurb">Quick-dry polyester with an integrated hood and retractable face cover. Built for variable mountain conditions, high-output movement, and fast weather changes.</p>
-            <div class="product-options">Size: S / M / L / XL / XXL</div>
+            <div class="product-options">
+              <label class="opt"><span>Size</span>
+                <select data-variant-group="Size">
+                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option><option value="XXL">XXL</option>
+                </select>
+              </label>
+            </div>
             <div class="product-bottom">
               <div class="product-price"><span class="cur">R</span>399</div>
-              <span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>
+              <button type="button" class="product-buy" data-add-to-cart data-slug="ninja-hoodie" data-name="&quot;The Ninja&quot; — Lightweight Hiking Hoodie" data-price-cents="39900" data-image="/assets/img/products/ninja.jpg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Add to cart
+              </button>
             </div>
           </div>
-        </a>
+        </div>
 
-        <a class="product-card" href="mailto:info@hilltrek.co.za?subject=Order%3A%20Hilltrek%20Beanie%20%28R149%29&body=Hi%20Hilltrek%2C%0A%0AI%27d%20like%20to%20order%3A%0A%0AProduct%3A%20Hilltrek%20Beanie%20%E2%80%94%20R149%0AQuantity%3A%201%0A%0AName%3A%20%0ADelivery%20address%3A%20%0A%0AThanks%21">
+        <!-- 2 · Beanie -->
+        <div class="product-card">
           <div class="product-media">
             <span class="product-tag "><span class="pill"></span> headwear</span>
             <img src="/assets/img/products/beanie.png" alt="Hilltrek Beanie" loading="lazy" />
@@ -148,15 +187,18 @@
             <div class="product-meta">COLD-WEATHER HEADWEAR</div>
             <h3>Hilltrek Beanie</h3>
             <p class="product-blurb">Acrylic knit beanie with embroidered Hilltrek emblem. Consistent thermal insulation, breathable during movement, packs compactly into your jacket or pack.</p>
-            <div class="product-options">One size · One option</div>
+            <div class="product-options"><span class="one-size">One size</span></div>
             <div class="product-bottom">
               <div class="product-price"><span class="cur">R</span>149</div>
-              <span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>
+              <button type="button" class="product-buy" data-add-to-cart data-slug="beanie" data-name="Hilltrek Beanie" data-price-cents="14900" data-image="/assets/img/products/beanie.png">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Add to cart
+              </button>
             </div>
           </div>
-        </a>
+        </div>
 
-        <a class="product-card" href="mailto:info@hilltrek.co.za?subject=Order%3A%20Hiking%20Buff%20%28R99%29&body=Hi%20Hilltrek%2C%0A%0AI%27d%20like%20to%20order%3A%0A%0AProduct%3A%20Hiking%20Buff%20%E2%80%94%20R99%0AStyle%3A%20%5BLogo%20/%20Stickerbomb%5D%0AQuantity%3A%201%0A%0AName%3A%20%0ADelivery%20address%3A%20%0A%0AThanks%21">
+        <!-- 3 · Buff -->
+        <div class="product-card">
           <div class="product-media">
             <span class="product-tag "><span class="pill"></span> accessory</span>
             <img src="/assets/img/products/buff.png" alt="Hiking Buff" loading="lazy" />
@@ -165,15 +207,24 @@
             <div class="product-meta">MULTI-USE NECK AND FACE</div>
             <h3>Hiking Buff</h3>
             <p class="product-blurb">Tubular stretch polyester for wind protection, dust filtration and thermal regulation. Wear it as a gaiter, headband, face cover or neck warmer.</p>
-            <div class="product-options">Style: Logo / Stickerbomb</div>
+            <div class="product-options">
+              <label class="opt"><span>Style</span>
+                <select data-variant-group="Style">
+                  <option value="Logo">Logo</option><option value="Stickerbomb">Stickerbomb</option>
+                </select>
+              </label>
+            </div>
             <div class="product-bottom">
               <div class="product-price"><span class="cur">R</span>99</div>
-              <span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>
+              <button type="button" class="product-buy" data-add-to-cart data-slug="buff" data-name="Hiking Buff" data-price-cents="9900" data-image="/assets/img/products/buff.png">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Add to cart
+              </button>
             </div>
           </div>
-        </a>
+        </div>
 
-        <a class="product-card" href="mailto:info@hilltrek.co.za?subject=Order%3A%20Peak%20Cap%20%28R299%29&body=Hi%20Hilltrek%2C%0A%0AI%27d%20like%20to%20order%3A%0A%0AProduct%3A%20Peak%20Cap%20%E2%80%94%20R299%0ASize%3A%20%5BS%20%2854%E2%80%9355%20cm%29%20/%20M%20%2856%E2%80%9357%20cm%29%20/%20L%20%2858%E2%80%9359%20cm%29%20/%20XL%20%2860%E2%80%9361%20cm%29%5D%0AQuantity%3A%201%0A%0AName%3A%20%0ADelivery%20address%3A%20%0A%0AThanks%21">
+        <!-- 4 · Peak Cap -->
+        <div class="product-card">
           <div class="product-media">
             <span class="product-tag "><span class="pill"></span> headwear</span>
             <img src="/assets/img/products/peakcap.png" alt="Peak Cap" loading="lazy" />
@@ -182,15 +233,24 @@
             <div class="product-meta">TRAIL + EVERYDAY</div>
             <h3>Peak Cap</h3>
             <p class="product-blurb">Structured outdoor cap with a curved peak for sun protection. Crown maintains shape; ventilation eyelets keep airflow up during sustained movement. The front panel carries the Hilltrek mountain emblem.</p>
-            <div class="product-options">Size: S (54–55 cm) / M (56–57 cm) / L (58–59 cm) / XL (60–61 cm)</div>
+            <div class="product-options">
+              <label class="opt"><span>Size</span>
+                <select data-variant-group="Size">
+                  <option value="S (54–55 cm)">S (54–55 cm)</option><option value="M (56–57 cm)">M (56–57 cm)</option><option value="L (58–59 cm)">L (58–59 cm)</option><option value="XL (60–61 cm)">XL (60–61 cm)</option>
+                </select>
+              </label>
+            </div>
             <div class="product-bottom">
               <div class="product-price"><span class="cur">R</span>299</div>
-              <span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>
+              <button type="button" class="product-buy" data-add-to-cart data-slug="peak-cap" data-name="Peak Cap" data-price-cents="29900" data-image="/assets/img/products/peakcap.png">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Add to cart
+              </button>
             </div>
           </div>
-        </a>
+        </div>
 
-        <a class="product-card" href="mailto:info@hilltrek.co.za?subject=Order%3A%20The%20%22Tsotsi%22%20Balaclava%20Range%20%28R199%29&body=Hi%20Hilltrek%2C%0A%0AI%27d%20like%20to%20order%3A%0A%0AProduct%3A%20The%20%22Tsotsi%22%20Balaclava%20Range%20%E2%80%94%20R199%0AQuantity%3A%201%0A%0AName%3A%20%0ADelivery%20address%3A%20%0A%0AThanks%21">
+        <!-- 5 · Tsotsi Balaclava -->
+        <div class="product-card">
           <div class="product-media">
             <span class="product-tag "><span class="pill"></span> headwear</span>
             <img src="/assets/img/products/balaclava.png" alt="The &quot;Tsotsi&quot; Balaclava Range" loading="lazy" />
@@ -198,16 +258,19 @@
           <div class="product-body">
             <div class="product-meta">COLD-WEATHER HEADWEAR</div>
             <h3>The &quot;Tsotsi&quot; Balaclava Range</h3>
-            <p class="product-blurb">Insulated headwear for cold-weather hiking, early-morning training, and general outdoor use. Durable acrylic knit retains warmth without excessive bulk. The front panel carries the Hilltrek emblem in dense embroidery …</p>
-            <div class="product-options">One size · One option</div>
+            <p class="product-blurb">Insulated headwear for cold-weather hiking, early-morning training, and general outdoor use. Durable acrylic knit retains warmth without excessive bulk. The front panel carries the Hilltrek emblem in dense embroidery.</p>
+            <div class="product-options"><span class="one-size">One size</span></div>
             <div class="product-bottom">
               <div class="product-price"><span class="cur">R</span>199</div>
-              <span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>
+              <button type="button" class="product-buy" data-add-to-cart data-slug="tsotsi-balaclava" data-name="The &quot;Tsotsi&quot; Balaclava Range" data-price-cents="19900" data-image="/assets/img/products/balaclava.png">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Add to cart
+              </button>
             </div>
           </div>
-        </a>
+        </div>
 
-        <a class="product-card" href="mailto:info@hilltrek.co.za?subject=Order%3A%20%22The%20Old%20Toppie%22%20%E2%80%94%20Wide-brim%20Hiking%20Hat%20%28R299%29&body=Hi%20Hilltrek%2C%0A%0AI%27d%20like%20to%20order%3A%0A%0AProduct%3A%20%22The%20Old%20Toppie%22%20%E2%80%94%20Wide-brim%20Hiking%20Hat%20%E2%80%94%20R299%0AColour%3A%20%5BBlack%20/%20Orange%5D%0AQuantity%3A%201%0A%0AName%3A%20%0ADelivery%20address%3A%20%0A%0AThanks%21">
+        <!-- 6 · The Old Toppie -->
+        <div class="product-card">
           <div class="product-media">
             <span class="product-tag "><span class="pill"></span> headwear</span>
             <img src="/assets/img/products/toppie.jpg" alt="&quot;The Old Toppie&quot; — Wide-brim Hiking Hat" loading="lazy" />
@@ -215,16 +278,25 @@
           <div class="product-body">
             <div class="product-meta">SUN + RIVER</div>
             <h3>&quot;The Old Toppie&quot; — Wide-brim Hiking Hat</h3>
-            <p class="product-blurb">Designed for exposed ridgelines, river travel, and long days in open terrain. The wide brim provides consistent shade during high-angle sun; quick-dry fabric maintains comfort in heat and humidity. Ventilation eyelets…</p>
-            <div class="product-options">Colour: Black / Orange</div>
+            <p class="product-blurb">Designed for exposed ridgelines, river travel, and long days in open terrain. The wide brim provides consistent shade during high-angle sun; quick-dry fabric maintains comfort in heat and humidity.</p>
+            <div class="product-options">
+              <label class="opt"><span>Colour</span>
+                <select data-variant-group="Colour">
+                  <option value="Black">Black</option><option value="Orange">Orange</option>
+                </select>
+              </label>
+            </div>
             <div class="product-bottom">
               <div class="product-price"><span class="cur">R</span>299</div>
-              <span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>
+              <button type="button" class="product-buy" data-add-to-cart data-slug="old-toppie" data-name="&quot;The Old Toppie&quot; — Wide-brim Hiking Hat" data-price-cents="29900" data-image="/assets/img/products/toppie.jpg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Add to cart
+              </button>
             </div>
           </div>
-        </a>
+        </div>
 
-        <a class="product-card" href="mailto:info@hilltrek.co.za?subject=Order%3A%20Hiking%20Shirt%20%28R299%29&body=Hi%20Hilltrek%2C%0A%0AI%27d%20like%20to%20order%3A%0A%0AProduct%3A%20Hiking%20Shirt%20%E2%80%94%20R299%0ASize%3A%20%5BS%20/%20M%20/%20L%20/%20XL%5D%0AColour%3A%20%5BBlack%20/%20Orange%5D%0AQuantity%3A%201%0A%0AName%3A%20%0ADelivery%20address%3A%20%0A%0AThanks%21">
+        <!-- 7 · Hiking Shirt -->
+        <div class="product-card">
           <div class="product-media">
             <span class="product-tag "><span class="pill"></span> apparel</span>
             <img src="/assets/img/products/shirt.png" alt="Hiking Shirt" loading="lazy" />
@@ -233,15 +305,29 @@
             <div class="product-meta">TECH LAYER</div>
             <h3>Hiking Shirt</h3>
             <p class="product-blurb">A technical long-sleeve layer built for trail use. The fabric manages moisture and dries quickly during high-output movement. The front carries the Hilltrek mountain emblem in high-contrast print.</p>
-            <div class="product-options">Size: S / M / L / XL · Colour: Black / Orange</div>
+            <div class="product-options">
+              <label class="opt"><span>Size</span>
+                <select data-variant-group="Size">
+                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option>
+                </select>
+              </label>
+              <label class="opt"><span>Colour</span>
+                <select data-variant-group="Colour">
+                  <option value="Black">Black</option><option value="Orange">Orange</option>
+                </select>
+              </label>
+            </div>
             <div class="product-bottom">
               <div class="product-price"><span class="cur">R</span>299</div>
-              <span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>
+              <button type="button" class="product-buy" data-add-to-cart data-slug="hiking-shirt" data-name="Hiking Shirt" data-price-cents="29900" data-image="/assets/img/products/shirt.png">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Add to cart
+              </button>
             </div>
           </div>
-        </a>
+        </div>
 
-        <a class="product-card" href="mailto:info@hilltrek.co.za?subject=Order%3A%20Hilltrek%20Peak%20Hoodie%20%28R499%29&body=Hi%20Hilltrek%2C%0A%0AI%27d%20like%20to%20order%3A%0A%0AProduct%3A%20Hilltrek%20Peak%20Hoodie%20%E2%80%94%20R499%0AQuantity%3A%201%0A%0AName%3A%20%0ADelivery%20address%3A%20%0A%0AThanks%21">
+        <!-- 8 · Peak Hoodie -->
+        <div class="product-card">
           <div class="product-media">
             <span class="product-tag "><span class="pill"></span> apparel</span>
             <img src="/assets/img/products/hoodie.png" alt="Hilltrek Peak Hoodie" loading="lazy" />
@@ -250,24 +336,32 @@
             <div class="product-meta">HEAVYWEIGHT</div>
             <h3>Hilltrek Peak Hoodie</h3>
             <p class="product-blurb">Vintage-inspired mountain graphic in distressed type. 80% cotton / 20% poly at 330 GSM, brushed fleece interior, kangaroo pocket, reinforced drawcord hood, ribbed cuffs and waistband.</p>
-            <div class="product-options">One size · One option</div>
+            <div class="product-options">
+              <label class="opt"><span>Size</span>
+                <select data-variant-group="Size">
+                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option><option value="XXL">XXL</option>
+                </select>
+              </label>
+            </div>
             <div class="product-bottom">
               <div class="product-price"><span class="cur">R</span>499</div>
-              <span class="product-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Order</span>
+              <button type="button" class="product-buy" data-add-to-cart data-slug="peak-hoodie" data-name="Hilltrek Peak Hoodie" data-price-cents="49900" data-image="/assets/img/products/hoodie.png">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Add to cart
+              </button>
             </div>
           </div>
-        </a>
+        </div>
 
       </div>
 
       <div class="info-strip">
         <div class="info">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v2m0 8v2"/></svg>
-          <div><h4>Order by email</h4><p>Click any "Order" button — your email client opens with the order pre-filled. Reply with size/colour and we'll confirm.</p></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
+          <div><h4>Add to cart &amp; check out</h4><p>Pick your size, add to cart, and pay securely at checkout. Card, instant EFT and SnapScan via PayFast.</p></div>
         </div>
         <div class="info">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg>
-          <div><h4>R99 flat-rate shipping</h4><p>One-rate shipping nationwide. Local pickup options on request.</p></div>
+          <div><h4>R150 flat-rate shipping</h4><p>One rate nationwide, 5–10 working days. <a href="/merch/shipping-policy/">Shipping details →</a></p></div>
         </div>
         <div class="info">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
@@ -298,6 +392,7 @@
   </footer>
 
   <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script src="/assets/js/cart.js" defer></script>
   <script src="/assets/js/site.js" defer></script>
 </body>
 </html>
