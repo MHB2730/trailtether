@@ -49,6 +49,7 @@ All 15 deployed Deno edge functions live in `supabase/functions/`. See [[Supabas
 | [[claim_tether_token]] | Pre-migration | Claim PC↔mobile pairing token |
 | [[mint_watch_token]] | Pre-migration | Issue Garmin watch pairing token |
 | [[set_watch_active_route]] | Pre-migration | Push planned route to the watch |
+| [[list_watch_devices]] | Pre-migration | List paired watches + last_seen + active route (Profile status) |
 | [[mark_notification_read]] | Pre-migration | Mark notification read |
 | [[handle_new_user]] | Pre-migration | Auto-create profile on signup (trigger) |
 | [[place_order]] | `20260524_phase_b_orders.sql` | Create merch order |

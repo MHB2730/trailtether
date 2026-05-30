@@ -28,6 +28,7 @@ import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import 'privacy_policy_screen.dart';
 import 'pair_watch_screen.dart';
+import '../services/watch_service.dart';
 import 'profile_tab.dart' as legacy;
 import 'safety_center_screen.dart';
 import 'tt_activity_screen.dart';
@@ -103,11 +104,52 @@ class _TTProfileScreenState extends State<TTProfileScreen>
   bool _hapticFeedback = true;
   bool _trailWeather = true;
   bool _offTrailAlerts = false;
+  List<WatchDeviceInfo> _watchDevices = const [];
 
   @override
   void initState() {
     super.initState();
     _loadPrefs();
+    _loadWatchDevices();
+  }
+
+  Future<void> _loadWatchDevices() async {
+    final devices = await WatchService.listDevices();
+    if (!mounted) return;
+    setState(() => _watchDevices = devices);
+  }
+
+  /// Human-readable subtitle for the Pair Garmin watch tile. Adapts to whatever
+  /// paired devices the user has: nothing → onboarding copy; one or more →
+  /// the most-recently-seen one's label + last-sync + active route.
+  String _watchTileSub() {
+    if (_watchDevices.isEmpty) {
+      return 'Sync Instinct hikes to this account';
+    }
+    final latest = _watchDevices.reduce((a, b) {
+      final ta = a.lastSeenAt ?? a.createdAt;
+      final tb = b.lastSeenAt ?? b.createdAt;
+      return tb.isAfter(ta) ? b : a;
+    });
+    final last = latest.lastSeenAt;
+    final when = last == null ? 'never synced' : 'synced ${_relativeTime(last)}';
+    final extras = <String>[when];
+    if (latest.activeRouteName != null && latest.activeRouteName!.isNotEmpty) {
+      extras.add('route: ${latest.activeRouteName}');
+    }
+    if (_watchDevices.length > 1) {
+      extras.add('+${_watchDevices.length - 1} more');
+    }
+    return '${latest.label} · ${extras.join(' · ')}';
+  }
+
+  static String _relativeTime(DateTime t) {
+    final diff = DateTime.now().difference(t);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${(diff.inDays / 7).floor()}w ago';
   }
 
   Future<void> _loadPrefs() async {
@@ -199,6 +241,11 @@ class _TTProfileScreenState extends State<TTProfileScreen>
 
   void _pushScreen(Widget screen) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+
+  Future<T?> _pushScreenAwait<T>(Widget screen) {
+    return Navigator.of(context)
+        .push<T>(MaterialPageRoute(builder: (_) => screen));
   }
 
   Future<void> _openUnitsPicker() async {
@@ -512,10 +559,16 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                         ),
                         _SettingRowData(
                           icon: Icons.watch_outlined,
-                          label: 'Pair Garmin watch',
-                          sub: 'Sync Instinct hikes to this account',
+                          label: _watchDevices.isEmpty
+                              ? 'Pair Garmin watch'
+                              : 'Garmin watch',
+                          sub: _watchTileSub(),
                           trailing: _SettingTrailing.chevron(),
-                          onTap: () => _pushScreen(const PairWatchScreen()),
+                          onTap: () async {
+                            await _pushScreenAwait(const PairWatchScreen());
+                            // A pair / revoke may have changed the device list.
+                            await _loadWatchDevices();
+                          },
                         ),
                       ],
                     ),
