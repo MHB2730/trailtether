@@ -2,13 +2,17 @@
 // Hilltrek admin — vanilla JS SPA.
 //
 // Architecture:
-//   - Supabase JS v2 SDK from esm.sh (no build step)
+//   - Supabase JS v2 SDK from cdn.jsdelivr.net (no build step; CSP-allowed)
 //   - Hash-router with views injected into #route-outlet
 //   - Two top-level views: #view-login (shown when no session) and #view-app
 //   - Authenticated full access to public.site_hikes per RLS policy
 // ============================================================================
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+// Import from jsdelivr (not esm.sh): the live server's enforced CSP allows
+// cdn.jsdelivr.net for scripts but NOT esm.sh, so an esm.sh import is blocked
+// and the whole module fails to load (blank admin). Matches the CDN the public
+// hilltrek-site already uses.
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm';
 import {
   SUPABASE_URL, SUPABASE_ANON_KEY, SITE_PUBLIC_URL,
   STORAGE_BUCKET, HIKE_PHOTOS_PREFIX,
