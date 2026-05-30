@@ -27,6 +27,7 @@ import '../widgets/design/tt_achievement_medallion.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import 'privacy_policy_screen.dart';
+import 'pair_watch_screen.dart';
 import 'profile_tab.dart' as legacy;
 import 'safety_center_screen.dart';
 import 'tt_activity_screen.dart';
@@ -508,6 +509,13 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           trailing: _SettingTrailing.value(
                               '${context.watch<ProfileProvider>().profile.contacts.length}'),
                           onTap: () => _pushScreen(const SafetyCenterScreen()),
+                        ),
+                        _SettingRowData(
+                          icon: Icons.watch_outlined,
+                          label: 'Pair Garmin watch',
+                          sub: 'Sync Instinct hikes to this account',
+                          trailing: _SettingTrailing.chevron(),
+                          onTap: () => _pushScreen(const PairWatchScreen()),
                         ),
                       ],
                     ),

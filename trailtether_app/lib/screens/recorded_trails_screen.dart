@@ -25,6 +25,7 @@ import '../providers/recorded_trails_provider.dart';
 import '../providers/units_provider.dart';
 import '../services/offline_map_service.dart';
 import '../services/recorded_trail_service.dart';
+import '../services/watch_service.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_count_up.dart';
@@ -505,6 +506,16 @@ class _RecordedTrailDetailScreenState extends State<RecordedTrailDetailScreen> {
           );
         }
         break;
+      case 'send_to_watch':
+        final sent = await WatchService.setActiveRoute(widget.trail.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(sent
+                ? 'Sent to watch — open Trailtether on your Garmin (or hold MENU) to load it'
+                : "Couldn't send to watch"),
+          ));
+        }
+        break;
       case 'delete':
         final ok = await showDialog<bool>(
           context: context,
@@ -648,6 +659,10 @@ class _OverflowMenu extends StatelessWidget {
           child: _menuTile(Icons.lock_outline, 'Make private', TT.text2),
         ),
         const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'send_to_watch',
+          child: _menuTile(Icons.watch_outlined, 'Send to watch', TT.ember),
+        ),
         PopupMenuItem<String>(
           value: 'delete',
           child: _menuTile(Icons.delete_outline, 'Delete trail', TT.red),
