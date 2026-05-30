@@ -72,7 +72,8 @@ class PcAvatar extends StatelessWidget {
   final String name;
   final double size;
   final bool ring;
-  const PcAvatar({super.key, required this.name, this.size = 38, this.ring = true});
+  const PcAvatar(
+      {super.key, required this.name, this.size = 38, this.ring = true});
 
   static const _palette = [
     Color(0xFFFF6A2C),
@@ -85,13 +86,14 @@ class PcAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final parts = name.trim().split(RegExp(r'\s+'));
-    final initials = parts.length >= 2 && parts.first.isNotEmpty && parts.last.isNotEmpty
-        ? (parts.first[0] + parts.last[0]).toUpperCase()
-        : (parts.first.isEmpty
-            ? '?'
-            : parts.first
-                .substring(0, parts.first.length >= 2 ? 2 : 1)
-                .toUpperCase());
+    final initials =
+        parts.length >= 2 && parts.first.isNotEmpty && parts.last.isNotEmpty
+            ? (parts.first[0] + parts.last[0]).toUpperCase()
+            : (parts.first.isEmpty
+                ? '?'
+                : parts.first
+                    .substring(0, parts.first.length >= 2 ? 2 : 1)
+                    .toUpperCase());
     final c = _palette[name.hashCode.abs() % _palette.length];
     return Container(
       width: size,
@@ -108,8 +110,8 @@ class PcAvatar extends StatelessWidget {
       ),
       child: Text(
         initials,
-        style: TT.body(
-            size: size * 0.34, w: FontWeight.w800, color: Colors.white),
+        style:
+            TT.body(size: size * 0.34, w: FontWeight.w800, color: Colors.white),
       ),
     );
   }
@@ -155,7 +157,8 @@ class PcMiniBattery extends StatelessWidget {
         ),
         const SizedBox(height: 3),
         Text('$p%',
-            style: TT.mono(size: 9, color: c, letterSpacing: 0.04 * 9)
+            style: TT
+                .mono(size: 9, color: c, letterSpacing: 0.04 * 9)
                 .copyWith(fontWeight: FontWeight.w800)),
       ],
     );

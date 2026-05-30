@@ -45,8 +45,7 @@ class PcMissionControl extends StatelessWidget {
 
     final locs = tracking.teamLocations;
     final live = locs.where((l) => l.isLive || l.isRecent).toList();
-    final flagged =
-        locs.where((l) => l.status == 'help' || l.isStale).toList();
+    final flagged = locs.where((l) => l.status == 'help' || l.isStale).toList();
     final incidents = safety.incidents;
 
     final teamName = teamProv.selectedTeam?.name ??
@@ -55,8 +54,7 @@ class PcMissionControl extends StatelessWidget {
         teamProv.teams.fold<int>(0, (s, t) => s + t.members.length);
 
     final batteries = locs.map((l) => l.batteryPct).whereType<int>().toList();
-    final minBattery =
-        batteries.isEmpty ? null : batteries.reduce(math.min);
+    final minBattery = batteries.isEmpty ? null : batteries.reduce(math.min);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -68,7 +66,8 @@ class PcMissionControl extends StatelessWidget {
               teamName, tethered, flagged.length, tracking.lastReportAt)),
           actions: [
             PCBtn(
-              label: incidents.isEmpty ? 'ALERTS' : 'ALERTS · ${incidents.length}',
+              label:
+                  incidents.isEmpty ? 'ALERTS' : 'ALERTS · ${incidents.length}',
               leftIcon: Icons.notifications_none_rounded,
               onTap: onOpenAlerts,
             ),
@@ -109,7 +108,9 @@ class PcMissionControl extends StatelessWidget {
                         unit: flagged.length == 1 ? 'hiker' : 'hikers',
                         icon: Icons.warning_amber_rounded,
                         danger: flagged.isNotEmpty,
-                        sub: flagged.isEmpty ? 'All on track' : 'Needs attention',
+                        sub: flagged.isEmpty
+                            ? 'All on track'
+                            : 'Needs attention',
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -224,7 +225,10 @@ class _ActiveHikersPanel extends StatelessWidget {
                 const PcSectionLabel('Active hikers'),
                 const Spacer(),
                 if (locations.isNotEmpty)
-                  PCPill(label: '${locations.length} LIVE', live: true, ember: true),
+                  PCPill(
+                      label: '${locations.length} LIVE',
+                      live: true,
+                      ember: true),
               ],
             ),
           ),
@@ -374,8 +378,14 @@ class _WeatherPanel extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  _WxTile(label: 'WIND', value: '${w.windSpeed.round()}', unit: 'km/h'),
-                  _WxTile(label: 'FEELS', value: '${w.feelsLike.round()}°', unit: 'C'),
+                  _WxTile(
+                      label: 'WIND',
+                      value: '${w.windSpeed.round()}',
+                      unit: 'km/h'),
+                  _WxTile(
+                      label: 'FEELS',
+                      value: '${w.feelsLike.round()}°',
+                      unit: 'C'),
                   _WxTile(label: 'HUMIDITY', value: '${w.humidity}', unit: '%'),
                   _WxTile(
                       label: 'CLOUD',
@@ -397,7 +407,8 @@ class _WeatherPanel extends StatelessWidget {
                     Expanded(
                       child: Text(
                         '${warnings.first.headline} — ${warnings.first.body}',
-                        style: TT.body(size: 10.5, color: TT.text2)
+                        style: TT
+                            .body(size: 10.5, color: TT.text2)
                             .copyWith(height: 1.45),
                       ),
                     ),
@@ -432,9 +443,7 @@ class _WxTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
         decoration: BoxDecoration(
           border: Border(
-            right: last
-                ? BorderSide.none
-                : const BorderSide(color: TT.line),
+            right: last ? BorderSide.none : const BorderSide(color: TT.line),
           ),
         ),
         child: Column(

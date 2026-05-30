@@ -135,7 +135,8 @@ class _TTProfileScreenState extends State<TTProfileScreen>
       return tb.isAfter(ta) ? b : a;
     });
     final last = latest.lastSeenAt;
-    final when = last == null ? 'never synced' : 'synced ${_relativeTime(last)}';
+    final when =
+        last == null ? 'never synced' : 'synced ${_relativeTime(last)}';
     final extras = <String>[when];
     if (latest.activeRouteName != null && latest.activeRouteName!.isNotEmpty) {
       extras.add('route: ${latest.activeRouteName}');
@@ -411,8 +412,8 @@ class _TTProfileScreenState extends State<TTProfileScreen>
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text('Cancel',
-                    style: TT.body(size: 13, color: TT.text2)),
+                child:
+                    Text('Cancel', style: TT.body(size: 13, color: TT.text2)),
               ),
               TextButton(
                 onPressed: ready ? () => Navigator.of(ctx).pop(true) : null,
@@ -831,8 +832,7 @@ class _DeletingDialog extends StatelessWidget {
           const SizedBox(
             width: 22,
             height: 22,
-            child:
-                CircularProgressIndicator(strokeWidth: 2.5, color: TT.ember),
+            child: CircularProgressIndicator(strokeWidth: 2.5, color: TT.ember),
           ),
           const SizedBox(width: 16),
           Flexible(

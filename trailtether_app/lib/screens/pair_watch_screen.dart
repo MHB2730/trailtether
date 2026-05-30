@@ -138,7 +138,8 @@ class _PairWatchScreenState extends State<PairWatchScreen> {
                 Text('${i + 1}', style: TT.mono(size: 13, color: TT.ember)),
                 const SizedBox(width: TT.s3),
                 Expanded(
-                  child: Text(steps[i], style: TT.body(size: 13, color: TT.text2)),
+                  child:
+                      Text(steps[i], style: TT.body(size: 13, color: TT.text2)),
                 ),
               ],
             ),

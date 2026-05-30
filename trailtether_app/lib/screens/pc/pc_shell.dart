@@ -572,9 +572,7 @@ class _PCSidebarItem extends StatelessWidget {
                   child: Text(
                     '$badge',
                     style: TT
-                        .mono(
-                            size: 10,
-                            color: active ? TT.emberInk : TT.text2)
+                        .mono(size: 10, color: active ? TT.emberInk : TT.text2)
                         .copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),

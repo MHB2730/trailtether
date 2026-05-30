@@ -121,7 +121,8 @@ class TrailRepository {
       // an UPDATE that RLS filters to zero rows (e.g. a non-admin) succeeds
       // silently — we'd report "Saved" over a no-op. An empty result means
       // nothing matched / the write was blocked.
-      final rows = await _db.from('trails').update(patch).eq('id', id).select('id');
+      final rows =
+          await _db.from('trails').update(patch).eq('id', id).select('id');
       final changed = (rows as List).isNotEmpty;
       if (!changed) {
         LoggerService.error('TRAILS_REPO',
