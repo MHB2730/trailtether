@@ -1,0 +1,7 @@
+# Garmin Connect IQ build intermediates — only the final .prg is checked in.
+bin/external-mir/
+bin/internal-mir/
+bin/gen/
+bin/trailtether_watch-settings.json
+bin/trailtether_watch.prg.debug.xml
+*.iq

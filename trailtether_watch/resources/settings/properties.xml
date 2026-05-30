@@ -1,0 +1,8 @@
+<properties>
+    <!-- Device pairing token, set by the user in Garmin Connect Mobile after
+         the Trailtether app issues one via mint_watch_token(). The default
+         below is bremnermail@gmail.com's dev token — only used by the sim and
+         by an unpaired watch. CLEAR THIS BEFORE PUBLISHING TO THE CIQ STORE
+         so unpaired production installs don't write to the dev account. -->
+    <property id="pairingToken" type="string">ttw_df78433dbc56421f9aba494773c22543</property>
+</properties>

@@ -1,0 +1,6 @@
+<drawables>
+    <bitmap id="LauncherIcon" filename="launcher_icon.png"/>
+    <bitmap id="Logo" filename="logo.png"/>
+    <bitmap id="LogoSmall" filename="logo_28.png"/>
+    <bitmap id="LogoMid" filename="logo_56.png"/>
+</drawables>

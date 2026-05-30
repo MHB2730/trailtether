@@ -1,0 +1,5 @@
+<settings>
+    <setting propertyKey="@Properties.pairingToken" title="@Strings.SettingPairingToken">
+        <settingConfig type="alphaNumeric" maxLength="60" />
+    </setting>
+</settings>
