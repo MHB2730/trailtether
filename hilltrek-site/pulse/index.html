@@ -280,6 +280,12 @@
         <a href="/pulse/" class="active">The Berg, Live</a>
         <a href="/merch/">Merch</a>
         <a href="/reach-out/">Reach Out</a>
+        <a href="/trailtether/#download" class="nav-cta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v14"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/>
+          </svg>
+          Get the App
+        </a>
       </nav>
       <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -407,7 +413,28 @@
     var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
 
     // ----- helpers -----
+    var RPC_CACHE_PREFIX = 'hk_rpc_cache_';
+    var RPC_TTLS = {
+      'berg_pulse_stats': 300000,          // 5 minutes
+      'berg_pulse_heatmap_cells': 600000,  // 10 minutes
+      'berg_pulse_leaderboard': 120000,    // 2 minutes
+      'berg_pulse_active_count': 15000     // 15 seconds
+    };
+
     function rpc(name, body) {
+      var cacheKey = RPC_CACHE_PREFIX + name + '_' + JSON.stringify(body || {});
+      var ttl = RPC_TTLS[name] || 60000; // default 1 minute
+
+      try {
+        var cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          var parsed = JSON.parse(cached);
+          if (Date.now() - parsed.timestamp < ttl) {
+            return Promise.resolve(parsed.data);
+          }
+        }
+      } catch (_) {}
+
       return fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
         method: 'POST',
         headers: {
@@ -416,7 +443,17 @@
           'Authorization': 'Bearer ' + SUPABASE_ANON,
         },
         body: JSON.stringify(body || {}),
-      }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); });
+      })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+      .then(function (data) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            timestamp: Date.now(),
+            data: data
+          }));
+        } catch (_) {}
+        return data;
+      });
     }
     function fmtInt(n)    { return Number(n || 0).toLocaleString(); }
     function fmtKm(n)     { var v = Number(n || 0); return v >= 100 ? Math.round(v) : v.toFixed(1); }
