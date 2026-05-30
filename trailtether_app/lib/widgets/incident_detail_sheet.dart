@@ -290,33 +290,66 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
               const SizedBox(height: 14),
               ClipRRect(
                 borderRadius: BorderRadius.circular(TT.rMd),
-                child: Image.network(
-                  incident.photoUrl!,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (_, child, progress) {
-                    if (progress == null) return child;
-                    return Container(
-                      height: 180,
-                      alignment: Alignment.center,
-                      color: TT.surf,
-                      child: const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: TT.ember),
+                // The stored value is a private-bucket storage path; mint a
+                // short-lived signed URL on demand (incident photos are not
+                // world-readable). A legacy http(s) value passes through.
+                child: FutureBuilder<String?>(
+                  future: IncidentService.resolvePhotoUrl(incident.photoUrl),
+                  builder: (_, snap) {
+                    if (snap.connectionState != ConnectionState.done) {
+                      return Container(
+                        height: 180,
+                        alignment: Alignment.center,
+                        color: TT.surf,
+                        child: const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: TT.ember),
+                        ),
+                      );
+                    }
+                    final url = snap.data;
+                    if (url == null || url.isEmpty) {
+                      return Container(
+                        height: 80,
+                        alignment: Alignment.center,
+                        color: TT.surf,
+                        child: Text(
+                          'Photo unavailable',
+                          style: TT.body(size: 12, color: TT.text3),
+                        ),
+                      );
+                    }
+                    return Image.network(
+                      url,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (_, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          height: 180,
+                          alignment: Alignment.center,
+                          color: TT.surf,
+                          child: const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: TT.ember),
+                          ),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 80,
+                        alignment: Alignment.center,
+                        color: TT.surf,
+                        child: Text(
+                          'Photo unavailable offline',
+                          style: TT.body(size: 12, color: TT.text3),
+                        ),
                       ),
                     );
                   },
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 80,
-                    alignment: Alignment.center,
-                    color: TT.surf,
-                    child: Text(
-                      'Photo unavailable offline',
-                      style: TT.body(size: 12, color: TT.text3),
-                    ),
-                  ),
                 ),
               ),
             ],

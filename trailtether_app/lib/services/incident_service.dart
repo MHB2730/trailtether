@@ -60,9 +60,18 @@ class IncidentService {
     }
   }
 
-  /// Upload an incident photo to the `incident-photos` bucket and return
-  /// its public URL. Caller threads the URL through `Incident.photoUrl`
-  /// so it lands in the row on insert.
+  /// Bucket holding incident photos. PRIVATE — safety-incident photos can be
+  /// sensitive (an injured person, an exact hazard location), so the bucket is
+  /// not world-readable. Reads go through a short-lived signed URL
+  /// ([resolvePhotoUrl]); writes are owner-scoped via storage RLS.
+  static const String _incidentBucket = 'incident-photos';
+
+  /// Upload an incident photo and return its STORAGE PATH (not a URL). The
+  /// caller threads the path through `Incident.photoUrl` so it lands in the
+  /// row; display resolves it to a temporary signed URL via [resolvePhotoUrl].
+  /// Storing the path (rather than a permanent public URL) keeps the bucket
+  /// private and means a leaked row value can't be opened without a fresh
+  /// signed URL minted under the viewer's session.
   static Future<String?> uploadPhoto(File file, String userId) async {
     try {
       final ext = file.path.split('.').last.toLowerCase();
@@ -75,16 +84,36 @@ class IncidentService {
       final path =
           '$userId/${DateTime.now().millisecondsSinceEpoch}-${file.uri.pathSegments.last}';
       final bytes = await file.readAsBytes();
-      await _db.storage.from('incident-photos').uploadBinary(
+      await _db.storage.from(_incidentBucket).uploadBinary(
             path,
             Uint8List.fromList(bytes),
             fileOptions: FileOptions(contentType: mime, upsert: false),
           );
-      final url = _db.storage.from('incident-photos').getPublicUrl(path);
       LoggerService.log('INCIDENT', 'Photo uploaded: $path');
-      return url;
+      return path;
     } catch (e, stack) {
       LoggerService.error('INCIDENT', 'uploadPhoto failed: $e', stack);
+      return null;
+    }
+  }
+
+  /// Resolve a stored incident-photo value to a viewable URL.
+  /// - A storage path → a freshly-minted signed URL (1h TTL) from the private
+  ///   bucket, valid only for the current session.
+  /// - A legacy full `http(s)` URL (from before the private-bucket switch) →
+  ///   returned as-is for backward compatibility.
+  /// Returns null if the signed-URL mint fails (caller shows a fallback).
+  static Future<String?> resolvePhotoUrl(String? stored) async {
+    if (stored == null || stored.isEmpty) return null;
+    if (stored.startsWith('http://') || stored.startsWith('https://')) {
+      return stored; // legacy public URL — no rows like this exist post-switch
+    }
+    try {
+      return await _db.storage
+          .from(_incidentBucket)
+          .createSignedUrl(stored, 3600);
+    } catch (e, stack) {
+      LoggerService.error('INCIDENT', 'resolvePhotoUrl failed: $e', stack);
       return null;
     }
   }

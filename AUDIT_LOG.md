@@ -123,6 +123,25 @@ CREATE POLICY watch_devices_owner_delete ON public.watch_devices
 - (vault) On-device QA of core flows still pending (sign-up, team, record+save, live-PC).
 
 ## Fixes applied
-- `audit/hardening` work committed to `main` (see git log): deep-link auth-payload
-  guard (`deep_link_service.dart`), dead-code removal (`pc_shell.dart`). `flutter
-  analyze` → 0 issues.
+- `main` `0afba0d`: deep-link auth-payload guard + dead-code removal. analyze 0.
+- **M2 FIXED** — migration `20260530_watch_devices_owner_revoke` applied (prod):
+  owner DELETE policy on `watch_devices`. Users can self-revoke a lost watch.
+- **M1 FIXED** — incident-photos now PRIVATE:
+  - Code: `incident_service.uploadPhoto` stores the storage PATH (not a public
+    URL); new `resolvePhotoUrl` mints a 1h signed URL; `incident_detail_sheet`
+    renders via FutureBuilder. (committed to `main`)
+  - DB: migration `20260530_incident_photos_private` — `public=false` + an
+    authenticated SELECT policy (incidents are community-visible). Anon/internet
+    can no longer read incident photos; no permanent public URLs. Bucket was
+    empty (0 objects) so no data migration.
+  - NOTE: the locally-staged release APKs predate this change — a fresh build
+    (publish_release.ps1 rebuilds) is needed before publishing so the shipped
+    app uses signed URLs. Old deployed app degrades gracefully ("Photo
+    unavailable") for the niche incident-photo feature until updated.
+
+## Still needs you
+- **H1** Auth leaked-password protection — Dashboard toggle.
+- **M3** Zapper signature — confirm canonical header+encoding, then narrow.
+- **L1** delete empty `gpx-files`/`gpx_files` buckets (optional).
+- **L3** clear watch `properties.xml` default token before CIQ Store publish.
+- On-device QA of core flows (vault-tracked).
