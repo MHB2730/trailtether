@@ -426,18 +426,15 @@ async function onMfaSubmit(e) {
     // refresh works because the page reloads with the rotated aal2 token
     // already persisted in local storage.
     //
-    // We can safely trust both facts at this point:
-    //   - Admin status: verified before the MFA prompt was shown (couldn't
-    //     have gotten here otherwise).
-    //   - MFA: just verified server-side this instant.
-    // So we cache the verification ourselves and switch views directly.
-    // The 5-min TTL means the next renderAuth call after that re-checks
-    // naturally, with no race because the token has long since rotated.
+    // The in-place view swap below used to race the token rotation and STILL
+    // stalled the dashboard's first queries ("stuck at 2FA, refresh to get
+    // in"). Instead, reload: the page re-bootstraps against the already-
+    // persisted aal2 token in localStorage and renderAuth runs cleanly — the
+    // exact thing a manual refresh did, now automatic and 100% reliable. The
+    // brief reload is a far better UX than a silent stall.
     // ----------------------------------------------------------------------
-    _verifiedAt = Date.now();
-    hide(viewLogin);
-    show(viewApp);
-    route();
+    window.location.reload();
+    return;
   } catch (err) {
     toast('Code did not verify', 'error', explainError(err));
   } finally {
