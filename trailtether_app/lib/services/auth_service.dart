@@ -20,6 +20,24 @@ class AuthService {
   static User? get currentUser => _supabase.auth.currentUser;
   static String? get currentUid => currentUser?.id;
 
+  /// Deep-link target Supabase redirects to after a confirmation / recovery
+  /// link is opened. Must be on the allowed redirect URLs list in
+  /// Supabase Authentication -> URL Configuration.
+  static const String confirmRedirect = 'trailtether://confirm';
+  static const String recoveryRedirect = 'trailtether://reset-password';
+
+  /// Sends the password-recovery email (Supabase fires the configured
+  /// "Reset Password" template). The link opens the app via
+  /// [recoveryRedirect] and Supabase emits `AuthChangeEvent.passwordRecovery`,
+  /// which AuthGate routes to SetNewPasswordScreen.
+  static Future<void> sendPasswordReset(String email) =>
+      _supabase.auth.resetPasswordForEmail(email, redirectTo: recoveryRedirect);
+
+  /// Set a new password for the currently-recovering user. The recovery
+  /// session established by the deep link is required.
+  static Future<UserResponse> updatePassword(String newPassword) =>
+      _supabase.auth.updateUser(UserAttributes(password: newPassword));
+
   // ————————————————————————————————————————————————————————————————————————
   static Future<AuthResponse> signInEmail(String email, String password) =>
       _supabase.auth.signInWithPassword(email: email, password: password);
@@ -29,6 +47,7 @@ class AuthService {
       _supabase.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: confirmRedirect,
         data: displayName != null ? {'display_name': displayName} : null,
       );
 

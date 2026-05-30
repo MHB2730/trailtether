@@ -18,6 +18,7 @@ import '../core/constants.dart';
 import '../core/design_tokens.dart';
 import '../core/runtime_config.dart';
 import '../providers/auth_provider.dart' as ap;
+import '../services/auth_service.dart';
 import '../widgets/design/tt_ambient.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_glass_card.dart';
@@ -183,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+      await AuthService.sendPasswordReset(email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Reset email sent to $email')),

@@ -45,10 +45,16 @@ class DeepLinkService {
         'DEEP_LINK', 'received ${uri.scheme}://${uri.host}${uri.path}');
     if (uri.scheme != 'trailtether') return;
 
-    if (uri.host == 'login-callback') {
+    // OAuth callback (desktop browser PKCE), the email confirm-signup link,
+    // and the password-recovery link all carry an OTP/code in the URL that
+    // Supabase exchanges for a session. getSessionFromUrl handles all three.
+    // For recovery URLs Supabase additionally emits AuthChangeEvent.passwordRecovery
+    // — AuthGate listens for that and renders SetNewPasswordScreen.
+    const exchangeHosts = {'login-callback', 'reset-password', 'confirm'};
+    if (exchangeHosts.contains(uri.host)) {
       try {
         await Supabase.instance.client.auth.getSessionFromUrl(uri);
-        LoggerService.log('DEEP_LINK', 'session exchanged');
+        LoggerService.log('DEEP_LINK', 'session exchanged (${uri.host})');
       } catch (e, stack) {
         LoggerService.error('DEEP_LINK', 'getSessionFromUrl failed: $e', stack);
       }
