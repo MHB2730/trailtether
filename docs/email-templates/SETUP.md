@@ -6,27 +6,27 @@ source_paths: [docs/email-templates/confirm-signup.html, docs/email-templates/re
 
 # Trailtether auth email setup
 
-End-to-end runbook for the welcome (confirm-signup) + password-reset emails. Outbound via cPanel SMTP on `reply@hilltrek.co.za` (the parent Hilltrek domain — re-uses its established SMTP + DNS rather than warming up a fresh sender on trailtether.co.za), branded HTML templates, deep-link back into the Flutter app.
+End-to-end runbook for the welcome (confirm-signup) + password-reset emails. Outbound via cPanel SMTP on `no-reply@hilltrek.co.za` (the parent Hilltrek domain — re-uses its established SMTP + DNS rather than warming up a fresh sender on trailtether.co.za), branded HTML templates, deep-link back into the Flutter app.
 
 The Flutter side is already wired in `4.0.3+66+` — this doc covers the parts I can't do for you: cPanel mailbox creation, Supabase Dashboard config, DNS records.
 
 ## 1. Sender mailbox — already created
 
-You've already set up `reply@hilltrek.co.za` in cPanel. Grab the SMTP creds from cPanel → Email Accounts → row → **Connect Devices**:
+You've already set up `no-reply@hilltrek.co.za` in cPanel. Grab the SMTP creds from cPanel → Email Accounts → row → **Connect Devices**:
 
 | Setting | Typical cPanel value |
 |---|---|
 | Outgoing Server | `mail.hilltrek.co.za` |
 | SMTP Port | `465` (SSL) — preferred. Fallback `587` (STARTTLS). |
-| Username | `reply@hilltrek.co.za` (full address, NOT just `reply`) |
+| Username | `no-reply@hilltrek.co.za` (full address, NOT just `no-reply`) |
 | Password | the one you set when creating the mailbox |
 
 ## 2. Set the Reply-To routing in cPanel
 
-So replies to `reply@hilltrek.co.za` land in `info@hilltrek.co.za` (rather than an inbox no human reads):
+So replies to `no-reply@hilltrek.co.za` land in `info@hilltrek.co.za` (rather than an inbox no human reads):
 
 cPanel → Forwarders → **Add Forwarder**:
-- Address to forward: `reply@hilltrek.co.za`
+- Address to forward: `no-reply@hilltrek.co.za`
 - Destination: `info@hilltrek.co.za`
 
 (Optional but recommended — auto-replies that explain "do not reply" are spammy. Forwarding is cleaner.)
@@ -52,11 +52,11 @@ Supabase Dashboard → **Authentication → SMTP Settings**:
 | Field | Value |
 |---|---|
 | Enable Custom SMTP | ✅ |
-| Sender email | `reply@hilltrek.co.za` |
+| Sender email | `no-reply@hilltrek.co.za` |
 | Sender name | `Trailtether` |
 | Host | `mail.hilltrek.co.za` |
 | Port | `465` |
-| Username | `reply@hilltrek.co.za` |
+| Username | `no-reply@hilltrek.co.za` |
 | Password | the mailbox password |
 | Minimum interval between emails per address | `60` (seconds — keeps automated abuse manageable) |
 
@@ -100,7 +100,7 @@ Also set the **subject lines**:
 
 On a phone with the app installed:
 
-1. **Signup confirm**: register a new email (use a Gmail / personal address you can read). Email should arrive from `Trailtether <no-reply@trailtether.co.za>` within seconds. Tap **Confirm email & get started** → the Trailtether app opens to the home shell.
+1. **Signup confirm**: register a new email (use a Gmail / personal address you can read). Email should arrive from `Trailtether <no-reply@hilltrek.co.za>` within seconds. Tap **Confirm email & get started** → the Trailtether app opens to the home shell.
 2. **Password reset**: from the login screen, type that email → tap **Forgot password** → confirm. Email arrives. Tap **Set a new password** → app opens to the *Set a new password* screen → set a password → routed to the home shell. Sign out and sign back in with the new password to verify.
 
 If either email never arrives, check:
