@@ -53,8 +53,9 @@ Deno.serve(async (req) => {
   };
 
   // --- Personal-data rows keyed by the user's id ---
-  // Dependents first where an FK might otherwise block.
-  await del("incident_events", "created_by", uid).catch(() => {}); // best-effort if column exists
+  // Note on FK children: incident_events->incidents, post_comments/post_likes->posts,
+  // route_waypoints->route_plans all CASCADE, so deleting the parent below clears them.
+  // The user-data tables have no FK to auth.users, so auth.admin.deleteUser won't block.
   for (const [table, col] of [
     ["app_logs", "uid"], ["community_activities", "user_id"], ["emergency_contacts", "user_id"],
     ["gpx_uploads", "user_id"], ["hike_history", "user_id"], ["hike_plans", "created_by"],
@@ -71,18 +72,25 @@ Deno.serve(async (req) => {
   // tether_pairings: either side.
   for (const col of ["hiker_uid", "watcher_uid"]) await del("tether_pairings", col, uid);
 
-  // Teams: delete teams they OWN; remove them from member_uids of others.
+  // Teams are shared groups, so never harm other members. Remove the user from
+  // every team's member_uids. For teams they OWN: hand ownership to a remaining
+  // member; if none are left, delete the now-empty team (NO ACTION FKs from other
+  // users' hike_history/app_logs could block a delete — fall back to leaving it).
   try {
     const { data: teams } = await admin.from("teams")
       .select("id, member_uids, created_by")
       .or(`created_by.eq.${uid},member_uids.cs.{${uid}}`);
     for (const t of teams || []) {
+      const remaining = (t.member_uids || []).filter((m: string) => m !== uid);
       if (t.created_by === uid) {
-        await admin.from("teams").delete().eq("id", t.id);
+        if (remaining.length > 0) {
+          await admin.from("teams").update({ member_uids: remaining, created_by: remaining[0] }).eq("id", t.id);
+        } else {
+          const { error } = await admin.from("teams").delete().eq("id", t.id);
+          if (error) await admin.from("teams").update({ member_uids: remaining }).eq("id", t.id);
+        }
       } else {
-        await admin.from("teams")
-          .update({ member_uids: (t.member_uids || []).filter((m: string) => m !== uid) })
-          .eq("id", t.id);
+        await admin.from("teams").update({ member_uids: remaining }).eq("id", t.id);
       }
     }
   } catch (e) { errors.push(`teams: ${String(e)}`); }
