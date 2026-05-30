@@ -15,6 +15,18 @@ Non-bug planned work and decisions.
 - **Routing is start/end-node only** ([[routing_service.dart]]) — trails crossing mid-segment aren't connected. Intersection-aware routing is a feature, not a bug; track if multi-trail routing matters.
 - **Off-trail/incident queue drains only on a connectivity *change*** — launching already-online with a backlog won't drain until connectivity flaps. Consider draining once on startup.
 
+## Security hardening (current Supabase)
+- **Enable Auth leaked-password protection** — Supabase Dashboard → Authentication → password / attack-protection settings → toggle on (HaveIBeenPwned). Advisor still flags it; the one genuinely valuable quick win. Can't be done via SQL/MCP — it's a GoTrue config toggle.
+- **`citext` / `pg_net` in `public`** (advisor `extension_in_public`, WARN) — **left as-is on purpose**. `citext` backs [[site_subscribers]]`.email` + [[apk_downloads]]`.email`, and the API roles (`anon`/`authenticated`/`authenticator`) don't carry `extensions` in their search_path (only `postgres` does) — so `ALTER EXTENSION … SET SCHEMA extensions` risks breaking newsletter signup; `pg_net` is finicky to relocate. Cosmetic, not a vulnerability. Only move in a maintenance window with role search_path updates + testing.
+
+## Platform: Supabase → Google Cloud (decision, not started)
+Driver: **control / avoiding lock-in** — explicitly *not* cost or security (a migration wouldn't improve security; the cutover is the bigger risk). Target: **Cloud SQL (Postgres) + Google managed services** — keep the schema, RLS and SECURITY DEFINER RPCs; replace Supabase Auth → Identity Platform, the auto REST/Realtime, Storage → GCS, and the ~18 edge functions → Cloud Run/Functions. Touches all four surfaces (app, site, admin, watch). Multi-week; run old + new in parallel with a deliberate cutover. Detailed phased plan still to be written.
+
+## Play Store launch (no code blockers)
+- Build with `flutter build appbundle --flavor playStore --release` — **not** `sideload` (that flavor carries the Play-banned `REQUEST_INSTALL_PACKAGES`, isolated to its source set).
+- Play Console: **Data Safety** form (answer sheet ready at `trailtether_app/PLAY_DATA_SAFETY.md`), background-location declaration + ~20–40s demo video, content rating, store listing. Privacy URL `https://hilltrek.co.za/privacy/`; deletion URL `https://hilltrek.co.za/account`.
+- Confirm before submitting Data Safety: Sentry device-id/PII setting; whether HR/health data is stored server-side; whether in-app chat is live for users.
+
 ## Hilltrek admin SPA modularisation
 
 [[Hilltrek Admin Module]] — `app.js` is 4,500 LOC monolithic. Worth carving into modules per view (newsletters, orders, hikers, trailtether tab). Lower priority while it works; refactor when adding a major new feature.

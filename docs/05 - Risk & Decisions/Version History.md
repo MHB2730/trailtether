@@ -8,6 +8,21 @@ aliases:
 
 # 🗒️ Version History
 
+## 2026-05-30 — Account self-service, shop add-to-cart, Play prep & publish fix
+Web + backend session (no app version bump; the in-app delete lands with the next Android publish).
+
+**User account self-service** — new **hilltrek.co.za/account** portal: change password, newsletter/notification prefs, and POPIA account deletion. Backed by 3 new `authenticated`-only SECURITY DEFINER RPCs (`account_prefs` / `account_set_newsletter` / `account_set_notifications`) + the **`account-delete`** edge function (verify_jwt, confirm-own-email → full erasure across every personal-data table + the user's storage; deliberately spares site/CMS content). In-app **Delete account** added to the [[TTProfileScreen]] DANGER ZONE → calls `account-delete`. Satisfies Play's discoverable-delete requirement.
+
+**Shop** — rebuilt `/merch/` as real **add-to-cart** (it had been reverted to mailto when a stale repo copy overwrote the live page — see [[Troubleshooting & Fixes]]). Slugs + prices aligned 1:1 to [[site_products]] so [[place_order]] resolves every item; shipping confirmed **R99** (the live [[site_settings]] value — earlier R150 text was my error, reverted). Added **Returns & Refunds** + **Shipping** policy pages, wired Returns / Shipping / Your-account into the footer site-wide, and added a "Delete your account" clause to the Privacy Policy. Cart + checkout got the footer links + a 5-min shipping-rate cache.
+
+**Security posture confirmed** — RLS on all 44 tables, `is_admin()`-gated definers, and the **payment-webhook `verify_jwt` question is resolved**: webhooks are `verify_jwt=false` + signature-validated, checkout/admin stay `true`. Assessed Supabase-vs-GCP — a migration would not improve security and the cutover is the bigger risk. Still open: enable Auth leaked-password protection; `citext`/`pg_net` in `public` (cosmetic WARN, left as-is — unsafe to move on the live newsletter). See [[Open Follow-Ups]].
+
+**Play Store prep** — no code blockers (build with `--flavor playStore`, NOT `sideload`; the `REQUEST_INSTALL_PACKAGES` "blocker" was a false alarm — present only in the sideload source set). Copy-ready **Data Safety** answer sheet written to `trailtether_app/PLAY_DATA_SAFETY.md`.
+
+**Fixed** — admin **Publish → HTTP 403** on every file (stale cPanel API token; regenerated with no expiry/IP-lock + updated the `CPANEL_API_TOKEN` secret).
+
+**Decision** — Supabase → Google Cloud direction set: **Cloud SQL + Google managed services**, driven by control / avoiding lock-in. Phased plan TBD.
+
 ## v4.0.0+62 — Cleanup, Hardening & On-Device Verification
 Pre-release pass; app built + launched + smoke-verified on a physical Samsung S24 (Android 16) via `flutter run --flavor sideload`.
 
