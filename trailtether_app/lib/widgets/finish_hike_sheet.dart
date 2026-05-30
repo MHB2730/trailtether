@@ -302,7 +302,11 @@ class _FinishHikeSheetState extends State<FinishHikeSheet> {
                       ctx,
                       rec,
                       peaks: _peaks,
-                      teamId: _teamId,
+                      // Attribute to a team ONLY when the context is explicitly
+                      // "team". A stale team pick (chosen then switched back to
+                      // personal/training) must never push an individual hike
+                      // onto the Teams tab.
+                      teamId: _contextStr == 'team' ? _teamId : null,
                     );
                     rec.clear();
                     if (!mounted) return;

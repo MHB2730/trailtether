@@ -24,6 +24,7 @@ import '../models/trail.dart';
 import '../providers/recording_provider.dart';
 import '../providers/static_data_provider.dart';
 import '../providers/units_provider.dart';
+import '../providers/heart_rate_provider.dart';
 import '../services/offline_map_service.dart';
 import '../widgets/design/tt_app_bar.dart';
 import '../widgets/design/tt_glass_card.dart';
@@ -1791,6 +1792,68 @@ class _SheetHandle extends StatelessWidget {
 
 // ───────────────────────── RECORDING PANEL ───────────────────────────────────
 
+// Slim live heart-rate readout for the recording panel — shown only when a BLE
+// HR sensor (watch broadcast or chest strap) is connected. avg/max come from
+// the per-point HR stamped onto the recorded track.
+class _MapHrStrip extends StatelessWidget {
+  final int? bpm;
+  final bool live;
+  final int? battery;
+  final int? avg;
+  final int? max;
+  const _MapHrStrip(
+      {this.bpm, required this.live, this.battery, this.avg, this.max});
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = [
+      if (avg != null) 'avg $avg',
+      if (max != null) 'max $max',
+      if (battery != null) 'batt $battery%',
+    ].join('  ·  ');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xCC131820),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: TT.line2),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.favorite, size: 18, color: live ? TT.red : TT.text2),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('HEART RATE', style: TT.label()),
+              if (sub.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(sub, style: TT.body(size: 11, color: TT.text2)),
+                ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            live ? '$bpm' : '--',
+            style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: TT.text,
+                height: 1.0),
+          ),
+          const SizedBox(width: 5),
+          Padding(
+            padding: const EdgeInsets.only(top: 7),
+            child: Text('BPM', style: TT.label()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _RecordingPanel extends StatelessWidget {
   final AnimationController entryCtl;
   final ScrollController scrollCtl;
@@ -1883,6 +1946,21 @@ class _RecordingPanel extends StatelessWidget {
                 recording: recording,
                 useMiles: useMiles,
                 formatDistValueOnly: formatDistValueOnly,
+              ),
+              // Live heart rate — only when a BLE HR sensor is connected.
+              Consumer<HeartRateProvider>(
+                builder: (_, hr, __) => hr.isConnected
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: _MapHrStrip(
+                          bpm: hr.bpm,
+                          live: !hr.isStale && hr.bpm != null,
+                          avg: recording.avgHr,
+                          max: recording.maxHr,
+                          battery: hr.battery,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
               const SizedBox(height: 12),
               // Mini elevation chart card (only when we have data).
