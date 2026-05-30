@@ -35,6 +35,16 @@
     <!-- ── Vibration (SOS haptic feedback) ──────────────────────────── -->
     <uses-permission android:name="android.permission.VIBRATE"/>
 
+    <!-- ── Bluetooth LE (live heart rate from the watch's HR broadcast) ── -->
+    <!-- Android ≤ 11 used the legacy BLUETOOTH perms + fine location to scan. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
+    <!-- Android 12+ split BLE perms out. neverForLocation = we don't derive
+         location from BLE scans, so this avoids the location-permission tie-in. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false"/>
+
 
     <application
         android:label="Trailtether"

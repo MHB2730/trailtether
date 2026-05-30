@@ -81,6 +81,11 @@ dependencies:
   flutter_background_service: ^5.1.0
   health: 12.2.0
 
+  # Heart-rate over BLE — connects to the Garmin watch's standard heart-rate
+  # broadcast (GATT service 0x180D / characteristic 0x2A37) for live BPM and a
+  # real connected/disconnected state. Also reads any BLE chest strap.
+  flutter_blue_plus: ^1.32.0
+
   # Self-hosted updates: read current build version + sideload-install new APKs.
   package_info_plus: ^8.0.2
   open_filex: ^4.5.0

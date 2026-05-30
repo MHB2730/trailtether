@@ -25,6 +25,7 @@ import '../providers/auth_provider.dart' as ap;
 import '../providers/hike_history_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/units_provider.dart';
+import '../providers/heart_rate_provider.dart';
 import '../services/auth_service.dart';
 import '../widgets/design/tt_achievement_medallion.dart';
 import '../widgets/design/tt_ambient.dart';
@@ -626,6 +627,7 @@ class _TTProfileScreenState extends State<TTProfileScreen>
   @override
   Widget build(BuildContext context) {
     final units = context.watch<UnitsProvider>();
+    final hr = context.watch<HeartRateProvider>();
     final unitsLabel = units.isImperial ? 'Imperial' : 'Metric';
     final unitsSub =
         units.isImperial ? 'Imperial · ft / mi / °F' : 'Metric · m / km / °C';
@@ -694,7 +696,9 @@ class _TTProfileScreenState extends State<TTProfileScreen>
                           label: _watchDevices.isEmpty
                               ? 'Pair Garmin watch'
                               : 'Garmin watch',
-                          sub: _watchTileSub(),
+                          sub: (hr.isConnected && hr.bpm != null && !hr.isStale)
+                              ? '♥ ${hr.bpm} bpm · live'
+                              : _watchTileSub(),
                           trailing: _SettingTrailing.chevron(),
                           onTap: () async {
                             await _pushScreenAwait(const PairWatchScreen());

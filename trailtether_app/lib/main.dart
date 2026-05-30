@@ -29,6 +29,7 @@ import 'providers/recorded_trails_provider.dart';
 import 'providers/units_provider.dart';
 import 'providers/weather_provider.dart';
 import 'providers/team_tracking_provider.dart';
+import 'providers/heart_rate_provider.dart';
 import 'screens/auth_gate.dart';
 import 'widgets/update_banner.dart';
 import 'services/telemetry_service.dart';
@@ -131,6 +132,9 @@ class TrailtetherRoot extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
         ChangeNotifierProvider(create: (_) => WeatherProvider()),
+        // Live heart rate over BLE (Garmin broadcast / chest strap). init()
+        // listens for the adapter + silently reconnects the saved sensor.
+        ChangeNotifierProvider(create: (_) => HeartRateProvider()..init()),
         ChangeNotifierProxyProvider2<RecordingProvider, TeamProvider,
             TeamTrackingProvider>(
           create: (context) => TeamTrackingProvider(),

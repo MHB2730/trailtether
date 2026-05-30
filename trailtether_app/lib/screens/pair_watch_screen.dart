@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../core/design_tokens.dart';
+import '../providers/heart_rate_provider.dart';
 import '../services/watch_service.dart';
 
 /// Issues a pairing token for the Garmin Instinct companion app. The user pastes
@@ -50,9 +54,13 @@ class _PairWatchScreenState extends State<PairWatchScreen> {
       body: ListView(
         padding: const EdgeInsets.all(TT.s4),
         children: [
+          const _LiveHeartRateCard(),
+          const SizedBox(height: TT.s5),
+          const Divider(color: TT.line2, height: 1),
+          const SizedBox(height: TT.s5),
           const Icon(Icons.watch_outlined, color: TT.ember, size: 40),
           const SizedBox(height: TT.s3),
-          Text('Connect your Instinct', style: TT.title(22)),
+          Text('Sync hikes from your Instinct', style: TT.title(22)),
           const SizedBox(height: TT.s2),
           Text(
             'Generate a one-time token, then paste it into the Trailtether watch '
@@ -145,6 +153,283 @@ class _PairWatchScreenState extends State<PairWatchScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+// ───────────────────────── Live heart rate (BLE) ─────────────────────────
+
+const Color _liveGreen = Color(0xFF4CC38A);
+
+/// Connection + live BPM card for a BLE heart-rate broadcaster. Reads the
+/// [HeartRateProvider]; the BLE link is the connected/disconnected source.
+class _LiveHeartRateCard extends StatelessWidget {
+  const _LiveHeartRateCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final hr = context.watch<HeartRateProvider>();
+    final connected = hr.isConnected;
+    final live = connected && !hr.isStale && hr.bpm != null;
+
+    return Container(
+      padding: const EdgeInsets.all(TT.s4),
+      decoration: BoxDecoration(
+        color: TT.surf,
+        borderRadius: BorderRadius.circular(TT.rLg),
+        border:
+            Border.all(color: connected ? TT.ember.withOpacity(0.4) : TT.line2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.favorite, color: live ? TT.ember : TT.text2, size: 18),
+              const SizedBox(width: TT.s2),
+              Text('LIVE HEART RATE', style: TT.label()),
+              const Spacer(),
+              _chip(hr),
+            ],
+          ),
+          const SizedBox(height: TT.s3),
+          if (connected)
+            ..._connectedBody(context, hr, live)
+          else
+            ..._idleBody(context, hr),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _connectedBody(
+      BuildContext context, HeartRateProvider hr, bool live) {
+    return [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Text(
+            live ? '${hr.bpm}' : '--',
+            style: const TextStyle(
+                fontSize: 54,
+                height: 1.0,
+                fontWeight: FontWeight.w800,
+                color: TT.ember),
+          ),
+          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('BPM', style: TT.label()),
+          ),
+        ],
+      ),
+      const SizedBox(height: TT.s2),
+      Text(
+        [
+          hr.deviceName ?? 'HR sensor',
+          if (hr.battery != null) 'battery ${hr.battery}%',
+          if (!live) 'waiting for signal…',
+        ].join('  ·  '),
+        style: TT.body(size: 12, color: TT.text2),
+      ),
+      const SizedBox(height: TT.s3),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => context.read<HeartRateProvider>().disconnect(),
+          icon: const Icon(Icons.bluetooth_disabled, size: 16),
+          label: const Text('Disconnect'),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _idleBody(BuildContext context, HeartRateProvider hr) {
+    final isError = hr.status == HrStatus.error;
+    return [
+      Text(
+        hr.error ??
+            (hr.hasSavedDevice
+                ? 'Saved: ${hr.deviceName}. Tap to reconnect.'
+                : 'Put your watch in Broadcast Heart Rate mode (or use a chest strap) to see live BPM here.'),
+        style: TT.body(size: 13, color: isError ? TT.red : TT.text2),
+      ),
+      const SizedBox(height: TT.s3),
+      Wrap(
+        spacing: TT.s2,
+        runSpacing: TT.s2,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          FilledButton.icon(
+            onPressed: hr.isBusy
+                ? null
+                : () {
+                    if (hr.hasSavedDevice) {
+                      context.read<HeartRateProvider>().reconnect();
+                    } else {
+                      _showHrScanSheet(context);
+                    }
+                  },
+            icon: hr.isBusy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(
+                    hr.hasSavedDevice
+                        ? Icons.bluetooth_connected
+                        : Icons.bluetooth_searching,
+                    size: 18),
+            label: Text(_primaryLabel(hr)),
+          ),
+          if (hr.hasSavedDevice && !hr.isBusy)
+            TextButton(
+              onPressed: () => context.read<HeartRateProvider>().forget(),
+              child: const Text('Forget'),
+            ),
+          if (!hr.hasSavedDevice && !hr.isBusy && isError)
+            TextButton(
+              onPressed: () => _showHrScanSheet(context),
+              child: const Text('Scan'),
+            ),
+        ],
+      ),
+    ];
+  }
+
+  String _primaryLabel(HeartRateProvider hr) {
+    if (hr.status == HrStatus.connecting) return 'Connecting…';
+    if (hr.status == HrStatus.scanning) return 'Scanning…';
+    if (hr.hasSavedDevice) return 'Reconnect';
+    return 'Connect a sensor';
+  }
+
+  Widget _chip(HeartRateProvider hr) {
+    Color c;
+    String t;
+    switch (hr.status) {
+      case HrStatus.connected:
+        c = hr.isStale ? TT.text2 : _liveGreen;
+        t = hr.isStale ? 'No signal' : 'Connected';
+        break;
+      case HrStatus.connecting:
+        c = TT.ember;
+        t = 'Connecting';
+        break;
+      case HrStatus.scanning:
+        c = TT.ember;
+        t = 'Scanning';
+        break;
+      case HrStatus.off:
+        c = TT.text2;
+        t = 'Bluetooth off';
+        break;
+      case HrStatus.error:
+        c = TT.red;
+        t = 'Disconnected';
+        break;
+      case HrStatus.idle:
+        c = TT.text2;
+        t = 'Not connected';
+        break;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(t, style: TT.mono(size: 11, color: c)),
+      ],
+    );
+  }
+}
+
+Future<void> _showHrScanSheet(BuildContext context) async {
+  final hr = context.read<HeartRateProvider>();
+  unawaited(hr.startScan());
+  await showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: TT.surf,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+    builder: (_) => const _HrScanSheet(),
+  );
+  await hr.stopScan();
+}
+
+class _HrScanSheet extends StatelessWidget {
+  const _HrScanSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final hr = context.watch<HeartRateProvider>();
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(TT.s4, TT.s4, TT.s4, TT.s5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Heart-rate sensors', style: TT.title(18)),
+                const Spacer(),
+                if (hr.status == HrStatus.scanning)
+                  const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: TT.ember)),
+              ],
+            ),
+            const SizedBox(height: TT.s2),
+            Text(
+              'On the watch: Broadcast Heart Rate → start. Then pick it below.',
+              style: TT.body(size: 12.5, color: TT.text2),
+            ),
+            const SizedBox(height: TT.s3),
+            if (hr.found.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: TT.s5),
+                child: Center(
+                  child: Text(
+                    hr.status == HrStatus.scanning
+                        ? 'Searching…'
+                        : 'Nothing found yet.',
+                    style: TT.body(size: 13, color: TT.text2),
+                  ),
+                ),
+              ),
+            for (final d in hr.found)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.favorite_border, color: TT.ember),
+                title:
+                    Text(d.name, style: TT.body(size: 14, w: FontWeight.w600)),
+                subtitle: Text('Signal ${d.rssi} dBm',
+                    style: TT.body(size: 11.5, color: TT.text2)),
+                trailing: const Icon(Icons.chevron_right, color: TT.text2),
+                onTap: () {
+                  context.read<HeartRateProvider>().connectTo(d);
+                  Navigator.of(context).pop();
+                },
+              ),
+            const SizedBox(height: TT.s2),
+            TextButton.icon(
+              onPressed: hr.status == HrStatus.scanning
+                  ? null
+                  : () => context.read<HeartRateProvider>().startScan(),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Scan again'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
