@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Reset your password — Trailtether</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07090c; --surf:#0f1318; --surf2:#131820; --line:rgba(255,255,255,0.08);
+    --text:#eef1f4; --text2:#98a1ac; --text3:#5a6470;
+    --ember:#ff6a2c; --ember2:#ff8a4d; --emberink:#1a0d04;
+    --green:#4cc38a; --red:#e63d2e;
+    --font:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#070a0d;background-image:radial-gradient(120% 120% at 50% 0%,#11161d 0%,#0a0d12 55%,#06080b 100%);min-height:100%}
+  body{font-family:var(--font);color:var(--text);-webkit-font-smoothing:antialiased;display:grid;place-items:center;padding:24px}
+  .card{width:100%;max-width:440px;background:var(--surf);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 30px 80px -30px rgba(0,0,0,.7)}
+  .head{background:#1a0c04;background-image:linear-gradient(135deg,#1a0c04 0,#0f1318 100%);padding:24px 26px;border-bottom:1px solid rgba(255,106,44,.18);display:flex;align-items:center;gap:14px}
+  .head img{width:42px;height:42px;display:block}
+  .eyebrow{font:800 10.5px var(--mono);letter-spacing:.22em;color:var(--ember)}
+  .head h1{margin:3px 0 0;font:800 20px var(--font);color:var(--text)}
+  .body{padding:26px}
+  p{margin:0 0 14px;font:400 14px/1.55 var(--font);color:var(--text2)}
+  label{display:block;font:700 11px var(--mono);letter-spacing:.12em;color:var(--text3);margin:0 0 6px}
+  .field{margin:0 0 16px}
+  input[type=password]{width:100%;padding:13px 14px;border-radius:11px;border:1px solid var(--line);background:var(--surf2);color:var(--text);font:600 15px var(--font);outline:none}
+  input[type=password]:focus{border-color:var(--ember)}
+  button{width:100%;padding:14px;border:0;border-radius:999px;background:var(--ember);color:var(--emberink);font:800 14px var(--font);letter-spacing:.02em;cursor:pointer}
+  button:disabled{opacity:.55;cursor:default}
+  .msg{margin-top:14px;font:600 13px var(--font);min-height:18px}
+  .msg.err{color:var(--red)} .msg.ok{color:var(--green)}
+  .hide{display:none}
+  .center{text-align:center}
+  .spin{width:26px;height:26px;border:3px solid rgba(255,106,44,.25);border-top-color:var(--ember);border-radius:50%;animation:s .8s linear infinite;margin:8px auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+  a{color:var(--ember2);text-decoration:none;font-weight:700}
+  .foot{padding:14px 26px 20px;background:#0a0c0f;border-top:1px solid rgba(255,255,255,.05);font:400 11px var(--font);color:var(--text3)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <img src="https://hilltrek.co.za/assets/img/trailtether-logo.png" alt="Trailtether">
+      <div>
+        <div class="eyebrow">// TRAILTETHER · ACCOUNT</div>
+        <h1>Set a new password</h1>
+      </div>
+    </div>
+    <div class="body">
+      <!-- verifying -->
+      <div id="verifying">
+        <div class="spin"></div>
+        <p class="center">Checking your reset link…</p>
+      </div>
+
+      <!-- invalid / expired -->
+      <div id="invalid" class="hide">
+        <p>This reset link is invalid or has expired. Reset links work for one hour and can only be used once.</p>
+        <p>Open the Trailtether app (or the admin sign-in page) and request a new password reset.</p>
+      </div>
+
+      <!-- form -->
+      <form id="form" class="hide" autocomplete="off">
+        <p>Choose a new password for your Trailtether account. It applies everywhere you sign in — the app and the admin site.</p>
+        <div class="field">
+          <label for="pw">New password</label>
+          <input id="pw" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required>
+        </div>
+        <div class="field">
+          <label for="pw2">Confirm password</label>
+          <input id="pw2" type="password" autocomplete="new-password" placeholder="Re-enter password" required>
+        </div>
+        <button id="submit" type="submit">Save new password</button>
+        <div id="msg" class="msg"></div>
+      </form>
+
+      <!-- success -->
+      <div id="done" class="hide">
+        <p class="ok" style="font-weight:800">✓ Password updated.</p>
+        <p>You can now sign in with your new password — in the Trailtether app, or at
+           <a href="https://admin.hilltrek.co.za">admin.hilltrek.co.za</a>.</p>
+      </div>
+    </div>
+    <div class="foot">
+      Didn't request this? You can close this page — nothing changed.
+      Reach a human at <a href="mailto:info@hilltrek.co.za">info@hilltrek.co.za</a>.
+    </div>
+  </div>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm';
+
+  const SUPABASE_URL = 'https://xuqmdujupbmxahyhkdwl.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1cW1kdWp1cGJteGFoeWhrZHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzYyODYsImV4cCI6MjA5MjgxMjI4Nn0.aUfLfzgW25Ozsl9EMkDfmelBzxlCOWjGcatQQ-eh2Jo';
+
+  // detectSessionInUrl:false — we verify the token_hash manually below, which
+  // works cross-device (no PKCE code_verifier needed). persistSession:false so
+  // we don't leave a recovery session in localStorage after we're done.
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { detectSessionInUrl: false, persistSession: false, autoRefreshToken: false },
+  });
+
+  const $ = (id) => document.getElementById(id);
+  const show = (id) => { ['verifying','invalid','form','done'].forEach(x => $(x).classList.add('hide')); $(id).classList.remove('hide'); };
+
+  // The email link points here as:
+  //   /account/reset?token_hash=<hash>&type=recovery
+  // (or with the legacy ?code= / #access_token form — handled as fallbacks).
+  const params = new URLSearchParams(location.search);
+  const tokenHash = params.get('token_hash');
+  const type = params.get('type') || 'recovery';
+  const code = params.get('code');
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const accessToken = hash.get('access_token');
+
+  async function establishSession() {
+    if (tokenHash) {
+      const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+      return !error;
+    }
+    if (accessToken) {
+      // Implicit flow — session is already in the URL fragment.
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: hash.get('refresh_token') || '',
+      });
+      return !error;
+    }
+    if (code) {
+      // PKCE — only completes if this same browser started the reset.
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      return !error;
+    }
+    return false;
+  }
+
+  (async () => {
+    try {
+      const ok = await establishSession();
+      show(ok ? 'form' : 'invalid');
+    } catch (_) {
+      show('invalid');
+    }
+  })();
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pw = $('pw').value;
+    const pw2 = $('pw2').value;
+    const msg = $('msg');
+    msg.className = 'msg';
+    msg.textContent = '';
+    if (pw.length < 8) { msg.className = 'msg err'; msg.textContent = 'Password must be at least 8 characters.'; return; }
+    if (pw !== pw2) { msg.className = 'msg err'; msg.textContent = "Passwords don't match."; return; }
+    $('submit').disabled = true;
+    $('submit').textContent = 'Saving…';
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pw });
+      if (error) throw error;
+      await supabase.auth.signOut().catch(() => {});
+      show('done');
+    } catch (err) {
+      msg.className = 'msg err';
+      msg.textContent = (err && err.message) ? err.message : 'Could not update password. Try again.';
+      $('submit').disabled = false;
+      $('submit').textContent = 'Save new password';
+    }
+  });
+</script>
+</body>
+</html>
